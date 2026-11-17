@@ -264,7 +264,7 @@ function previewPlatformFetchV1(path: string, init: RequestInit): Response | und
       authenticated: true,
       identityKey: 'preview-sintetico-admin',
       expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-      capabilities: ['platform.settings.read', 'platform.settings.write'],
+      capabilities: ['platform.settings.read', 'platform.settings.write', 'area.painel-do-aluno'],
     });
   if (path === '/api/gradebook/operational-workspace') {
     const input = JSON.parse(scalarTextV1(init.body)) as {

@@ -2,6 +2,7 @@ import { photoFallbackHueV1 } from '../../../shared/student-photos/crop-v1';
 import { z } from 'zod';
 import type { RuntimeEnv } from '../../env';
 import { verifiedPagesContextV1 } from '../../student-portal/admin-client/pages-context-v1';
+import { PHOTO_AREAS_V1 } from '../photo-areas-v1';
 import { studentUidV1 } from '../../../shared/student-identity/student-identity-v1';
 import {
   photoWriteContextV1,
@@ -111,7 +112,7 @@ async function mayWriteV1(
   traceId: string,
   reader: { actorId: string; tenantId: string },
 ) {
-  const writeContext = await verifiedPagesContextV1(request, env, true, traceId);
+  const writeContext = await verifiedPagesContextV1(request, env, true, traceId, PHOTO_AREAS_V1);
   return (
     typeof writeContext !== 'string' &&
     writeContext.actorId.toLowerCase() === reader.actorId &&
@@ -126,7 +127,7 @@ async function requirePagesContextV1(
   write: boolean,
   traceId: string,
 ) {
-  const context = await verifiedPagesContextV1(request, env, write, traceId);
+  const context = await verifiedPagesContextV1(request, env, write, traceId, PHOTO_AREAS_V1);
   if (typeof context === 'string')
     throw new AccessDenied(context === 'unauthenticated' ? 401 : 403);
   return context;

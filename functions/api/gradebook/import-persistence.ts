@@ -129,7 +129,7 @@ async function handle(
   enforceOfficialOrigin(request, env);
   enforceWriteOrigin(request, env);
   const session = await requireAuth(request, env);
-  authorizeGradebookRuntimeV1(session);
+  authorizeGradebookRuntimeV1(session, ['importacao']);
   const { value: payload, bytes } = await readPayload(request);
   const inspection = inspectGradebookImportPersistenceRequestV9(payload);
   if (inspection !== 'ready') {

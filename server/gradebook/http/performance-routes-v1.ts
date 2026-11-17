@@ -10,7 +10,7 @@ import { performanceRequestSchemaV2 } from '../../../shared/gradebook-contracts/
 import { createRelationalPerformanceV2 } from '../application/read-models/performance/relational-performance-v2';
 import type { GradebookPostgresWritePortV1 } from '../persistence/postgres/postgres-database-v1';
 import type { PlatformCapability } from '../../../shared/platform-contract';
-import { capabilitiesForRoles, requireCapability } from '../../auth/capabilities';
+import { capabilitiesForSession } from '../../auth/capabilities';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -50,10 +50,9 @@ interface PerformanceRequestHandlerDependenciesV1 {
 const defaultDependencies: PerformanceRequestHandlerDependenciesV1 = {
   async authorizeRequest(request, env) {
     const session = await requireAuth(request, env);
-    const capabilities = capabilitiesForRoles(session.roles);
-    requireCapability(capabilities, 'platform.settings.read');
+    const capabilities = capabilitiesForSession(session);
     return {
-      runtimeAuthorization: authorizeGradebookRuntimeV1(session),
+      runtimeAuthorization: authorizeGradebookRuntimeV1(session, ['desempenho']),
       capabilities,
     };
   },

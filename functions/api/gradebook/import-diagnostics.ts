@@ -150,7 +150,7 @@ async function handle(
 ): Promise<Response> {
   enforceOfficialOrigin(request, env);
   const session = await requireAuth(request, env);
-  authorizeGradebookRuntimeV1(session);
+  authorizeGradebookRuntimeV1(session, ['importacao']);
   const database = env.GRADEBOOK_DATABASE as GradebookPostgresTransactionV1 | undefined;
   if (!database)
     return response(

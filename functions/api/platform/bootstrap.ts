@@ -1,7 +1,7 @@
 import type { RuntimeEnv } from '../../../server/env';
 import { requireAuth, AuthenticationError } from '../../../server/auth/session';
 import { AuthorizationError } from '../../../server/auth/roles';
-import { capabilitiesForRoles, requireCapability } from '../../../server/auth/capabilities';
+import { capabilitiesForSession, requireCapability } from '../../../server/auth/capabilities';
 import {
   enforceOfficialOrigin,
   HttpError,
@@ -16,7 +16,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
     enforceOfficialOrigin(context.request, context.env);
     if (context.request.method !== 'GET') throw new HttpError(405, 'Method not allowed');
     const session = await requireAuth(context.request, context.env);
-    const capabilities = capabilitiesForRoles(session.roles);
+    const capabilities = capabilitiesForSession(session);
     requireCapability(capabilities, 'platform.snapshot.read');
     return withSecurityHeaders(
       Response.json(buildPlatformSnapshot({ correlationId }, capabilities)),

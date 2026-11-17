@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PlatformSnapshotContract } from '../shared/platform-contract';
 import { STUDENT_PORTAL_MODULE } from '../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, normalizeSearch } from '../src/platform/search-model';
+import { notesModule } from '../src/platform/notes-module';
 
 const snapshot = {
   version: '1.0.0',
@@ -27,6 +28,7 @@ const snapshot = {
       requiredRole: 'ADMINISTRADOR',
       capabilities: ['platform.health.read'],
     },
+    notesModule,
   ],
 } satisfies PlatformSnapshotContract;
 

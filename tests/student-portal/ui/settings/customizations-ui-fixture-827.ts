@@ -102,6 +102,7 @@ export function customizationsUiFixture827(count = 1) {
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
         capabilities: [
           'platform.settings.read',
+          'area.painel-do-aluno',
           ...(state.write ? ['platform.settings.write'] : []),
         ],
       });

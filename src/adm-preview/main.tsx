@@ -156,10 +156,42 @@ function unansweredV1(path: string): Response {
   return json({ state: 'unavailable' }, 503);
 }
 
+/** Configurações › Acessos (#1513), in memory, with one synthetic person. */
+let previewGrantsV1: Array<{
+  email: string;
+  areas: string[];
+  updatedAt: string;
+  updatedBy: string;
+}> = [
+  {
+    email: 'bibliotecaria@escola.example',
+    areas: ['painel-do-aluno'],
+    updatedAt: '2026-11-17T12:00:00.000Z',
+    updatedBy: 'Administração sintética',
+  },
+];
+function previewAccessV1(init?: RequestInit): Response {
+  if (init?.method === 'PUT' && typeof init.body === 'string') {
+    const change = JSON.parse(init.body) as { email: string; areas: string[] };
+    const email = change.email.trim().toLowerCase();
+    previewGrantsV1 = previewGrantsV1.filter((grant) => grant.email !== email);
+    if (change.areas.length > 0)
+      previewGrantsV1.push({
+        email,
+        areas: change.areas,
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'Administração sintética',
+      });
+    previewGrantsV1.sort((a, b) => a.email.localeCompare(b.email));
+  }
+  return json({ contractVersion: 1, grants: previewGrantsV1 });
+}
+
 /** The synthetic answer for an API path, or null when this preview has none. */
 function answerV1(request: PreviewRequestV1): Promise<Response> | Response | null {
   const { input, init, path, search } = request;
   if (path === '/api/me') return json(identity);
+  if (path === '/api/platform/access') return previewAccessV1(init);
   // The platform summary and the Banco are answered by the local development backend.
   if (path === '/api/platform/bootstrap') return nativeFetch(input, init);
   if (path.startsWith('/api/student-portal/') || path.startsWith('/api/student-photos/'))

@@ -6,9 +6,9 @@ import {
 } from '../shared/platform-contract';
 import { capabilityGrantsByRole } from '../server/auth/capabilities';
 import { coreModuleSchema, coreModules } from '../server/platform/manifest';
-import { withNotesModule } from '../src/platform/notes-module';
+import { withNotesAccessV1 } from '../src/platform/notes-module';
 
-const navigableModules = withNotesModule(coreModules);
+const navigableModules = withNotesAccessV1(coreModules, capabilityGrantsByRole.ADMINISTRADOR);
 
 describe('Centro de Administração module contract', () => {
   it('declares one stable navigable module per platform route', () => {
@@ -50,9 +50,9 @@ describe('Centro de Administração module contract', () => {
     expect(states.get('banco-de-notas')).toBe('ready');
   });
 
-  it('gives the operational area an explicit read capability', () => {
+  it('gives the operational area its own area capability (#1513)', () => {
     const operation = coreModules.find((module) => module.route === 'operacao');
-    expect(operation?.capabilities).toContain('platform.health.read');
+    expect(operation?.capabilities).toEqual(['area.saude']);
   });
 
   it('restores known routes, accepts scoped hash query data and falls back safely', () => {

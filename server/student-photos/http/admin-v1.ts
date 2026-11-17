@@ -1,6 +1,7 @@
 import { ZodError } from 'zod';
 import type { RuntimeEnv } from '../../env';
 import { verifiedPagesContextV1 } from '../../student-portal/admin-client/pages-context-v1';
+import { PHOTO_AREAS_V1 } from '../photo-areas-v1';
 import { portalJsonV1 } from '../../student-portal/runtime/http-v1';
 import type { TrustedAdminContextV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { studentUidV1 } from '../../../shared/student-identity/student-identity-v1';
@@ -98,7 +99,7 @@ async function identity(
   traceId: string,
 ): Promise<TrustedAdminContextV1> {
   request.signal.throwIfAborted();
-  const context = await verifiedPagesContextV1(request, env, true, traceId);
+  const context = await verifiedPagesContextV1(request, env, true, traceId, PHOTO_AREAS_V1);
   if (typeof context === 'string') throw new AccessError(context);
   request.signal.throwIfAborted();
   return context;

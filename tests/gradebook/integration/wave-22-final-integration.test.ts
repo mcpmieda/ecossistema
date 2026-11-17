@@ -21,7 +21,7 @@ describe('integração final da onda 22 — bridges e checkpoint', () => {
     expect(platformSnapshot).not.toContain('PLATAFORMA_CONFIGURACOES');
     expect(settingsPage).toContain('<GradebookYearSelectV1 />');
     expect(settingsPage).toContain('<SessionDurationSetting />');
-    expect(performanceRoute).toContain("requireCapability(capabilities, 'platform.settings.read')");
+    expect(performanceRoute).toContain("authorizeGradebookRuntimeV1(session, ['desempenho'])");
     expect(comparisonPanel).toContain('não mede evolução pedagógica');
     expect(`${settingsPage}${comparisonPanel}`).not.toMatch(
       /localStorage|sessionStorage|indexedDB/u,

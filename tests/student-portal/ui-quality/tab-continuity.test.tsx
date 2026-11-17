@@ -26,7 +26,11 @@ const identity = (key = 'synthetic-tab-session', canWrite = false) => ({
   authenticated: true,
   identityKey: key,
   expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-  capabilities: ['platform.settings.read', ...(canWrite ? ['platform.settings.write'] : [])],
+  capabilities: [
+    'platform.settings.read',
+    'area.painel-do-aluno',
+    ...(canWrite ? ['platform.settings.write'] : []),
+  ],
 });
 
 it.each(['accounts', 'credentials', 'birth'])(

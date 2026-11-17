@@ -480,8 +480,7 @@ export function SystemHealthPageV1() {
   if (
     !identity?.authenticated ||
     !identity.identityKey ||
-    !identity.capabilities?.includes('platform.health.read') ||
-    !identity.capabilities.includes('platform.settings.read')
+    !identity.capabilities?.includes('area.saude')
   )
     return (
       <section>

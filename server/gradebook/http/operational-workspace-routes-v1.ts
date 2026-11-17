@@ -68,7 +68,7 @@ export async function handleOperationalWorkspaceRequestV1(
 
   try {
     const session = await requireAuth(request, env);
-    authorizeGradebookRuntimeV1(session);
+    authorizeGradebookRuntimeV1(session, ['desempenho', 'importacao', 'painel-do-aluno']);
   } catch (cause) {
     if (cause instanceof AuthenticationError) return notAuthorized(401);
     if (cause instanceof AuthorizationError) return notAuthorized(403);

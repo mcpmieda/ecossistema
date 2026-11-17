@@ -1,4 +1,4 @@
-import type { CoreModuleContract } from '../../shared/platform-contract';
+import type { CoreModuleContract, PlatformCapability } from '../../shared/platform-contract';
 import { platformHref } from './routes';
 
 export const notesModule: CoreModuleContract = {
@@ -8,7 +8,7 @@ export const notesModule: CoreModuleContract = {
   route: 'banco-de-notas',
   state: 'ready',
   requiredRole: 'ADMINISTRADOR',
-  capabilities: [],
+  capabilities: ['area.desempenho', 'area.importacao', 'gradebook.persistence.admin'],
 };
 
 type NotesSection = {
@@ -77,8 +77,26 @@ export const notesSections: NotesSection[] = [
   },
 ];
 
-export function withNotesModule(modules: CoreModuleContract[]): CoreModuleContract[] {
-  return modules.some((module) => module.route === notesModule.route)
-    ? modules
-    : [...modules, notesModule];
+/** The capability each section of the Banco de notas needs (#1513). */
+export function notesSectionCapabilityV1(sectionId: string): PlatformCapability {
+  if (sectionId === defaultNotesSectionId || sectionId === 'audit' || sectionId === 'onedrive')
+    return 'area.importacao';
+  return sectionId === 'settings' ? 'gradebook.persistence.admin' : 'area.desempenho';
+}
+
+/**
+ * The Banco de notas as this person may open it (#1513): its capabilities say which of its areas
+ * (Banco de notas, Importação) and whether its year settings show. Nothing without either area.
+ */
+export function withNotesAccessV1(
+  modules: CoreModuleContract[],
+  capabilities: readonly PlatformCapability[],
+): CoreModuleContract[] {
+  const existing = modules.filter((module) => module.route !== notesModule.route);
+  const granted = notesModule.capabilities.filter((capability) =>
+    capabilities.includes(capability),
+  );
+  return granted.some((capability) => capability.startsWith('area.'))
+    ? [...existing, { ...notesModule, capabilities: granted }]
+    : existing;
 }

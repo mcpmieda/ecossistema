@@ -483,7 +483,12 @@ function PortalWorkspace({
       scope: panelScope.scope,
       scopeLabel: panelScope.label,
       identityKey: identity.identityKey,
-      canWrite: identity.capabilities.includes('platform.settings.write'),
+      // The administrator writes; so does a person given the area (#1513). A settings reader
+      // without write is read-only.
+      canWrite:
+        identity.capabilities.includes('platform.settings.write') ||
+        (identity.capabilities.includes('area.painel-do-aluno') &&
+          !identity.capabilities.includes('platform.settings.read')),
       onAuthorizationLost: onLost,
     }),
     [clients, identity, onLost, panelScope],

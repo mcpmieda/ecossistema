@@ -1,5 +1,6 @@
 // @vitest-environment node
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { setAccessGrantsPortForTestsV1 } from '../../../server/auth/access-grants-v1';
 import { onRequest } from '../../../functions/[[path]]';
 import { seal } from '../../../server/auth/sealed';
 import { SESSION_COOKIE } from '../../../server/auth/session';
@@ -55,6 +56,9 @@ const origins = {
 } as const;
 type Role = 'ADMINISTRADOR' | 'PROFESSOR';
 const cookies = new Map<Role, string>();
+// The areas opened in Configurações › Acessos (#1513) are session data, not retired storage.
+beforeAll(() => setAccessGrantsPortForTestsV1(null));
+afterAll(() => setAccessGrantsPortForTestsV1(undefined));
 beforeAll(async () => {
   for (const role of ['ADMINISTRADOR', 'PROFESSOR'] as const) {
     const token = await seal(

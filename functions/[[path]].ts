@@ -6,6 +6,7 @@ import type { RuntimeEnv } from '../server/env';
 import { handleStudentReconciliationRequestV1 } from '../server/student-identity/reconciliation/http-v1';
 import { validateEnv } from '../server/env';
 import { handleSystemHealthRequestV1 } from '../server/platform/system-health-http-v1';
+import { handleAccessRequestV1 } from '../server/platform/access-http-v1';
 import { handlePublicDemoRequestV1 } from '../server/platform/public-demo-http-v1';
 import { servePortalAdminV1 } from '../server/student-portal/http/admin/handler-v1';
 import { portalJsonV1, portalFailureV1 } from '../server/student-portal/runtime/http-v1';
@@ -36,7 +37,7 @@ import {
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';
 import { rolesForGroups, AuthorizationError } from '../server/auth/roles';
-import { capabilitiesForRoles, requireCapability } from '../server/auth/capabilities';
+import { capabilitiesForSession, requireCapability } from '../server/auth/capabilities';
 import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
@@ -375,7 +376,7 @@ async function serveMeV1(request: Request, env: ValidEnvV1): Promise<Response> {
     expiresAt: new Date(session.exp * 1000).toISOString(),
     name: session.name,
     roles: session.roles,
-    capabilities: capabilitiesForRoles(session.roles),
+    capabilities: capabilitiesForSession(session),
   });
 }
 
@@ -387,7 +388,7 @@ async function serveSessionSettingsV1(
 ): Promise<Response> {
   method(request, ['GET', 'POST']);
   const currentSession = await requireAuth(request, env);
-  const capabilities = capabilitiesForRoles(currentSession.roles);
+  const capabilities = capabilitiesForSession(currentSession);
 
   if (request.method === 'GET') {
     requireCapability(capabilities, 'platform.settings.read');
@@ -443,6 +444,8 @@ async function routeServicesV1(
   if (healthResponse) return healthResponse;
   const demoResponse = await handlePublicDemoRequestV1(request, env);
   if (demoResponse) return demoResponse;
+  const accessResponse = await handleAccessRequestV1(request, env);
+  if (accessResponse) return accessResponse;
 
   if (url.pathname.startsWith('/api/student-portal/admin/')) {
     const binding = env.PORTAL_SERVICE as PortalAdminServiceBindingV1 | undefined;

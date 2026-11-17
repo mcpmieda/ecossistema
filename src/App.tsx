@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
 import {
+  mainNavigationAreasV1,
   ShellAreaNameV1,
   ShellSectionTabsV1,
   ShellSidebarV3,
@@ -36,6 +37,7 @@ import { PlatformSearch } from './platform/search';
 import { useDrawerSwipeV1 } from './platform/drawer-swipe-v1';
 import { useBackClosesOverlayV1 } from './platform/back-closes-overlay-v1';
 import { withStudentPortalModule } from './platform/student-portal-module';
+import { withNotesAccessV1 } from './platform/notes-module';
 import { usePlatformCheckedAtV2, usePlatformDataV2 } from './platform/platform-data-v2';
 import {
   usePlatformIdentityV1,
@@ -320,8 +322,8 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
       loadState.status === 'ready'
         ? {
             ...loadState.snapshot,
-            coreModules: withStudentPortalModule(
-              loadState.snapshot.coreModules,
+            coreModules: withNotesAccessV1(
+              withStudentPortalModule(loadState.snapshot.coreModules, identity.capabilities ?? []),
               identity.capabilities ?? [],
             ),
           }
@@ -405,6 +407,15 @@ function AdminShell({ identity }: Readonly<{ identity: Identity }>) {
     };
   }, [menuOpen]);
   const section = serviceSectionFromHashV2(route, hash);
+  // An address this person may not open (#1513) leads to the first area they may.
+  useEffect(() => {
+    if (!snapshot) return;
+    const areas = mainNavigationAreasV1(snapshot.coreModules, route, section);
+    const open = areas.find((area) => area.open);
+    const allowed =
+      open && (route !== 'banco-de-notas' || open.sections.some((item) => item.id === section));
+    if (!allowed && areas[0]) globalThis.location.replace(areas[0].href);
+  }, [snapshot, route, section]);
   const profileMenu = (
     <Dropdown>
       <Button

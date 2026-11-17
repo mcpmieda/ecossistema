@@ -1,6 +1,6 @@
 import type { RuntimeEnv } from '../env';
 import { readSession } from '../auth/session';
-import { capabilitiesForRoles } from '../auth/capabilities';
+import { capabilitiesForSession } from '../auth/capabilities';
 import { failureV1 } from '../../shared/student-portal-contracts/core-v1';
 import {
   RECONCILIATION_READ_OPERATIONS_V1,
@@ -33,6 +33,7 @@ export const ADMIN_OPERATION_ROUTES_V1: Readonly<Record<string, RouteV1>> = {
   '/api/me': { methods: ['GET'], operation: 'read' },
   '/api/platform/bootstrap': { methods: ['GET'], operation: 'read' },
   '/api/platform/settings/session': { methods: ['GET', 'POST'], operation: 'write' },
+  '/api/platform/access': { methods: ['GET', 'PUT'], operation: 'write', bodyBytes: 2048 },
   '/api/platform/system-health': { methods: ['POST'], operation: 'read' },
   '/api/platform/system-health/history': { methods: ['POST'], operation: 'read' },
   '/api/platform/system-health/signals': { methods: ['POST'], operation: 'read' },
@@ -265,7 +266,7 @@ function adminContextV1(
     tenantId: env.TENANT_ID,
     authenticatedAt: new Date().toISOString(),
     requestId: crypto.randomUUID(),
-    capability: capabilitiesForRoles(session.roles).includes('platform.settings.write')
+    capability: capabilitiesForSession(session).includes('platform.settings.write')
       ? 'platform.settings.write'
       : 'platform.settings.read',
   };

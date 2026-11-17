@@ -1,7 +1,7 @@
 import type { RuntimeEnv } from '../env';
 import { requireAuth, AuthenticationError, SESSION_COOKIE } from '../auth/session';
 import { AuthorizationError } from '../auth/roles';
-import { capabilitiesForRoles, requireCapability } from '../auth/capabilities';
+import { capabilitiesForSession, requireCapability } from '../auth/capabilities';
 import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
@@ -201,9 +201,8 @@ export async function handleSystemHealthRequestV1(
   try {
     guardedRequestV1(request, env);
     const session = await requireAuth(request, env),
-      capabilities = capabilitiesForRoles(session.roles);
-    requireCapability(capabilities, 'platform.health.read');
-    requireCapability(capabilities, 'platform.settings.read');
+      capabilities = capabilitiesForSession(session);
+    requireCapability(capabilities, 'area.saude');
     const body = await boundedBodyV1(request, history || signals);
     if (session.exp <= Math.floor(Date.now() / 1000)) throw new AuthenticationError();
     const context: TrustedAdminContextV1 = {

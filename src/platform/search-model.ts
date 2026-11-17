@@ -1,5 +1,5 @@
 import type { PlatformRoute, PlatformSnapshotContract } from '../../shared/platform-contract';
-import { notesModule, notesSections, withNotesModule } from './notes-module';
+import { notesModule, notesSectionCapabilityV1, notesSections } from './notes-module';
 import { platformHref } from './routes';
 import {
   studentPortalModule,
@@ -29,7 +29,7 @@ export function normalizeSearch(value: string): string {
 }
 
 export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSearchItem[] {
-  const core = withNotesModule(snapshot.coreModules).map((module) => ({
+  const core = snapshot.coreModules.map((module) => ({
     id: `core:${module.id}`,
     label: module.name,
     description: module.description,
@@ -45,21 +45,25 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     route: module.route,
   }));
 
-  const notes = notesSections.map((section) => ({
-    id: `notes:${section.id}`,
-    label: section.label,
-    description:
-      section.id === 'importacao'
-        ? section.description
-        : `${notesModule.name} · ${section.description}`,
-    category: section.id === 'importacao' ? ('Área' as const) : ('Seção' as const),
-    href: section.href,
-    searchText: normalizeSearch(
-      `${notesModule.name} ${notesModule.description} ${section.label} ${section.description} ${section.searchTerms}`,
-    ),
-    iconKind: 'route' as const,
-    route: notesModule.route,
-  }));
+  const notesAccess =
+    snapshot.coreModules.find((module) => module.route === notesModule.route)?.capabilities ?? [];
+  const notes = notesSections
+    .filter((section) => notesAccess.includes(notesSectionCapabilityV1(section.id)))
+    .map((section) => ({
+      id: `notes:${section.id}`,
+      label: section.label,
+      description:
+        section.id === 'importacao'
+          ? section.description
+          : `${notesModule.name} · ${section.description}`,
+      category: section.id === 'importacao' ? ('Área' as const) : ('Seção' as const),
+      href: section.href,
+      searchText: normalizeSearch(
+        `${notesModule.name} ${notesModule.description} ${section.label} ${section.description} ${section.searchTerms}`,
+      ),
+      iconKind: 'route' as const,
+      route: notesModule.route,
+    }));
 
   const portal = snapshot.coreModules.some((module) => module.route === 'painel-do-aluno')
     ? studentPortalSections.map((section) => ({
