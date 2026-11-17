@@ -247,9 +247,11 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   }
   private settings(): SyncSettingsV1 {
     // The reads at once are no longer a setting: the sync adjusts them (nextParallelV1).
+    // Only the switches: a stored field that no longer exists (the old wait) is left out.
+    const stored = this.meta<Partial<SyncSettingsV1>>('settings', {});
     return {
-      ...META_DEFAULTS_V1.settings,
-      ...this.meta<Partial<SyncSettingsV1>>('settings', {}),
+      enabled: stored.enabled ?? META_DEFAULTS_V1.settings.enabled,
+      paused: stored.paused ?? META_DEFAULTS_V1.settings.paused,
       maxParallel: this.parallel().limit,
     };
   }
@@ -396,12 +398,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'resume':
         this.setMeta('settings', { ...settings, paused: false });
         this.setMeta('breakerUntil', null);
-        break;
-      case 'set-wait':
-        this.setMeta('settings', {
-          ...settings,
-          waitSeconds: Math.min(Math.max(Math.round(command.seconds), 0), 600),
-        });
         break;
       case 'read-all': {
         // "Conferir tudo agora": every file is read again, whole, even unchanged ones; the result
@@ -662,7 +658,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
    * True when a source workbook was saved since last seen (a new date or new content).
    */
   private observe(items: readonly DriveWorkbookV1[], now: number): boolean {
-    const settings = this.settings();
     const sources = this.sources();
     let saved = false;
     for (const item of items) {
@@ -686,7 +681,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           deleted: item.deleted,
         },
         now,
-        settings,
       );
       const file = next ?? current;
       if (!file) continue;
@@ -858,7 +852,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const file = this.file(id);
     if (!file) return;
     const now = Date.now();
-    const finished = finishReadingV1(file, lease, result, now, this.settings().waitSeconds * 1000);
+    const finished = finishReadingV1(file, lease, result, now);
     if (!finished) return;
     this.saveFile(finished);
     const parallel = this.parallel();

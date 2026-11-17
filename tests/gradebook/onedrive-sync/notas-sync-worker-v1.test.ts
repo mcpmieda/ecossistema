@@ -26,7 +26,7 @@ type Env = Parameters<typeof handleNotificationV1>[1];
 
 function coordinatorMock() {
   const status = {
-    settings: { enabled: false, paused: false, waitSeconds: 0, maxParallel: 6 },
+    settings: { enabled: false, paused: false, maxParallel: 6 },
     activeYear: null,
     folders: [],
     breakerUntil: null,
@@ -152,7 +152,7 @@ describe('Notas OneDrive sync Worker', () => {
     expect(await handleAdminV1(env, admin, { action: 'drop' })).toMatchObject({
       state: 'invalid-request',
     });
-    expect(await handleAdminV1(env, admin, { action: 'set-wait', seconds: 9999 })).toMatchObject({
+    expect(await handleAdminV1(env, admin, { action: 'set-wait', seconds: 5 })).toMatchObject({
       state: 'invalid-request',
     });
     expect(await handleAdminV1(env, { id: '', name: '' }, { action: 'status' })).toMatchObject({

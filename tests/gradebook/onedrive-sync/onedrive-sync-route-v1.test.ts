@@ -21,7 +21,7 @@ const statusAnswer = {
   contractVersion: 1,
   state: 'status',
   status: {
-    settings: { enabled: false, paused: false, waitSeconds: 0, maxParallel: 6 },
+    settings: { enabled: false, paused: false, maxParallel: 6 },
     activeYear: null,
     folders: [],
     breakerUntil: null,
