@@ -38,7 +38,7 @@ async function councilSessionV1(
 ): Promise<CouncilSessionV1 | Response> {
   try {
     const session = await requireAuth(request, env);
-    authorizeGradebookRuntimeV1(session);
+    authorizeGradebookRuntimeV1(session, ['desempenho']);
     return session;
   } catch (cause) {
     if (cause instanceof AuthenticationError) return accessDenied(401);

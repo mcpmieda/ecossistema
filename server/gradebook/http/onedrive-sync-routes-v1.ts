@@ -55,7 +55,7 @@ export async function handleOneDriveSyncRequestV1(
   let actor: OneDriveSyncActorV1;
   try {
     const session = await requireAuth(request, env);
-    authorizeGradebookRuntimeV1(session);
+    authorizeGradebookRuntimeV1(session, ['importacao']);
     actor = { id: session.oid, name: session.name || session.username || session.oid };
   } catch (cause) {
     if (cause instanceof AuthenticationError) return failure('not-authorized', 401);

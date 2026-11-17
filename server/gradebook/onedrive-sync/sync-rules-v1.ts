@@ -425,3 +425,23 @@ export function nextWakeV1(
   if (breakerUntil !== null && breakerUntil > now) moments.push(breakerUntil);
   return moments.length === 0 ? null : Math.max(now, Math.min(...moments));
 }
+
+/**
+ * The Planilhas list (#1513): the notes that arrived last come first, by the date the row shows
+ * (notes arrived, otherwise last read); a sheet never read goes last, by name.
+ */
+export function filesByRecentArrivalV1<
+  T extends Pick<SyncFileV1, 'name' | 'lastReadAt' | 'lastAppliedAt'>,
+>(files: readonly T[], compareNames: (left: string, right: string) => number): T[] {
+  const shown = (file: T) => file.lastAppliedAt ?? file.lastReadAt ?? null;
+  return [...files].sort((left, right) => {
+    const a = shown(left),
+      b = shown(right);
+    if (a !== b) {
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return b - a;
+    }
+    return compareNames(left.name, right.name);
+  });
+}

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
-import { defaultNotesSectionId, notesSections, withNotesModule } from './notes-module';
+import { defaultNotesSectionId, notesSectionCapabilityV1, notesSections } from './notes-module';
 import { useSidebarHealthV1 } from './sidebar-health-v1';
 import { useSidebarPendingV1 } from './sidebar-reconciliation-v1';
 import { useAuditPendingV1 } from './audit-pending-v1';
@@ -129,9 +129,11 @@ export function mainNavigationAreasV1(
   route: PlatformRoute,
   section: string,
 ) {
-  return topOrderV2(withNotesModule(modules)).flatMap((module) => {
+  return topOrderV2(modules).flatMap((module) => {
     const common = { route: module.route, icon: routeIcons[module.route] };
-    if (module.route === 'banco-de-notas')
+    if (module.route === 'banco-de-notas') {
+      const allowed = (item: { id: string }) =>
+        module.capabilities.includes(notesSectionCapabilityV1(item.id));
       return [
         {
           ...common,
@@ -139,7 +141,7 @@ export function mainNavigationAreasV1(
           name: module.name,
           href: '#/banco-de-notas?area=performance',
           open: route === module.route && !IMPORT_AREA_SECTIONS_V1.has(section),
-          sections: serviceSectionsV2(module.route),
+          sections: serviceSectionsV2(module.route).filter(allowed),
         },
         {
           ...common,
@@ -148,9 +150,10 @@ export function mainNavigationAreasV1(
           icon: Upload,
           href: '#/banco-de-notas?area=importacao',
           open: route === module.route && IMPORT_AREA_SECTIONS_V1.has(section),
-          sections: importAreaSectionsV1(),
+          sections: importAreaSectionsV1().filter(allowed),
         },
-      ];
+      ].filter((area) => area.sections.length > 0);
+    }
     if (module.route === 'painel-do-aluno')
       return [
         {

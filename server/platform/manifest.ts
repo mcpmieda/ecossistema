@@ -29,7 +29,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     route: 'operacao',
     state: 'ready',
     requiredRole: 'ADMINISTRADOR',
-    capabilities: ['platform.health.read', 'platform.settings.read'],
+    capabilities: ['area.saude'],
   },
   {
     id: 'platform.settings',

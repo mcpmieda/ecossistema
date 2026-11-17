@@ -34,6 +34,7 @@ if (typeof window !== 'undefined') {
   if (opened === 'operacao') SystemHealthPage.preload();
 }
 import { formatDate, PageHeader } from './presentation';
+import { AccessGrantsSettingV1 } from './access-grants-setting-v1';
 
 type SessionPolicy = {
   version: 1;
@@ -244,7 +245,7 @@ function SettingsPage() {
         eyebrow="Governança"
         title="Configurações"
         titleInBar
-        description="Ano letivo e duração da sessão do Centro."
+        description="Ano letivo, duração da sessão e acessos do Centro."
       />
 
       <Card variant="default" className="mb-5 overflow-hidden">
@@ -259,6 +260,7 @@ function SettingsPage() {
       </Card>
 
       <SessionDurationSetting />
+      <AccessGrantsSettingV1 />
     </>
   );
 }

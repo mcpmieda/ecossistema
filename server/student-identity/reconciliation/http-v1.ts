@@ -16,6 +16,10 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import { verifiedPagesContextV1 } from '../../student-portal/admin-client/pages-context-v1';
+import type { AccessArea } from '../../../shared/platform-contract';
+
+/** The Conciliação is in the Painel do Aluno; the Relação import reaches it from Importação. */
+const RECONCILIATION_AREAS_V1: readonly AccessArea[] = ['painel-do-aluno', 'importacao'];
 import type { GradebookPostgresDatabaseV1 } from '../../gradebook/persistence/postgres/postgres-database-v1';
 import { StudentReconciliationServiceV1 } from './service-v1';
 
@@ -110,7 +114,13 @@ export async function handleStudentReconciliationRequestV1(
   enforceWriteOrigin(request, env);
   try {
     // Authenticate before consuming a potentially large report. Reads use the same ADM audience.
-    const readContext = await verifiedPagesContextV1(request, env, false, crypto.randomUUID());
+    const readContext = await verifiedPagesContextV1(
+      request,
+      env,
+      false,
+      crypto.randomUUID(),
+      RECONCILIATION_AREAS_V1,
+    );
     if (typeof readContext === 'string')
       return responseV1(
         { contractVersion: 1, state: 'not-authorized' },
@@ -123,7 +133,13 @@ export async function handleStudentReconciliationRequestV1(
     const input = parsed.data;
     const write = !RECONCILIATION_READ_OPERATIONS_V1.includes(input.operation);
     const context = write
-      ? await verifiedPagesContextV1(request, env, true, readContext.requestId)
+      ? await verifiedPagesContextV1(
+          request,
+          env,
+          true,
+          readContext.requestId,
+          RECONCILIATION_AREAS_V1,
+        )
       : readContext;
     if (typeof context === 'string')
       return responseV1({ contractVersion: 1, state: 'not-authorized' });

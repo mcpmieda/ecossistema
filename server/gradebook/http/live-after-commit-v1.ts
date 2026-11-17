@@ -1,7 +1,7 @@
 import type { Session } from '../../auth/session';
 import type { RuntimeEnv } from '../../env';
 import type { PortalAdminServiceBindingV1 } from '../../../shared/student-portal-contracts/ports-v1';
-import { authorizeGradebookRuntimeV1 } from '../authorization-v1';
+import { authorizeGradebookRuntimeV1, GRADEBOOK_READING_AREAS_V1 } from '../authorization-v1';
 
 export type GradebookAfterCommitV1 = (session: Session) => void;
 
@@ -13,7 +13,7 @@ export function gradebookAfterCommitV1(
 ): GradebookAfterCommitV1 {
   return (session) => {
     try {
-      authorizeGradebookRuntimeV1(session);
+      authorizeGradebookRuntimeV1(session, GRADEBOOK_READING_AREAS_V1);
       const binding = env.PORTAL_SERVICE as PortalAdminServiceBindingV1 | undefined;
       if (!binding?.drainLive) return;
       const context = {

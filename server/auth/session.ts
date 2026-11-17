@@ -1,6 +1,8 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
+import type { AccessArea } from '../../shared/platform-contract';
+import { accessAreasForV1 } from './access-grants-v1';
 import { capabilitiesForRoles } from './capabilities';
 import { readCookie } from './cookies';
 import type { Role } from './roles';
@@ -29,7 +31,11 @@ export const sessionSchema = z
     exp: z.number().int().positive(),
   })
   .strict();
-export type Session = z.infer<typeof sessionSchema> & { roles: Role[] };
+/** `areas` is read from the database on each request (#1513) and never sealed in the cookie. */
+export type Session = z.infer<typeof sessionSchema> & {
+  roles: Role[];
+  readonly areas?: readonly AccessArea[];
+};
 
 type SessionIdentity = Pick<Session, 'oid' | 'name' | 'username' | 'roles'> & {
   readonly sid?: string;
@@ -63,10 +69,15 @@ export function createApplicationSession(
   authenticatedAt = Math.floor(Date.now() / 1000),
 ): Session {
   const hours = cappedDurationHours(identity.roles, durationHours);
+  // The cookie schema is strict: what the database grants is never sealed into it.
+  const { oid, name, username, roles, sid } = identity;
   return {
-    ...identity,
+    oid,
+    name,
+    ...(username === undefined ? {} : { username }),
+    roles,
     // A new sign-in gets a new id; changing the length keeps it (the same session).
-    sid: identity.sid ?? newSessionIdV1(),
+    sid: sid ?? newSessionIdV1(),
     authenticatedAt,
     durationHours: hours,
     exp: authenticatedAt + hours * 60 * 60,
@@ -126,10 +137,21 @@ export async function readSession(request: Request, env: RuntimeEnv): Promise<Se
       : session.exp;
   if (exp <= Math.floor(Date.now() / 1000)) return null;
   if (session.sid !== undefined && (await isSessionRevokedV1(env, session.sid, exp))) return null;
+  // The administrator has every area; anyone else gets what was opened to them.
+  const areas = session.roles.includes('ADMINISTRADOR')
+    ? []
+    : await accessAreasForV1(env, session.username);
+  const granted = areas.length > 0 ? { areas: [...areas] } : {};
   if (exp !== session.exp)
-    return { ...session, exp, durationHours: WRITE_SESSION_MAX_HOURS, roles: [...session.roles] };
+    return {
+      ...session,
+      exp,
+      durationHours: WRITE_SESSION_MAX_HOURS,
+      roles: [...session.roles],
+      ...granted,
+    };
   // Do not expose the memoized roles object to a handler that could mutate it.
-  return { ...session, roles: [...session.roles] };
+  return { ...session, roles: [...session.roles], ...granted };
 }
 
 export async function requireAuth(request: Request, env: RuntimeEnv): Promise<Session> {

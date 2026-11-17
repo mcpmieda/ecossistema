@@ -115,7 +115,7 @@ export async function handleBulletinRequestV1(
   let session: Awaited<ReturnType<typeof requireAuth>>;
   try {
     session = await requireAuth(request, env);
-    authorizeGradebookRuntimeV1(session);
+    authorizeGradebookRuntimeV1(session, ['desempenho']);
   } catch (cause) {
     if (cause instanceof AuthenticationError) return accessDenied(401);
     if (cause instanceof AuthorizationError) return accessDenied(403);

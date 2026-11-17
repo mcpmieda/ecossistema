@@ -33,6 +33,7 @@ import {
   nextWakeV1,
   editPollUntilV1,
   safetyDeltaIntervalMsV1,
+  filesByRecentArrivalV1,
   observeFileV1,
   placeFileV1,
   pollWindowV1,
@@ -154,6 +155,8 @@ const sleepV1 = (ms: number) =>
     setTimeout(resolve, ms);
   });
 const EVENT_LIMIT = 500;
+/** The Histórico keeps at most EVENT_LIMIT changes and none older than this (#1513). */
+export const EVENT_MAX_AGE_MS_V1 = 30 * 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
 
 /**
@@ -237,8 +240,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       JSON.stringify(detail),
     );
     this.ctx.storage.sql.exec(
-      'DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ?',
+      'DELETE FROM events WHERE id <= (SELECT max(id) FROM events) - ? OR at < ?',
       EVENT_LIMIT,
+      Date.now() - EVENT_MAX_AGE_MS_V1,
     );
   }
   private settings(): SyncSettingsV1 {
@@ -518,23 +522,21 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       breakerUntil: this.meta<number | null>('breakerUntil', null),
       webhook: { active: subscription !== null, expiresAt: subscription?.expiresAt ?? null },
       lastDeltaAt: this.meta<number | null>('lastDeltaAt', null),
-      files: this.files()
-        .sort((a, b) => PT_BR_COLLATOR_V1.compare(a.name, b.name))
-        .map((file) => ({
-          id: file.id,
-          name: file.name,
-          size: file.size,
-          modifiedAt: file.modifiedAt,
-          state: file.state,
-          removed: file.removed,
-          lastOutcome: file.lastOutcome,
-          lastCode: file.lastCode,
-          lastReadAt: file.lastReadAt,
-          lastReadMs: file.lastReadMs,
-          lastSavedToWrittenMs: file.lastSavedToWrittenMs,
-          lastAppliedAt: file.lastAppliedAt ?? null,
-          ...(file.heldStudents ? { heldStudents: file.heldStudents } : {}),
-        })),
+      files: filesByRecentArrivalV1(this.files(), PT_BR_COLLATOR_V1.compare).map((file) => ({
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        modifiedAt: file.modifiedAt,
+        state: file.state,
+        removed: file.removed,
+        lastOutcome: file.lastOutcome,
+        lastCode: file.lastCode,
+        lastReadAt: file.lastReadAt,
+        lastReadMs: file.lastReadMs,
+        lastSavedToWrittenMs: file.lastSavedToWrittenMs,
+        lastAppliedAt: file.lastAppliedAt ?? null,
+        ...(file.heldStudents ? { heldStudents: file.heldStudents } : {}),
+      })),
       events: this.ctx.storage.sql
         .exec<{ at: number; kind: string; actor: string | null; detail: string }>(
           'SELECT at, kind, actor, detail FROM events ORDER BY id DESC LIMIT 50',

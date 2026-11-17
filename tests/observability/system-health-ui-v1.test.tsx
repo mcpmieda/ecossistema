@@ -39,7 +39,7 @@ const sample = (): SystemHealthSnapshotV1 => ({
 const identity = (key = 'synthetic-health-admin') => ({
   authenticated: true,
   identityKey: key,
-  capabilities: ['platform.health.read', 'platform.settings.read'],
+  capabilities: ['platform.health.read', 'platform.settings.read', 'area.saude'],
 });
 let readIdentity: ReturnType<typeof vi.fn<typeof fetch>>;
 let readHealth: ReturnType<typeof vi.fn<typeof fetch>>;
@@ -112,21 +112,18 @@ it('keeps absent data unknown while the first read is pending', async () => {
   expect(readHealth.mock.calls[0]![1]?.signal?.aborted).toBe(true);
 });
 
-it.each(['platform.health.read', 'platform.settings.read'])(
-  'does not read monitoring without %s',
-  async (capability) => {
-    readIdentity.mockResolvedValue(
-      Response.json({
-        ...identity(),
-        capabilities: identity().capabilities.filter((item) => item !== capability),
-      }),
-    );
-    render(<SystemHealthPageV1 />);
-    await flush();
-    expect(screen.getByRole('status').textContent).toBe('Acesso ao monitoramento não autorizado.');
-    expect(readHealth).not.toHaveBeenCalled();
-  },
-);
+it.each(['area.saude'])('does not read monitoring without %s', async (capability) => {
+  readIdentity.mockResolvedValue(
+    Response.json({
+      ...identity(),
+      capabilities: identity().capabilities.filter((item) => item !== capability),
+    }),
+  );
+  render(<SystemHealthPageV1 />);
+  await flush();
+  expect(screen.getByRole('status').textContent).toBe('Acesso ao monitoramento não autorizado.');
+  expect(readHealth).not.toHaveBeenCalled();
+});
 
 it('keeps a successful public sample visible when the private source is unavailable', async () => {
   readHealth.mockResolvedValue(

@@ -1,3 +1,4 @@
+import { ACCESS_AREA_IDS } from '../../../shared/platform-contract';
 import type { ViewPreferencesResponseV1 } from '../../../shared/gradebook-contracts/settings/view-preferences-v1';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
@@ -46,7 +47,7 @@ export async function handleViewPreferencesRequestV1(
   let actorId: string;
   try {
     const session = await requireAuth(request, env);
-    authorizeGradebookRuntimeV1(session);
+    authorizeGradebookRuntimeV1(session, ACCESS_AREA_IDS);
     actorId = session.oid;
   } catch (cause) {
     if (cause instanceof AuthenticationError) return failure('not-authorized', 401);

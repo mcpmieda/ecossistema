@@ -48,7 +48,7 @@ it('a failure in an area of the Painel keeps the Painel and its tabs (A14)', asy
         authenticated: true,
         identityKey: 'synthetic-boundary-session',
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-        capabilities: ['platform.settings.read'],
+        capabilities: ['platform.settings.read', 'area.painel-do-aluno'],
       });
     const input = JSON.parse(String(init.body));
     return opJsonV1(

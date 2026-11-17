@@ -56,7 +56,7 @@ export function withStudentPortalModule(
   capabilities: readonly PlatformCapability[],
 ) {
   const existing = modules.filter((module) => module.route !== 'painel-do-aluno');
-  return capabilities.includes('platform.settings.read')
+  return capabilities.includes('area.painel-do-aluno')
     ? [...existing, studentPortalModule]
     : existing;
 }

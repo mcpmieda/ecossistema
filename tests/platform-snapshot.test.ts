@@ -39,9 +39,12 @@ describe('platform snapshot', () => {
       'platform.snapshot.read',
       'platform.settings.read',
     ]);
-    expect(settings.coreModules.map((module) => module.route)).toEqual([
-      'painel-do-aluno',
-      'configuracoes',
+    expect(settings.coreModules.map((module) => module.route)).toEqual(['configuracoes']);
+    // #1513: a person given only the Painel do Aluno opens only that module.
+    const panel = buildPlatformSnapshot({ correlationId: 'snapshot-panel' }, [
+      'platform.snapshot.read',
+      'area.painel-do-aluno',
     ]);
+    expect(panel.coreModules.map((module) => module.route)).toEqual(['painel-do-aluno']);
   });
 });

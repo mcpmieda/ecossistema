@@ -219,7 +219,7 @@ it('F5 brings the Painel do Aluno back on the same area, class and open record',
         authenticated: true,
         identityKey: 'synthetic-f5-session',
         expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-        capabilities: ['platform.settings.read'],
+        capabilities: ['platform.settings.read', 'area.painel-do-aluno'],
       });
     const input = JSON.parse(String(init.body));
     if (path === '/api/student-reconciliation/v1')

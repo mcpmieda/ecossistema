@@ -8,6 +8,7 @@ import {
   serviceSectionsV2,
 } from '../src/platform/navigation';
 import { STUDENT_PORTAL_MODULE } from '../shared/platform-contract';
+import { notesModule } from '../src/platform/notes-module';
 import {
   portalSectionFromHash,
   withStudentPortalModule,
@@ -86,7 +87,7 @@ describe('independent main entries', () => {
       ['banco-de-notas', 'audit', 'Importação'],
       ['banco-de-notas', 'performance', 'Banco de notas'],
     ] as const) {
-      const areas = mainNavigationAreasV1([STUDENT_PORTAL_MODULE], route, section);
+      const areas = mainNavigationAreasV1([STUDENT_PORTAL_MODULE, notesModule], route, section);
       expect(areas.filter((area) => area.open).map((area) => area.name)).toEqual([expected]);
       expect(areas.find((area) => area.name === 'Conciliação')?.href).toBe(
         '#/painel-do-aluno?area=reconciliation',
@@ -97,7 +98,10 @@ describe('independent main entries', () => {
     }
   });
   it('inherits Portal visibility and does not add Conciliação for a restricted profile', () => {
-    const modules = withStudentPortalModule([STUDENT_PORTAL_MODULE], ['platform.snapshot.read']);
+    const modules = withStudentPortalModule(
+      [STUDENT_PORTAL_MODULE, notesModule],
+      ['platform.snapshot.read'],
+    );
     expect(
       mainNavigationAreasV1(modules, 'banco-de-notas', 'importacao').some(
         (area) => area.name === 'Conciliação',

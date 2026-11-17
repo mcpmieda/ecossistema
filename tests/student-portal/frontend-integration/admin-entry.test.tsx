@@ -27,7 +27,11 @@ const identity = (write = true, key = 'synthetic-757-session') => ({
   authenticated: true,
   identityKey: key,
   expiresAt: new Date(Date.now() + 3600_000).toISOString(),
-  capabilities: ['platform.settings.read', ...(write ? ['platform.settings.write'] : [])],
+  capabilities: [
+    'platform.settings.read',
+    'area.painel-do-aluno',
+    ...(write ? ['platform.settings.write'] : []),
+  ],
 });
 const originalAnimations = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
@@ -144,7 +148,10 @@ it('inherits exact capabilities and rechecks a new identity after protected hist
   await waitFor(() =>
     expect(hook.result.current.state).toMatchObject({
       state: 'ready',
-      identity: { identityKey: current.identityKey, capabilities: ['platform.settings.read'] },
+      identity: {
+        identityKey: current.identityKey,
+        capabilities: ['platform.settings.read', 'area.painel-do-aluno'],
+      },
     }),
   );
   expect(fetcher).toHaveBeenCalledTimes(2);
@@ -276,8 +283,8 @@ it('mounts actual operational modules, keeps 2026 independent of the BN hash and
   ).toBe(true);
 });
 it('registers one permission-filtered module and searches its sections without changing existing navigation', () => {
-  const modules = withStudentPortalModule([], ['platform.settings.read']);
-  expect(withStudentPortalModule(modules, ['platform.settings.read'])).toHaveLength(1);
+  const modules = withStudentPortalModule([], ['area.painel-do-aluno']);
+  expect(withStudentPortalModule(modules, ['area.painel-do-aluno'])).toHaveLength(1);
   expect(withStudentPortalModule(modules, [])).toHaveLength(0);
   const snapshot = {
     coreModules: modules,

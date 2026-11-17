@@ -73,7 +73,9 @@ async function queryBindingV1(
   if (!parsed.success) return 'invalid-request';
   const query = parsed.data;
   const elevated = ['audit-detail', 'links-preview', 'bulk-preview'].includes(query.operation);
-  const context = await verifiedPagesContextV1(request, env, elevated, requestId);
+  const context = await verifiedPagesContextV1(request, env, elevated, requestId, [
+    'painel-do-aluno',
+  ]);
   if (typeof context === 'string') return context;
   return {
     result: await binding.query(context, query),
@@ -91,7 +93,7 @@ async function commandBindingV1(
 ): Promise<AdminBindingResultV1 | FailureV1['state']> {
   const parsed = adminCommandV1.safeParse(body);
   if (!parsed.success) return 'invalid-request';
-  const context = await verifiedPagesContextV1(request, env, true, requestId);
+  const context = await verifiedPagesContextV1(request, env, true, requestId, ['painel-do-aluno']);
   if (typeof context === 'string') return context;
   return {
     result: await binding.command(context, parsed.data),
@@ -148,7 +150,9 @@ export async function servePortalAdminV1(
 
   try {
     // Check identity before consuming an untrusted stream or invoking the binding.
-    const first = await verifiedPagesContextV1(request, env, kind === 'command', requestId);
+    const first = await verifiedPagesContextV1(request, env, kind === 'command', requestId, [
+      'painel-do-aluno',
+    ]);
     if (typeof first === 'string') return failResponseV1(requestId, first);
     const body = await readBoundedJson(request, ADMIN_BODY_BYTES_V1);
     const call = await invokeBindingV1(kind, request, env, binding, requestId, body);

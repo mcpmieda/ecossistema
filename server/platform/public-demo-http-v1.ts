@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
 import { requireAuth, AuthenticationError } from '../auth/session';
 import { AuthorizationError } from '../auth/roles';
-import { capabilitiesForRoles, requireCapability } from '../auth/capabilities';
+import { capabilitiesForSession, requireCapability } from '../auth/capabilities';
 import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
@@ -44,7 +44,7 @@ export async function handlePublicDemoRequestV1(
     const body = await healthDeadlineV1(() => readBoundedJson(request, 256), 2000);
     const read = emptyBodyV1.safeParse(body).success;
     const capability = !read ? 'platform.settings.write' : 'platform.settings.read';
-    requireCapability(capabilitiesForRoles(session.roles), capability);
+    requireCapability(capabilitiesForSession(session), capability);
     const authority: PublicDemoAuthorityV1 = {
       actorId: session.oid,
       tenantId: env.TENANT_ID,

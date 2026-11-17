@@ -68,7 +68,7 @@ export function createImportDiagnosticTreatmentRequestHandlerV1() {
     let session: Awaited<ReturnType<typeof requireAuth>>;
     try {
       session = await requireAuth(request, env);
-      authorizeGradebookRuntimeV1(session);
+      authorizeGradebookRuntimeV1(session, ['importacao']);
     } catch (cause) {
       if (cause instanceof AuthenticationError) return failure('not-authorized', 401);
       if (cause instanceof AuthorizationError) return failure('not-authorized', 403);

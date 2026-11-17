@@ -68,9 +68,9 @@ async function readIdentityV1(fetcher: PortalFetchV1, signal: AbortSignal) {
   return identity;
 }
 
-/** The Painel needs the settings capability and a session still within its deadline. */
+/** The Painel needs its area (#1513) and a session still within its deadline. */
 function checkIdentityV1(identity: PortalAdminIdentityV1) {
-  if (!identity.capabilities.includes('platform.settings.read'))
+  if (!identity.capabilities.includes('area.painel-do-aluno'))
     throw new PortalClientErrorV1('forbidden', 403);
   if (Date.parse(identity.expiresAt) - Date.now() <= 0)
     throw new PortalClientErrorV1('unauthenticated', 401);

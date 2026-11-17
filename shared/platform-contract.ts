@@ -12,10 +12,29 @@ export const PLATFORM_CAPABILITIES = [
   'platform.settings.read',
   'platform.settings.write',
   'gradebook.persistence.admin',
+  'area.desempenho',
+  'area.importacao',
+  'area.painel-do-aluno',
+  'area.saude',
 ] as const;
 
 export type PlatformRoute = (typeof PLATFORM_ROUTES)[number];
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
+
+/**
+ * Areas of the Centro that an administrator may open to a person outside the admin group
+ * (#1513). Configurações, the gradebook's year settings, the Coletor and the public demo stay with
+ * ADMINISTRADOR only.
+ */
+export const ACCESS_AREAS = [
+  { id: 'desempenho', label: 'Banco de notas', detail: 'Desempenho, Boletins e Conselho' },
+  { id: 'importacao', label: 'Importação', detail: 'Importação, Auditoria e OneDrive' },
+  { id: 'painel-do-aluno', label: 'Painel do Aluno', detail: 'Painel do Aluno e Conciliação' },
+  { id: 'saude', label: 'Saúde', detail: 'Saúde do sistema' },
+] as const;
+export type AccessArea = (typeof ACCESS_AREAS)[number]['id'];
+export const ACCESS_AREA_IDS: readonly AccessArea[] = ACCESS_AREAS.map((area) => area.id);
+export const areaCapabilityV1 = (area: AccessArea): PlatformCapability => `area.${area}`;
 export type ModuleState = 'ready' | 'planned';
 
 export type CoreModuleContract = {
@@ -35,7 +54,7 @@ export const STUDENT_PORTAL_MODULE: CoreModuleContract = {
   route: 'painel-do-aluno',
   state: 'ready',
   requiredRole: 'ADMINISTRADOR',
-  capabilities: ['platform.settings.read'],
+  capabilities: ['area.painel-do-aluno'],
 };
 
 export type PlatformSnapshotContract = {
