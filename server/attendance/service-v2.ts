@@ -1853,6 +1853,16 @@ export function studentReportHashV2(
   const rows = input.rows.map(({ sourceRow: _position, ...row }) => canonicalFrequencyJsonV2(row));
   return frequencyPayloadHashV2(rows.sort(byCodeUnitV2));
 }
+/**
+ * The same hash over what the Conciliação reads: the rows without the enrolment form's data
+ * (coletor#91). A phone or an address changed in the Smecel changes the report's hash but not this
+ * one, and then the Conciliação has nothing to apply again.
+ */
+export function studentReportCoreHashV2(
+  input: Pick<FrequencyStudentReportV2, 'rows'>,
+): Promise<string> {
+  return studentReportHashV2({ rows: input.rows.map(({ profile: _form, ...row }) => row) });
+}
 /** Plain code-unit order (never the locale's): the stored hashes depend on it. */
 function byCodeUnitV2(a: string, b: string): number {
   if (a < b) return -1;
@@ -1899,7 +1909,7 @@ async function studentReportState(
     'observed-in-future',
   );
   const [state] = await tx.query<Row>(
-    `SELECT evidence_hash,last_observed_at::text,outcome,batch_id::text,notes_json FROM attendance.student_report_state_v2 WHERE academic_year=$1 FOR UPDATE`,
+    `SELECT evidence_hash,core_hash,last_observed_at::text,outcome,batch_id::text,notes_json FROM attendance.student_report_state_v2 WHERE academic_year=$1 FOR UPDATE`,
     [input.academicYear],
   );
   if (state && new Date(text(state.last_observed_at)) > new Date(input.observedAt))
@@ -1923,7 +1933,29 @@ function studentReportReply(
   };
 }
 /**
- * Same report as last time and nothing left to finish: only the dates (no heavy application).
+ * The enrolment form's data of each row (coletor#91), by the Smecel's enrolment hash: the last one
+ * received replaces the one kept, and a row whose data is the same is left untouched. A row missing
+ * from a later report deletes nothing, as in the Conciliação. Rows without a profile (the ADM's
+ * import, a Coletor from before it) write nothing.
+ */
+async function saveStudentReportProfiles(tx: Tx, input: FrequencyStudentReportV2): Promise<void> {
+  const profiles: Record<string, unknown> = {};
+  for (const row of input.rows) {
+    const enrollment = row.enrollmentHash.trim();
+    if (row.profile && enrollment) profiles[enrollment] = row.profile;
+  }
+  if (!Object.keys(profiles).length) return;
+  await tx.executeNative(
+    `INSERT INTO attendance.student_report_profile_v2(academic_year,enrollment_hash,profile_json,observed_at,received_at)
+    SELECT $1,p.key,p.value,$3::timestamptz,clock_timestamp() FROM jsonb_each($2::text::jsonb) p
+    ON CONFLICT(academic_year,enrollment_hash) DO UPDATE SET profile_json=EXCLUDED.profile_json,observed_at=EXCLUDED.observed_at,received_at=EXCLUDED.received_at
+      WHERE student_report_profile_v2.profile_json IS DISTINCT FROM EXCLUDED.profile_json`,
+    [input.academicYear, JSON.stringify(profiles), input.observedAt],
+  );
+}
+/**
+ * Same report as last time and nothing left to finish: only the dates (no heavy application). The
+ * same rows for the Conciliação with other enrolment form data: the profiles and the dates.
  * Anything else leaves through StudentReportPendingV2.
  */
 async function checkStudentReport(
@@ -1934,15 +1966,19 @@ async function checkStudentReport(
   const state = await studentReportState(tx, input, actor);
   const evidenceHash = await studentReportHashV2(input);
   const notes = state ? json<FrequencyStudentReportNotesV2>(state.notes_json) : null;
-  if (
-    state &&
-    notes &&
-    text(state.evidence_hash) === evidenceHash &&
-    ['applied', 'review'].includes(text(state.outcome))
-  ) {
+  const finished = state && notes && ['applied', 'review'].includes(text(state.outcome));
+  if (finished && text(state.evidence_hash) === evidenceHash) {
     await tx.executeNative(
       `UPDATE attendance.student_report_state_v2 SET last_observed_at=$2::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1`,
       [input.academicYear, input.observedAt],
+    );
+    return studentReportReply(false, text(state.outcome), notes, input.rows.length);
+  }
+  if (finished && state.core_hash === (await studentReportCoreHashV2(input))) {
+    await saveStudentReportProfiles(tx, input);
+    await tx.executeNative(
+      `UPDATE attendance.student_report_state_v2 SET evidence_hash=$3,last_observed_at=$2::timestamptz,last_received_at=clock_timestamp() WHERE academic_year=$1`,
+      [input.academicYear, input.observedAt, evidenceHash],
     );
     return studentReportReply(false, text(state.outcome), notes, input.rows.length);
   }
@@ -1993,10 +2029,11 @@ async function finishStudentReport(
   result: StudentReportOutcomeV2,
 ): Promise<Row> {
   await studentReportState(tx, input, actor);
+  await saveStudentReportProfiles(tx, input);
   await tx.executeNative(
-    `INSERT INTO attendance.student_report_state_v2(academic_year,evidence_hash,last_observed_at,last_received_at,last_changed_at,outcome,batch_id,rows,notes_json)
-    VALUES($1,$2,$3::timestamptz,clock_timestamp(),clock_timestamp(),$4,$5::uuid,$6,$7::text::jsonb)
-    ON CONFLICT(academic_year) DO UPDATE SET evidence_hash=EXCLUDED.evidence_hash,last_observed_at=EXCLUDED.last_observed_at,
+    `INSERT INTO attendance.student_report_state_v2(academic_year,evidence_hash,last_observed_at,last_received_at,last_changed_at,outcome,batch_id,rows,notes_json,core_hash)
+    VALUES($1,$2,$3::timestamptz,clock_timestamp(),clock_timestamp(),$4,$5::uuid,$6,$7::text::jsonb,$9)
+    ON CONFLICT(academic_year) DO UPDATE SET evidence_hash=EXCLUDED.evidence_hash,core_hash=EXCLUDED.core_hash,last_observed_at=EXCLUDED.last_observed_at,
       last_received_at=EXCLUDED.last_received_at,
       last_changed_at=CASE WHEN $8::integer::boolean THEN EXCLUDED.last_changed_at ELSE student_report_state_v2.last_changed_at END,
       outcome=EXCLUDED.outcome,batch_id=EXCLUDED.batch_id,rows=EXCLUDED.rows,notes_json=EXCLUDED.notes_json`,
@@ -2009,6 +2046,7 @@ async function finishStudentReport(
       input.rows.length,
       JSON.stringify(result.notes),
       result.changed ? 1 : 0,
+      await studentReportCoreHashV2(input),
     ],
   );
   return studentReportReply(result.changed, result.outcome, result.notes, input.rows.length);
@@ -2265,8 +2303,9 @@ export function createFrequencyServiceV2(database: GradebookPostgresDatabaseV1) 
   };
 }
 const yearlyTables = [
-  // The automatic student report's last reading (0015).
+  // The automatic student report's last reading (0015) and the enrolment form's data it brought (0027).
   'student_report_state_v2',
+  'student_report_profile_v2',
   // The Smecel "Ocorrências" (0014): the family's confirmations, the pointer rows, every version.
   'incident_ack_v2',
   'incident_state_v2',

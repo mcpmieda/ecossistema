@@ -16,6 +16,62 @@ const slots = z
   .max(6)
   .refine((v) => new Set(v).size === v.length);
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
+const profileText = z.string().min(1).max(300).nullable();
+const profileDigits = (shape: RegExp) => z.string().regex(shape).nullable();
+const profileFlag = z.boolean().nullable();
+/**
+ * The enrolment form's data of one row of the Smecel report (coletor#91), for the online
+ * re-enrolment: what the guardian checks, what the guardian may update and what only the printed
+ * form shows. The Coletor already normalized it: documents, CEP and phones as digits, SIM/NAO as a
+ * boolean, anything empty or out of its shape as null. Personal data (documents, address, phones,
+ * health): kept only in attendance.student_report_profile_v2, never in a receipt, a note, the
+ * Conciliação or a log.
+ */
+export const studentReportProfileV2 = z
+  .object({
+    sex: profileText,
+    nationality: profileText,
+    birthState: profileText,
+    birthCity: profileText,
+    cpf: profileDigits(/^\d{11}$/u),
+    filiation2: profileText,
+    filiation1Rg: profileText,
+    filiation2Rg: profileText,
+    rg: profileText,
+    rgIssuer: profileText,
+    rgIssuerState: profileText,
+    sus: profileDigits(/^\d{1,20}$/u),
+    race: profileText,
+    mobile: profileDigits(/^\d{1,20}$/u),
+    cep: profileDigits(/^\d{8}$/u),
+    address: profileText,
+    addressNumber: profileText,
+    addressComplement: profileText,
+    district: profileText,
+    city: profileText,
+    state: profileText,
+    filiation1Phone: profileDigits(/^\d{1,20}$/u),
+    filiation2Phone: profileDigits(/^\d{1,20}$/u),
+    guardianName: profileText,
+    /** 1 = Irmão/Irmã, 2 = Tio/Tia, 3 = Avô/Avó, 4 = Outro, as the Smecel's student form. */
+    guardianDegree: z.number().int().min(1).max(4).nullable(),
+    guardianCpf: profileDigits(/^\d{11}$/u),
+    schoolTransport: profileFlag,
+    allergy: profileFlag,
+    allergyDetail: profileText,
+    bolsaFamilia: profileFlag,
+    disability: profileFlag,
+    lowVision: profileFlag,
+    blindness: profileFlag,
+    hearingDisability: profileFlag,
+    physicalDisability: profileFlag,
+    intellectualDisability: profileFlag,
+    autism: profileFlag,
+  })
+  .strict();
+export type StudentReportProfileV2 = z.infer<typeof studentReportProfileV2>;
+/** A report row as the Coletor sends it: the Conciliação's row and, optionally, its profile. */
+const studentReportRowV2 = reportRowV1.extend({ profile: studentReportProfileV2.optional() });
 /** Zones already accepted, so a parse builds the Intl check once per zone. Only valid IANA names enter. */
 const VALID_ZONES_V2 = new Set<string>();
 export const frequencyScheduleV2 = z
@@ -369,8 +425,9 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
     .strict(),
   /**
    * The Smecel "Relatório de alunos": every row of the export, read by the Coletor in memory with
-   * the 11 fields the Conciliação uses. The server applies it with the
-   * Conciliação's own prepare/apply; an unchanged report only refreshes the dates.
+   * the 11 fields the Conciliação uses and, from the Coletor that asks for it (coletor#91), the
+   * enrolment form's data under `profile`. The server applies the rows with the Conciliação's own
+   * prepare/apply and keeps each profile apart; an unchanged report only refreshes the dates.
    */
   z
     .object({
@@ -379,7 +436,7 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
       sourceVersion,
       observedAt,
       rows: z
-        .array(reportRowV1)
+        .array(studentReportRowV2)
         .min(1)
         .max(REPORT_MAX_ROWS_V1)
         .refine((v) => new Set(v.map((r) => r.sourceRow)).size === v.length),

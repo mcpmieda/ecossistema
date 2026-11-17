@@ -38,6 +38,7 @@ export function frequencySyntheticSetupSqlV2(): string[] {
     readFileSync('migrations/attendance/0014_incidents_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0017_incident_link_evidence_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0015_student_report_v2.sql', 'utf8'),
+    readFileSync('migrations/attendance/0027_student_report_profile_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0019_preferred_collector_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0021_faster_evidence_pruning_v2.sql', 'utf8'),
     readFileSync('migrations/attendance/0023_evidence_pruning_join_order_v2.sql', 'utf8'),
@@ -48,7 +49,7 @@ export function frequencySyntheticSetupSqlV2(): string[] {
   ];
 }
 export const FREQUENCY_SYNTHETIC_SEED_SQL_V2 = `
-TRUNCATE attendance.school_state_v2,attendance.device_status_v2,attendance.class_state_v2,attendance.batch_v2,attendance.source_row_v2,attendance.coverage_v2,attendance.source_mark_v2,attendance.occurrence_v2,attendance.origin_v2,attendance.conflict_v2,attendance.correction_v2,attendance.receipt_v2,attendance.retired_request_v2,attendance.failure_v2,attendance.pruned_origin_v2,attendance.prune_run_v2,attendance.schedule_state_v2,attendance.schedule_version_v2,attendance.incident_ack_v2,attendance.incident_state_v2,attendance.incident_v2,attendance.incident_version_v2,attendance.student_report_state_v2;
+TRUNCATE attendance.school_state_v2,attendance.device_status_v2,attendance.class_state_v2,attendance.batch_v2,attendance.source_row_v2,attendance.coverage_v2,attendance.source_mark_v2,attendance.occurrence_v2,attendance.origin_v2,attendance.conflict_v2,attendance.correction_v2,attendance.receipt_v2,attendance.retired_request_v2,attendance.failure_v2,attendance.pruned_origin_v2,attendance.prune_run_v2,attendance.schedule_state_v2,attendance.schedule_version_v2,attendance.incident_ack_v2,attendance.incident_state_v2,attendance.incident_v2,attendance.incident_version_v2,attendance.student_report_state_v2,attendance.student_report_profile_v2;
 TRUNCATE gradebook.student_source_link_v1,gradebook.student_source_observation_v1,gradebook.student_source_record_v1,gradebook.student_report_class_v1,gradebook.student_reconciliation_scope_v1;
 DELETE FROM gradebook.vinculo;DELETE FROM gradebook.aluno;DELETE FROM gradebook.turma;DELETE FROM gradebook.ano_letivo;DELETE FROM gradebook.student_identity;
 TRUNCATE collector_auth.frequency_test_device,student_portal.frequency_test_coordination;
@@ -65,3 +66,46 @@ INSERT INTO gradebook.student_source_observation_v1(id,academic_year,source_id,r
 ('60000000-0000-4000-8000-000000000002',2026,'50000000-0000-4000-8000-000000000002','40000000-0000-4000-8000-000000000001','ALUNO SINTETICO DOIS','2014-02-01','2026-01-01');
 INSERT INTO gradebook.student_source_link_v1(source_id,academic_year,student_uid) VALUES('50000000-0000-4000-8000-000000000001',2026,'10000000-0000-4000-8000-000000000001'),('50000000-0000-4000-8000-000000000002',2026,'10000000-0000-4000-8000-000000000002');
 INSERT INTO collector_auth.frequency_test_device(device_id,tenant_id,actor_id) VALUES('30000000-0000-4000-8000-000000000001','90000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001'),('30000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000001');`;
+/**
+ * The enrolment form's data of a synthetic row (coletor#91), as the Coletor sends it. The Coletor
+ * pins the report's hash on these same values (tests/test_student_report.py, PROFILE_SENT).
+ */
+export const STUDENT_REPORT_PROFILE_SYNTHETIC_V2 = {
+  sex: 'FEMININO',
+  nationality: 'BRASILEIRA',
+  birthState: 'BA',
+  birthCity: 'CIDADE SINTETICA',
+  cpf: '01234567890',
+  filiation2: 'PAI SINTETICO',
+  filiation1Rg: '1234567890',
+  filiation2Rg: null,
+  rg: '12.345.678-90',
+  rgIssuer: 'SSP',
+  rgIssuerState: 'BA',
+  sus: '700000000000001',
+  race: 'PARDA',
+  mobile: '73999990000',
+  cep: '05990000',
+  address: 'RUA SINTETICA',
+  addressNumber: '120',
+  addressComplement: null,
+  district: 'CENTRO',
+  city: 'CIDADE SINTETICA',
+  state: 'BA',
+  filiation1Phone: '73999990001',
+  filiation2Phone: null,
+  guardianName: 'AVO SINTETICA',
+  guardianDegree: 3,
+  guardianCpf: '00000000191',
+  schoolTransport: true,
+  allergy: false,
+  allergyDetail: null,
+  bolsaFamilia: true,
+  disability: false,
+  lowVision: false,
+  blindness: false,
+  hearingDisability: false,
+  physicalDisability: false,
+  intellectualDisability: false,
+  autism: false,
+} as const;

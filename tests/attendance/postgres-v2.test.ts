@@ -24,6 +24,7 @@ import type {
 import {
   frequencySyntheticSetupSqlV2,
   FREQUENCY_SYNTHETIC_SEED_SQL_V2,
+  STUDENT_REPORT_PROFILE_SYNTHETIC_V2,
 } from './synthetic-fixture-v2';
 import { recordFrequencyFailureV2 } from '../../server/attendance/failure-log-v2';
 import { frequencyContentHashV2 } from '../../shared/attendance-contracts/frequency-v2';
@@ -1353,6 +1354,125 @@ describe('frequency V2 private PostgreSQL service', () => {
     });
     await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
     expect((await status()).studentReport).toBeNull();
+  });
+  it("the student report's enrolment form data: kept by enrolment, replaced without the Conciliação when only it changes", async () => {
+    const profile = STUDENT_REPORT_PROFILE_SYNTHETIC_V2;
+    const row = (sourceRow: number, fields: Record<string, unknown> = {}) => ({
+      sourceRow,
+      name: 'ALUNA SINTETICA UM',
+      birthDate: 41640,
+      filiation1: 'MAE SINTETICA',
+      inep: 123456789012,
+      enrollmentHash: `hash-${sourceRow}`,
+      classLabel: '6A 2026 - MATUTINO',
+      shift: 'MATUTINO',
+      stageLabel: 'ENSINO FUNDAMENTAL DE 9 ANOS - 6º ANO',
+      status: 'MATRICULADO',
+      enrolledAt: 46023,
+      transferredAt: null,
+      ...fields,
+    });
+    const report = (rows: unknown[], observedAt: string) =>
+      ({
+        operation: 'student-report-collect',
+        academicYear: 2026,
+        requestId: id(),
+        fencingToken: token,
+        sourceVersion: `sha256:${'f'.repeat(64)}`,
+        observedAt,
+        rows,
+      }) as FrequencyStudentReportV2;
+    const kept = async () =>
+      (
+        await pg.query(
+          `SELECT enrollment_hash,profile_json,to_char(observed_at AT TIME ZONE 'UTC','YYYY-MM-DD') AS observed FROM attendance.student_report_profile_v2 WHERE academic_year=2026 ORDER BY enrollment_hash`,
+        )
+      ).rows.map((r) => [r.enrollment_hash, r.profile_json, r.observed]);
+    const notes = { counts: { rows: 2, linked: 2, pending: 0 }, differences: [], invalid: [] };
+    // A Coletor from before the form's data: the report is recorded and nothing is kept.
+    const plain = report([row(2), row(3)], '2026-01-10T12:00:00Z');
+    const first = (await service
+      .execute(plain, actor)
+      .catch((e: unknown) => e)) as StudentReportPendingV2;
+    await service.finishStudentReport(plain, actor, {
+      evidenceHash: first.evidenceHash,
+      outcome: 'applied',
+      batchId: id(),
+      notes,
+      changed: true,
+    });
+    expect(await kept()).toEqual([]);
+    // The same rows with the form's data: no application, the profiles kept, the hash now this one.
+    const filled = report([row(2, { profile }), row(3, { profile })], '2026-01-11T12:00:00Z');
+    expect(await service.execute(filled, actor)).toMatchObject({
+      changed: false,
+      outcome: 'applied',
+    });
+    expect(await kept()).toEqual([
+      ['hash-2', profile, '2026-01-11'],
+      ['hash-3', profile, '2026-01-11'],
+    ]);
+    const short = (contentHash: string, observedAt: string) => ({
+      operation: 'student-report-unchanged',
+      academicYear: 2026,
+      requestId: id(),
+      fencingToken: token,
+      sourceVersion: `sha256:${'f'.repeat(64)}`,
+      observedAt,
+      rows: 2,
+      contentHash,
+    });
+    expect(
+      await service.execute(
+        short(await studentReportHashV2(filled), '2026-01-11T12:30:00Z'),
+        actor,
+      ),
+    ).toMatchObject({ changed: false });
+    // A phone changed in the Smecel: only that enrolment's row is replaced.
+    const phone = { ...profile, mobile: '73999990002' };
+    const moved = report([row(2, { profile }), row(3, { profile: phone })], '2026-01-12T12:00:00Z');
+    expect(await service.execute(moved, actor)).toMatchObject({
+      changed: false,
+      outcome: 'applied',
+    });
+    expect(await kept()).toEqual([
+      ['hash-2', profile, '2026-01-11'],
+      ['hash-3', phone, '2026-01-12'],
+    ]);
+    // A row that changes for the Conciliação goes to the application; its outcome keeps the profiles too.
+    const transferred = report(
+      [
+        row(2, { profile }),
+        row(3, { profile: phone, transferredAt: 46300, status: 'TRANSFERIDO' }),
+      ],
+      '2026-01-13T12:00:00Z',
+    );
+    const next = (await service
+      .execute(transferred, actor)
+      .catch((e: unknown) => e)) as StudentReportPendingV2;
+    expect(next).toBeInstanceOf(StudentReportPendingV2);
+    await service.finishStudentReport(transferred, actor, {
+      evidenceHash: next.evidenceHash,
+      outcome: 'applied',
+      batchId: id(),
+      notes,
+      changed: true,
+    });
+    expect((await kept()).length).toBe(2);
+    // Neither the receipts nor the report's notes hold any of it.
+    const [stored] = (
+      await pg.query(
+        `SELECT (SELECT string_agg(result_json::text,'') FROM attendance.receipt_v2)||(SELECT string_agg(notes_json::text,'') FROM attendance.student_report_state_v2) AS everything`,
+      )
+    ).rows;
+    expect(String(stored!.everything)).toContain('applied');
+    expect(String(stored!.everything)).not.toContain(profile.cpf);
+    // It goes with its school year.
+    expect(await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).toMatchObject({
+      student_report_profile_v2: 2,
+    });
+    await database.transaction((tx) => resetFrequencyYearV2(tx, 2026));
+    expect(await kept()).toEqual([]);
   });
   it('two fichas disagreeing (J/X) in one reading require an audited admin choice, CAS, and no last writer', async () => {
     await service.execute(

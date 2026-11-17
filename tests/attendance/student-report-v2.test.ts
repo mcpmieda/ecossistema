@@ -5,7 +5,11 @@ import {
   StudentReportPendingV2,
   type StudentReportPreviousV2,
 } from '../../server/attendance/service-v2';
-import type { FrequencyStudentReportV2 } from '../../shared/attendance-contracts/frequency-v2';
+import {
+  frequencyRequestV2,
+  type FrequencyStudentReportV2,
+} from '../../shared/attendance-contracts/frequency-v2';
+import { STUDENT_REPORT_PROFILE_SYNTHETIC_V2 } from './synthetic-fixture-v2';
 import type {
   ReconciliationRequestV1,
   ReconciliationResponseV1,
@@ -315,9 +319,10 @@ describe('the report hash is the Coletor one', () => {
       birthDate: 41640,
       enrolledAt: 46023,
       transferredAt: sourceRow === 2 ? null : 46300,
+      profile: STUDENT_REPORT_PROFILE_SYNTHETIC_V2,
     }));
     expect(await studentReportHashV2({ rows: [...rows].reverse() })).toBe(
-      '0prs5ns-7GNFFBx7M8Tvr-DtB2o9mNDnRKGTfWrr6Ag',
+      'UJiS35CRBdZZ0j-atvPpsO-81chuk_CexsuqK7DbnUI',
     );
     // The Smecel swaps rows that tie from one export to the next: the position never counts.
     const moved = [
@@ -325,7 +330,61 @@ describe('the report hash is the Coletor one', () => {
       { ...rows[1]!, sourceRow: 2 },
     ];
     expect(await studentReportHashV2({ rows: moved })).toBe(
-      '0prs5ns-7GNFFBx7M8Tvr-DtB2o9mNDnRKGTfWrr6Ag',
+      'UJiS35CRBdZZ0j-atvPpsO-81chuk_CexsuqK7DbnUI',
     );
+  });
+});
+
+describe("the enrolment form's data (coletor#91)", () => {
+  const profile = STUDENT_REPORT_PROFILE_SYNTHETIC_V2;
+  const parse = (rows: unknown[]) => frequencyRequestV2.safeParse({ ...input(), rows }).success;
+
+  it('is optional per row, complete when present and already normalized', () => {
+    expect(parse([row(2), row(3, { profile })])).toBe(true);
+    const { autism: _missing, ...incomplete } = profile;
+    expect(parse([row(2, { profile: incomplete })])).toBe(false);
+    for (const wrong of [
+      { cpf: '1234567890' },
+      { cpf: '012.345.678-90' },
+      { cep: '5990000' },
+      { mobile: '(73) 99999-0000' },
+      { guardianDegree: 5 },
+      { allergy: 'NAO' },
+      { address: '' },
+      { nis: '12345678901' },
+    ])
+      expect(parse([row(2, { profile: { ...profile, ...wrong } })])).toBe(false);
+  });
+
+  it('never reaches the Conciliação', async () => {
+    const { reconciliation, requests } = fake({
+      catalog: [catalog],
+      prepare: [prepared()],
+      apply: [committed],
+    });
+    await applyStudentReportV2(
+      reconciliation,
+      ready,
+      input([row(2, { profile }), row(3, { profile })]),
+      pending(),
+    );
+    const sent = requests.find((r) => r.operation === 'prepare');
+    expect(sent?.operation === 'prepare' && sent.rows).toEqual([row(2), row(3)]);
+    expect(JSON.stringify(requests)).not.toContain(profile.cpf);
+  });
+
+  it('changes the report hash and leaves the hash the Conciliação reads alone', async () => {
+    const { studentReportHashV2, studentReportCoreHashV2 } =
+      await import('../../server/attendance/service-v2');
+    const plain = input([row(2), row(3)]);
+    const filled = input([row(2, { profile }), row(3, { profile })]);
+    const moved = input([
+      row(2, { profile }),
+      row(3, { profile: { ...profile, mobile: '73999990002' } }),
+    ]);
+    expect(await studentReportHashV2(filled)).not.toBe(await studentReportHashV2(plain));
+    expect(await studentReportHashV2(moved)).not.toBe(await studentReportHashV2(filled));
+    expect(await studentReportCoreHashV2(moved)).toBe(await studentReportHashV2(plain));
+    expect(await studentReportCoreHashV2(plain)).toBe(await studentReportHashV2(plain));
   });
 });
