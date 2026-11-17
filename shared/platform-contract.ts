@@ -11,6 +11,7 @@ export const PLATFORM_CAPABILITIES = [
   'platform.audit.read',
   'platform.settings.read',
   'platform.settings.write',
+  'platform.groups.manage',
   'gradebook.persistence.admin',
   'area.desempenho',
   'area.importacao',

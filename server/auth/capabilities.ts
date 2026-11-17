@@ -13,6 +13,7 @@ export const capabilityGrantsByRole: Record<Role, readonly PlatformCapability[]>
     'platform.audit.read',
     'platform.settings.read',
     'platform.settings.write',
+    'platform.groups.manage',
     'gradebook.persistence.admin',
     ...ACCESS_AREA_IDS.map(areaCapabilityV1),
   ],

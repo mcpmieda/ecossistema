@@ -7,6 +7,7 @@ import { handleStudentReconciliationRequestV1 } from '../server/student-identity
 import { validateEnv } from '../server/env';
 import { handleSystemHealthRequestV1 } from '../server/platform/system-health-http-v1';
 import { handleAccessRequestV1 } from '../server/platform/access-http-v1';
+import { handleGroupsRequestV1 } from '../server/platform/groups/groups-http-v1';
 import { handlePublicDemoRequestV1 } from '../server/platform/public-demo-http-v1';
 import { servePortalAdminV1 } from '../server/student-portal/http/admin/handler-v1';
 import { portalJsonV1, portalFailureV1 } from '../server/student-portal/runtime/http-v1';
@@ -444,6 +445,8 @@ async function routeServicesV1(
   if (healthResponse) return healthResponse;
   const demoResponse = await handlePublicDemoRequestV1(request, env);
   if (demoResponse) return demoResponse;
+  const groupsResponse = await handleGroupsRequestV1(request, env);
+  if (groupsResponse) return groupsResponse;
   const accessResponse = await handleAccessRequestV1(request, env);
   if (accessResponse) return accessResponse;
 

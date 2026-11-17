@@ -38,6 +38,8 @@ export type RuntimeEnv = Omit<
     NOTAS_SYNC_SERVICE?: unknown;
     COLLECTOR_ENABLED?: 'true' | 'false';
     COLLECTOR_DB?: unknown;
+    /** The account that owns every group created by the Centro (#1513), so it can delete them. */
+    GROUPS_OWNER_ID?: string;
   };
 
 const PRODUCTION_ORIGIN = 'https://admin.escolaieda.com';
@@ -71,6 +73,7 @@ const envSchema = z
     COLLECTOR_ENABLED: z.enum(['true', 'false']).optional(),
     COLLECTOR_DB: z.unknown().optional(),
     COLLECTOR_REFRESH_KEY: z.string().optional(),
+    GROUPS_OWNER_ID: z.string().uuid().optional(),
   })
   .superRefine((value, context) => {
     let origin: URL;

@@ -20,6 +20,7 @@
     "GROUP_ALUNO_ID": "8255b76e-dd85-4d04-a360-8ce1baf6ce63",
     "GROUP_APOIO_ID": "74386ce1-2db4-4352-8618-7ab4659ab7b6",
     "GROUP_VISITANTE_ID": "9b0283b8-8883-4257-8085-3ac60060d489",
+    "GROUPS_OWNER_ID": "efd924cd-71c7-49e4-9ebf-f59c8f83eef3",
     "OFFICIAL_ORIGIN": "https://admin.escolaieda.com",
     "GRADEBOOK_STORAGE_PROVIDER": "postgres",
     "COLLECTOR_ENABLED": "true"

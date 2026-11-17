@@ -173,6 +173,8 @@ export async function graphRequest<T>(input: {
   body?: unknown;
   etag?: string;
   prefer?: 'bypass-shared-lock';
+  /** Advanced queries ($count, $search) need it. */
+  consistencyLevel?: 'eventual';
   correlationId?: string;
   dependencies?: GraphDependencies;
   token?: string;
@@ -194,6 +196,7 @@ export async function graphRequest<T>(input: {
   if (input.body !== undefined) headers.set('Content-Type', 'application/json');
   if (input.etag) headers.set('If-Match', input.etag);
   if (input.prefer) headers.set('Prefer', input.prefer);
+  if (input.consistencyLevel) headers.set('ConsistencyLevel', input.consistencyLevel);
   let response: Response;
   try {
     response = await graphFetchV1({

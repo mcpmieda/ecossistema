@@ -7,6 +7,7 @@ import {
   RECONCILIATION_ROUTE_V1,
 } from '../../shared/student-identity/reconciliation-v1';
 import { PUBLIC_DEMO_ADMIN_PATH_V1 } from '../../shared/public-demo-control-v1';
+import { GROUPS_PATH_V1, GROUPS_READ_OPERATIONS_V1 } from '../../shared/platform-groups-v1';
 import type {
   AdminOperationV1,
   PortalAdminServiceBindingV1,
@@ -34,6 +35,7 @@ export const ADMIN_OPERATION_ROUTES_V1: Readonly<Record<string, RouteV1>> = {
   '/api/platform/bootstrap': { methods: ['GET'], operation: 'read' },
   '/api/platform/settings/session': { methods: ['GET', 'POST'], operation: 'write' },
   '/api/platform/access': { methods: ['GET', 'PUT'], operation: 'write', bodyBytes: 2048 },
+  [GROUPS_PATH_V1]: { methods: ['POST'], operation: 'write', bodyBytes: 2048 },
   '/api/platform/system-health': { methods: ['POST'], operation: 'read' },
   '/api/platform/system-health/history': { methods: ['POST'], operation: 'read' },
   '/api/platform/system-health/signals': { methods: ['POST'], operation: 'read' },
@@ -143,6 +145,11 @@ export function classifyAdminOperationV1(
   )
     return 'read';
   if (path === '/api/gradebook/assessment-names' && operation === 'read') return 'read';
+  if (
+    path === GROUPS_PATH_V1 &&
+    (GROUPS_READ_OPERATIONS_V1 as readonly unknown[]).includes(operation)
+  )
+    return 'read';
   if (path === PUBLIC_DEMO_ADMIN_PATH_V1 && Object.keys(payload).length === 0) return 'read';
   if (path === '/api/gradebook/year-reset' && operation === 'preview') return 'read';
   if (
