@@ -21,7 +21,8 @@ import {
  * groups are never deleted from here.
  */
 export const GROUP_DELETE_COOKIE_V1 = '__Host-ecossistema_group_delete';
-const GROUP_DELETE_SCOPE_V1 = 'openid https://graph.microsoft.com/Group.ReadWrite.All';
+// `profile` brings the name the ID token check requires.
+const GROUP_DELETE_SCOPE_V1 = 'openid profile https://graph.microsoft.com/Group.ReadWrite.All';
 const TRANSACTION_SECONDS_V1 = 600;
 
 type DeleteTransactionV1 = {
@@ -81,8 +82,9 @@ export async function startGroupDeleteV1(
   };
 }
 
-const finishV1 = (result: GroupDeleteResultV1) =>
-  new Response(null, {
+const finishV1 = (result: GroupDeleteResultV1, stage?: string) => {
+  if (stage) console.error(JSON.stringify({ event: 'groups_delete_stopped', result, stage }));
+  return new Response(null, {
     status: 302,
     headers: {
       Location: `/#/configuracoes?grupos=${result}`,
@@ -90,6 +92,7 @@ const finishV1 = (result: GroupDeleteResultV1) =>
       'Cache-Control': 'no-store',
     },
   });
+};
 
 /**
  * The way back from Microsoft for a deletion; null when this callback is an ordinary sign-in (no
@@ -107,11 +110,11 @@ export async function handleGroupDeleteCallbackV1(
   const transaction = await unseal<DeleteTransactionV1>(raw, env.SESSION_SECRET, 'group-delete');
   if (!transaction || transaction.state !== state) return null;
 
-  if (transaction.exp <= now) return finishV1('falhou');
+  if (transaction.exp <= now) return finishV1('falhou', 'expired');
   const error = url.searchParams.get('error');
   if (error) return finishV1(error === 'access_denied' ? 'cancelado' : 'recusado');
   const code = url.searchParams.get('code');
-  if (!code) return finishV1('falhou');
+  if (!code) return finishV1('falhou', 'no-code');
 
   let context: ContextV1;
   try {
@@ -120,27 +123,27 @@ export async function handleGroupDeleteCallbackV1(
       session.oid !== transaction.oid ||
       !capabilitiesForSession(session).includes('platform.groups.manage')
     )
-      return finishV1('recusado');
+      return finishV1('recusado', 'session');
     context = groupsContextV1(env, session);
   } catch {
-    return finishV1('falhou');
+    return finishV1('falhou', 'session');
   }
-  if (isRoleGroupV1(env, transaction.groupId)) return finishV1('recusado');
+  if (isRoleGroupV1(env, transaction.groupId)) return finishV1('recusado', 'role-group');
   const managed = await context.store
     ?.managedGroups()
     .then((groups) => groups.some((group) => group.id === transaction.groupId))
     .catch(() => false);
-  if (!managed) return finishV1('falhou');
+  if (!managed) return finishV1('falhou', 'not-managed');
 
   let accessToken: string;
   try {
     const tokens = await exchangeCode(env, code, transaction.verifier);
     const claims = await verifyIdToken(tokens.id_token, env, transaction.nonce);
     // The sign-in for the deletion is the person signed in to the Centro, not another account.
-    if (claims.oid !== transaction.oid) return finishV1('recusado');
+    if (claims.oid !== transaction.oid) return finishV1('recusado', 'other-account');
     accessToken = tokens.access_token;
-  } catch {
-    return finishV1('falhou');
+  } catch (cause) {
+    return finishV1('falhou', `token:${cause instanceof Error ? cause.name : 'unknown'}`);
   }
 
   const change = { groupId: transaction.groupId, groupName: transaction.groupName, target: null };
@@ -165,6 +168,6 @@ export async function handleGroupDeleteCallbackV1(
   } catch (cause) {
     await recordV1(context, { action: 'delete-group', ...change, outcome: 'failed' });
     const refused = cause instanceof GraphError && (cause.status === 403 || cause.status === 401);
-    return finishV1(refused ? 'recusado' : 'falhou');
+    return finishV1(refused ? 'recusado' : 'falhou', 'graph');
   }
 }

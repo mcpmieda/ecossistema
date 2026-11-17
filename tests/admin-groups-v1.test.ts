@@ -443,7 +443,7 @@ describe('#1513 Grupos: deleting starts only for who may, on a group the Centro 
     const url = new URL(authorizeUrl);
     expect(url.origin).toBe('https://login.microsoftonline.com');
     expect(url.searchParams.get('scope')).toBe(
-      'openid https://graph.microsoft.com/Group.ReadWrite.All',
+      'openid profile https://graph.microsoft.com/Group.ReadWrite.All',
     );
     expect(url.searchParams.get('login_hint')).toBe('sec@escola.example');
     expect(url.searchParams.get('redirect_uri')).toBe(`${testEnv.OFFICIAL_ORIGIN}/auth/callback`);
