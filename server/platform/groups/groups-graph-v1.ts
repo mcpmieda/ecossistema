@@ -69,6 +69,12 @@ const groupFromGraphV1 = (group: GraphGroupV1): EntraGroupV1 => ({
   mail: group.mail ?? null,
 });
 
+/** The `@odata.count` of a members page, or null. */
+export function memberCountOfPageV1(page: unknown): number | null {
+  const count = (page as { '@odata.count'?: unknown } | null)?.['@odata.count'];
+  return typeof count === 'number' && Number.isInteger(count) && count >= 0 ? count : null;
+}
+
 const odataTextV1 = (value: string) => value.replaceAll("'", "''");
 const isUserV1 = (item: GraphUserV1) =>
   item['@odata.type'] === undefined || item['@odata.type'] === '#microsoft.graph.user';
@@ -104,11 +110,13 @@ export function graphGroupsPortV1(env: RuntimeEnv): GroupsGraphPortV1 {
       }
     },
     async memberCount(id) {
-      const count = await get<unknown>(
-        `/groups/${encodeURIComponent(id)}/members/$count`,
-        'eventual',
+      // `/members/$count` answers in plain text only; `$count=true` brings it in the JSON page.
+      return memberCountOfPageV1(
+        await get<unknown>(
+          `/groups/${encodeURIComponent(id)}/members?$count=true&$top=1&$select=id`,
+          'eventual',
+        ),
       );
-      return typeof count === 'number' && Number.isInteger(count) ? count : null;
     },
     async members(id) {
       const query = new URLSearchParams({ $select: PERSON_FIELDS_V1, $top: '999' });
