@@ -119,7 +119,7 @@ async function classificationPayload(request: Request, maximum: number): Promise
 }
 
 function inspectsBodyV1(route: RouteV1, request: Request): boolean {
-  if (!route.bodyBytes) return false;
+  if (!route.bodyBytes || request.method === 'GET') return false;
   if (!route.upload) return true;
   const length = request.headers.get('content-length');
   return length !== null && /^\d+$/u.test(length) && Number(length) <= route.bodyBytes;
