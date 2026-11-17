@@ -212,6 +212,7 @@ async function attemptV2(
   stage: Stage,
   input: FrequencyStudentReportV2,
   evidenceHash: string,
+  coreHash: string | null,
   previous: StudentReportPreviousV2 | null,
 ): Promise<StudentReportOutcomeV2> {
   const catalog = await reconciliation.execute({
@@ -220,7 +221,11 @@ async function attemptV2(
     operation: 'catalog',
   });
   if (catalog.state !== 'ready' || catalog.operation !== 'catalog') retryOrFail(catalog, 'catalog');
-  const same = previous?.evidenceHash === evidenceHash;
+  // The same rows for the Conciliação: the report itself, or one that differs only in the enrolment
+  // form's data (a phone, an address), which the Conciliação never reads. A report still waiting
+  // goes on with the batch it kept; preparing it again would replace that batch for nothing.
+  const same =
+    previous?.evidenceHash === evidenceHash || (!!coreHash && previous?.coreHash === coreHash);
   // Still before the Relação: the batch already kept waits; nothing new to prepare.
   if (same && previous.outcome === 'awaiting_relation' && !catalog.context.relationAvailable)
     return {
@@ -282,7 +287,14 @@ export async function applyStudentReportV2(
   let previous = pending.previous;
   for (let attempt = 0; attempt < ATTEMPTS_V2; attempt++) {
     try {
-      return await attemptV2(reconciliation, stage, input, pending.evidenceHash, previous);
+      return await attemptV2(
+        reconciliation,
+        stage,
+        input,
+        pending.evidenceHash,
+        pending.coreHash,
+        previous,
+      );
     } catch (error) {
       if (!(error instanceof RetryV2)) throw error;
       // A batch that went stale is prepared again from the report.
