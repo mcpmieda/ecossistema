@@ -47,6 +47,13 @@ A auditoria também compara o estado real com o baseline produtivo versionado pa
 
 Drift de identidade, audience, redirect URI, service principal ausente/desabilitado ou certificado ausente/expirado é **crítico** e faz o workflow falhar fechado. Password credentials, certificados próximos da expiração e permissões amplas conhecidas são reportados como **warning** enquanto a migração de menor privilégio estiver em andamento.
 
+As application permissions dos dois apps seguem uma lista exata (#1513, `EXPECTED_APPLICATION_ROLES`):
+
+- **Web:** nenhuma; o login usa só escopos delegados;
+- **Graph Backend:** `Sites.Selected`, `Lists.SelectedOperations.Selected`, `User.Read.All`, `Group.Create` e `GroupMember.ReadWrite.All`.
+
+Permissão fora da lista (`unexpected-application-permission`) ou permissão da lista ausente (`expected-application-permission-missing`) é drift **crítico**; uma permissão ampla conhecida, fora das duas listas, gera também o warning acima. Se o Entra devolver as permissões em mais de uma página, a auditoria falha fechada. Conceder ou retirar uma permissão desses apps exige atualizar a lista no mesmo PR.
+
 O Job Summary publica somente status e contagens; os app-role assignments detalhados permanecem apenas no arquivo temporário do runner e são apagados ao final.
 
 A identidade **Operations também audita a si própria**. O conjunto permitido de application permissions fica limitado a:
