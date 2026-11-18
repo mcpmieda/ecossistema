@@ -1933,6 +1933,69 @@ describe('frequency V2 private PostgreSQL service', () => {
     );
     expect(empty.rows).toEqual([]);
   });
+  it('the marks of a day the diary no longer gives a record are removed with it', async () => {
+    // 17/11/2026: a student left, the Smecel blanked the days after the exit, and the absences
+    // already stored for the first of those days stayed, with nothing in the Smecel.
+    const full = [1, 2, 3, 4, 5, 6];
+    const stays = { recordKey: 'r1', date: '2026-01-05', slots: full, complete: true };
+    await service.execute(
+      collection({
+        coverage: [stays, { recordKey: 'r1', date: '2026-01-06', slots: full, complete: true }],
+        marks: [
+          { recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' },
+          { recordKey: 'r1', date: '2026-01-06', slot: 1, mark: 'X' },
+          { recordKey: 'r1', date: '2026-01-06', slot: 2, mark: 'J' },
+        ],
+      }),
+      actor,
+    );
+    expect((await summary()).marks).toHaveLength(3);
+    const left = {
+      coverage: [stays],
+      marks: [{ recordKey: 'r1', date: '2026-01-05', slot: 1, mark: 'X' as const }],
+    };
+    expect(
+      await service.execute(
+        collection({
+          ...left,
+          expectedRevision: 1,
+          sourceVersion: `sha256:${'b'.repeat(64)}`,
+          observedAt: '2026-01-11T12:00:00Z',
+        }),
+        actor,
+      ),
+    ).toMatchObject({ conflicts: 0 });
+    expect((await summary()).marks.map((m) => `${m.date}:${m.slot}:${m.mark}`)).toEqual([
+      '2026-01-05:1:X',
+    ]);
+    expect((await status()).conflicts).toEqual([]);
+    const corrections = async () =>
+      (
+        await pg.query(
+          'SELECT before_mark,after_mark,reason FROM attendance.correction_v2 ORDER BY before_mark',
+        )
+      ).rows;
+    expect(await corrections()).toEqual([
+      { before_mark: 'J', after_mark: null, reason: 'Falta apagada no Smecel' },
+      { before_mark: 'X', after_mark: null, reason: 'Falta apagada no Smecel' },
+    ]);
+    // Removed once: the next reading of the same diary proposes nothing more.
+    const counts = await database.transaction((tx) => frequencyYearCountsV2(tx, 2026));
+    await service.execute(
+      collection({
+        ...left,
+        expectedRevision: 2,
+        sourceVersion: `sha256:${'c'.repeat(64)}`,
+        observedAt: '2026-01-12T12:00:00Z',
+      }),
+      actor,
+    );
+    expect((await database.transaction((tx) => frequencyYearCountsV2(tx, 2026))).origin_v2).toBe(
+      counts.origin_v2,
+    );
+    expect(await corrections()).toHaveLength(2);
+    expect((await summary()).marks).toHaveLength(1);
+  });
   it('another enrollment for the same UID preserves old provenance without silent reassociation', async () => {
     await service.execute(collection(), actor);
     await pg.exec(`INSERT INTO gradebook.student_source_record_v1(id,academic_year) VALUES('50000000-0000-4000-8000-000000000003',2026);
