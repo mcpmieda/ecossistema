@@ -57,10 +57,15 @@ type AppRoleAssignmentResponse = {
 };
 
 type Collection<T> = { value?: T[]; '@odata.nextLink'?: string };
-type PermissionGrantResponse = { consentType?: string; scope?: string };
+type PermissionGrantResponse = { consentType?: string; scope?: string; resourceId?: string };
 
 /** Delegated consents of an app, without who they are for; null when they could not be read. */
-export type EntraDelegatedGrants = Array<{ allPrincipals: boolean; scopes: string[] }> | null;
+export type EntraDelegatedGrants = Array<{
+  allPrincipals: boolean;
+  /** The scopes are names of Microsoft Graph's API, not of another one (#1530 T2). */
+  graphResource: boolean;
+  scopes: string[];
+}> | null;
 
 /** Permissions past the first page would escape the baseline: fail closed instead. */
 function singlePage<T>(collection: Collection<T>, stage: string): T[] {
@@ -202,6 +207,7 @@ const EXPECTED_APPLICATIONS = {
 const EXPECTED_OPERATIONS_DISPLAY_NAME = 'Ecossistema Operations - GitHub OIDC';
 const APPLICATION_READ_ALL_ROLE_ID = '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30';
 const SITES_SELECTED_ROLE_ID = '883ea226-0bf2-4a8f-9f9d-92c9162a727d';
+const MICROSOFT_GRAPH_APP_ID = '00000003-0000-0000-c000-000000000000';
 /** Lets Operations read the delegated consents below (#1530 T2); nothing else. */
 const DELEGATED_GRANT_READ_ROLE_ID = '81b4724a-58aa-41c1-8a55-84ef97466587';
 
@@ -315,6 +321,11 @@ function delegatedDrift(
   }
   const expected = EXPECTED_DELEGATED_SCOPES[label];
   for (const grant of grants) {
+    // A scope name means something only for its API: a consent to another API is never expected.
+    if (!grant.graphResource) {
+      add(label, 'critical', 'unexpected-delegated-resource');
+      continue;
+    }
     const allowed = grant.allPrincipals ? expected.allPrincipals : expected.principal;
     if (grant.scopes.some((scope) => !allowed.has(scope)))
       add(
@@ -485,13 +496,14 @@ async function readDelegatedGrants(
   token: string,
   servicePrincipalId: string,
   stage: string,
+  graphServicePrincipalId: string,
 ): Promise<EntraDelegatedGrants> {
   let grants: Collection<PermissionGrantResponse>;
   try {
     grants = await graphJson<Collection<PermissionGrantResponse>>(
       fetcher,
       token,
-      `/servicePrincipals/${encodeURIComponent(servicePrincipalId)}/oauth2PermissionGrants?$select=consentType,scope&$top=100`,
+      `/servicePrincipals/${encodeURIComponent(servicePrincipalId)}/oauth2PermissionGrants?$select=consentType,scope,resourceId&$top=100`,
       stage,
     );
   } catch (error) {
@@ -500,6 +512,7 @@ async function readDelegatedGrants(
   }
   return singlePage(grants, stage).map((grant) => ({
     allPrincipals: grant.consentType === 'AllPrincipals',
+    graphResource: grant.resourceId === graphServicePrincipalId,
     scopes: (grant.scope ?? '').split(/\s+/u).filter(Boolean),
   }));
 }
@@ -521,10 +534,26 @@ function sanitizedAssignments(
   );
 }
 
+/** Microsoft Graph's service principal in this tenant: the API the delegated scopes must be for. */
+async function readGraphServicePrincipalId(fetcher: GraphFetcher, token: string): Promise<string> {
+  const filter = `appId eq '${MICROSOFT_GRAPH_APP_ID}'`;
+  const principals = await graphJson<Collection<{ id?: string }>>(
+    fetcher,
+    token,
+    `/servicePrincipals?$filter=${encodeURIComponent(filter)}&$select=id&$top=2`,
+    'graph-resource-service-principal',
+  );
+  const values = principals.value ?? [];
+  if (values.length !== 1 || !values[0]?.id)
+    throw new EntraOperationsAuditError('graph-resource-service-principal-invalid');
+  return values[0].id;
+}
+
 async function readOperationsIdentity(
   fetcher: GraphFetcher,
   token: string,
   appId: string,
+  graphServicePrincipalId: string,
 ): Promise<EntraOperationsIdentityAudit> {
   const select = 'id,appId,displayName,accountEnabled,servicePrincipalType';
   const filter = `appId eq '${appId.replaceAll("'", "''")}'`;
@@ -552,7 +581,13 @@ async function readOperationsIdentity(
       `/servicePrincipals/${encodeURIComponent(principal.id)}/appRoleAssignments?$select=id,appRoleId,resourceId,createdDateTime&$top=100`,
       'operations-app-role-assignments',
     ),
-    readDelegatedGrants(fetcher, token, principal.id, 'operations-delegated-grants'),
+    readDelegatedGrants(
+      fetcher,
+      token,
+      principal.id,
+      'operations-delegated-grants',
+      graphServicePrincipalId,
+    ),
   ]);
 
   return {
@@ -688,6 +723,7 @@ async function readExactApplication(
   token: string,
   objectId: string,
   label: 'web' | 'graph',
+  graphServicePrincipalId: string,
 ): Promise<EntraApplicationAudit> {
   const select = [
     'id',
@@ -730,7 +766,13 @@ async function readExactApplication(
       )
     : { value: [] };
   const delegatedGrants = servicePrincipal?.id
-    ? await readDelegatedGrants(fetcher, token, servicePrincipal.id, `${label}-delegated-grants`)
+    ? await readDelegatedGrants(
+        fetcher,
+        token,
+        servicePrincipal.id,
+        `${label}-delegated-grants`,
+        graphServicePrincipalId,
+      )
     : [];
   return sanitizeApplication(
     app,
@@ -758,10 +800,11 @@ export async function auditEntraOperations(input: {
 
   const fetcher = input.fetcher ?? fetch;
   const sharePointAuditEnabled = input.sharePointAuditEnabled === true;
+  const graphServicePrincipalId = await readGraphServicePrincipalId(fetcher, accessToken);
   const [web, graph, operationsIdentity, sharePoint] = await Promise.all([
-    readExactApplication(fetcher, accessToken, webObjectId, 'web'),
-    readExactApplication(fetcher, accessToken, graphObjectId, 'graph'),
-    readOperationsIdentity(fetcher, accessToken, operationsClientId),
+    readExactApplication(fetcher, accessToken, webObjectId, 'web', graphServicePrincipalId),
+    readExactApplication(fetcher, accessToken, graphObjectId, 'graph', graphServicePrincipalId),
+    readOperationsIdentity(fetcher, accessToken, operationsClientId, graphServicePrincipalId),
     auditSharePoint(fetcher, accessToken, sharePointAuditEnabled),
   ]);
 
