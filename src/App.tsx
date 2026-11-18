@@ -46,6 +46,7 @@ import {
 import { LiveRefreshAutomaticV1Provider } from './shared/live-data/live-refresh-scope-v1';
 import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
 import { rememberAddressV1, startAccountViewsV1 } from './shared/ui/session-view-v1';
+import { PlatformCapabilitiesProviderV1 } from './platform/capabilities-context-v1';
 
 /** No automatic refresh (it made screens blink): the ADM reads again when its window comes back,
  * after each write and on F5, with no clock and no live channel; a change made elsewhere shows
@@ -672,10 +673,12 @@ export function App() {
       <AccountViewsGateV1
         owner={(identity.identityKey ?? 'current-session').split(':')[0] ?? 'current-session'}
       >
-        <AdminShell
-          key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`}
-          identity={identity}
-        />
+        <PlatformCapabilitiesProviderV1 value={identity.capabilities}>
+          <AdminShell
+            key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`}
+            identity={identity}
+          />
+        </PlatformCapabilitiesProviderV1>
       </AccountViewsGateV1>
     </LiveRefreshAutomaticV1Provider>
   );

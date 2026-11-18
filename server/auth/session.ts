@@ -140,8 +140,15 @@ export async function readSession(request: Request, env: RuntimeEnv): Promise<Se
   // The administrator has every area; anyone else gets what was opened to them.
   const areas = session.roles.includes('ADMINISTRADOR')
     ? []
-    : await accessAreasForV1(env, session.username);
+    : await accessAreasForV1(env, session.oid);
   const granted = areas.length > 0 ? { areas: [...areas] } : {};
+  // An area can change data, so it holds a session to the same cap as a role that can (#1530 A6).
+  if (
+    areas.length > 0 &&
+    session.authenticatedAt !== undefined &&
+    Math.min(exp, session.authenticatedAt + WRITE_SESSION_MAX_HOURS * 60 * 60) <= Date.now() / 1000
+  )
+    return null;
   if (exp !== session.exp)
     return {
       ...session,

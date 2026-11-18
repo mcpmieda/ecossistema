@@ -1,7 +1,10 @@
 // @vitest-environment node
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { onRequest } from '../functions/[[path]]';
-import type { AccessArea } from '../shared/platform-contract';
+import { ACCESS_AREA_IDS, type AccessArea } from '../shared/platform-contract';
+import type { AccessGrantChangeViewV1 } from '../shared/platform-access-v1';
+import { setAccessPeopleForTestsV1 } from '../server/platform/access-http-v1';
 import {
   accessAreasForV1,
   areasFromDatabaseV1,
@@ -25,37 +28,71 @@ import { testEnv } from './fixtures';
 
 const oid = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const librarian = 'bibliotecaria@escola.example';
+const adminOid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
-/** The grants table, in memory; `reads` counts the questions asked. */
+/** The grants table and its history, in memory, keyed by the person; `reads` counts the reads. */
 function memoryGrants(initial: Record<string, AccessArea[]> = {}) {
   const rows = new Map<string, AccessGrantV1>(
-    Object.entries(initial).map(([email, areas]) => [
-      email,
-      { email, areas, updatedAt: '2026-11-17T12:00:00.000Z', updatedBy: 'Admin' },
+    Object.entries(initial).map(([id, areas]) => [
+      id,
+      {
+        oid: id,
+        email: librarian,
+        areas,
+        updatedAt: '2026-11-17T12:00:00.000Z',
+        updatedBy: 'Admin',
+      },
     ]),
   );
+  const history: AccessGrantChangeViewV1[] = [];
   let reads = 0;
+  let clock = Date.parse('2026-11-17T12:00:00.000Z');
   const port: AccessGrantsPortV1 = {
-    async areasFor(email) {
+    async areasFor(id) {
       reads += 1;
-      return rows.get(email)?.areas ?? [];
+      return rows.get(id)?.areas ?? [];
     },
     async list() {
       return [...rows.values()];
     },
-    async save(email, areas, actor) {
-      if (areas.length === 0) rows.delete(email);
-      else
-        rows.set(email, {
-          email,
-          areas: [...areas],
-          updatedAt: '2026-11-17T12:00:00.000Z',
-          updatedBy: actor.name,
-        });
+    async save(person, areas, actor, expectedUpdatedAt) {
+      const before = rows.get(person.oid);
+      if (before && expectedUpdatedAt && before.updatedAt !== expectedUpdatedAt) return 'changed';
+      rows.set(person.oid, {
+        ...person,
+        areas: [...areas],
+        updatedAt: new Date((clock += 1000)).toISOString(),
+        updatedBy: actor.name,
+      });
+      history.unshift({
+        at: new Date(clock).toISOString(),
+        actor: actor.name,
+        email: person.email,
+        before: before?.areas ?? [],
+        after: [...areas],
+      });
+      return 'saved';
+    },
+    async remove(email, actor) {
+      const gone = [...rows.values()].filter((row) => row.email === email);
+      for (const row of gone) {
+        rows.delete(row.oid);
+        history.unshift({ at: '', actor: actor.name, email, before: row.areas, after: [] });
+      }
+      return gone.map((row) => row.oid);
+    },
+    async history(limit) {
+      return history.slice(0, limit);
     },
   };
-  return { port, rows, reads: () => reads };
+  return { port, rows, history, reads: () => reads };
 }
+
+/** Entra, as the Graph Backend answers a sign-in name or e-mail. */
+const people: Record<string, { oid: string; email: string }> = {
+  [librarian]: { oid, email: librarian },
+  'biblioteca.alias@escola.example': { oid, email: librarian },
+};
 
 async function cookieFor(session: object): Promise<string> {
   return `${SESSION_COOKIE}=${await seal(session, testEnv.SESSION_SECRET, 'admin-session')}`;
@@ -73,10 +110,15 @@ async function serve(request: Request): Promise<Response> {
   } as unknown as Parameters<typeof onRequest>[0]);
 }
 
-beforeEach(() => setSessionRevocationPortForTestsV1(null));
+beforeEach(() => {
+  setSessionRevocationPortForTestsV1(null);
+  setAccessPeopleForTestsV1(async (_env, email) => people[email] ?? null);
+});
 afterEach(() => {
   setAccessGrantsPortForTestsV1(undefined);
   setSessionRevocationPortForTestsV1(undefined);
+  setAccessPeopleForTestsV1(undefined);
+  vi.useRealTimers();
 });
 
 describe('#1513: areas of the Centro opened to people outside the admin group', () => {
@@ -92,7 +134,7 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
   });
 
   it('reads the areas on each request of a non-admin session, never for the administrator', async () => {
-    const memory = memoryGrants({ [librarian]: ['painel-do-aluno'] });
+    const memory = memoryGrants({ [oid]: ['painel-do-aluno'] });
     setAccessGrantsPortForTestsV1(memory.port);
     const person = createApplicationSession({
       oid,
@@ -130,12 +172,70 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
   });
 
   it('a failed read opens nothing', async () => {
+    const memory = memoryGrants();
     setAccessGrantsPortForTestsV1({
+      ...memory.port,
       areasFor: () => Promise.reject(new Error('down')),
-      list: () => Promise.resolve([]),
-      save: () => Promise.resolve(),
     });
-    expect(await accessAreasForV1(testEnv, 'falha@escola.example')).toEqual([]);
+    expect(await accessAreasForV1(testEnv, oid)).toEqual([]);
+  });
+
+  it('#1530 A3: the areas follow the person, not the sign-in name', async () => {
+    setAccessGrantsPortForTestsV1(memoryGrants({ [oid]: ['saude'] }).port);
+    const signedIn = (personOid: string, username: string) =>
+      createApplicationSession({ oid: personOid, name: 'P', username, roles: ['APOIO'] });
+    // Renamed sign-in name: still the same person.
+    const renamed = await readSession(
+      call('/api/me', await cookieFor(signedIn(oid, 'nova.biblioteca@escola.example'))),
+      testEnv,
+    );
+    expect(renamed?.areas).toEqual(['saude']);
+    // The old sign-in name given to someone else opens nothing.
+    const reused = await readSession(
+      call('/api/me', await cookieFor(signedIn('dddddddd-dddd-4ddd-8ddd-dddddddddddd', librarian))),
+      testEnv,
+    );
+    expect(reused?.areas).toBeUndefined();
+  });
+
+  it('#1530 A1: a read that never ends does not hold the other requests of the person', async () => {
+    let calls = 0;
+    const memory = memoryGrants({ [oid]: ['saude'] });
+    setAccessGrantsPortForTestsV1({
+      ...memory.port,
+      // The first read belongs to a request that was cancelled: it never settles.
+      areasFor: (id) =>
+        calls++ === 0 ? new Promise<AccessArea[]>(() => undefined) : memory.port.areasFor(id),
+    });
+    const started = Date.now();
+    void accessAreasForV1(testEnv, oid, started);
+    // Within the share window it waits only for what is left of it, then reads on its own.
+    expect(await accessAreasForV1(testEnv, oid, started + 3_990)).toEqual(['saude']);
+    // Past the window it reads at once.
+    expect(await accessAreasForV1(testEnv, oid, started + 5_000)).toEqual(['saude']);
+    expect(calls).toBe(3);
+  });
+
+  it('#1530 A6: an area holds the session to the cap of sessions that can change data', async () => {
+    setAccessGrantsPortForTestsV1(memoryGrants({ [oid]: ['saude'] }).port);
+    const nineHoursAgo = Math.floor(Date.now() / 1000) - 9 * 60 * 60;
+    const old = createApplicationSession(
+      { oid, name: 'P', username: librarian, roles: ['APOIO'] },
+      12,
+      nineHoursAgo,
+    );
+    expect(await readSession(call('/api/me', await cookieFor(old)), testEnv)).toBeNull();
+    setAccessGrantsPortForTestsV1(memoryGrants().port);
+    expect(await readSession(call('/api/me', await cookieFor(old)), testEnv)).not.toBeNull();
+  });
+
+  it('#1530 A6: the areas in the code are the ones the table accepts', () => {
+    const sql = readFileSync('migrations/admin-access/0001_area_grant_v1.sql', 'utf8');
+    const accepted = /areas <@ ARRAY\[([^\]]+)\]/u.exec(sql)?.[1] ?? '';
+    expect(accepted.match(/'[a-z-]+'/gu)?.map((value) => value.slice(1, -1))).toEqual([
+      ...ACCESS_AREA_IDS,
+    ]);
+    expect(sql).toContain(`cardinality(areas) BETWEEN 1 AND ${ACCESS_AREA_IDS.length}`);
   });
 
   it('each gradebook route admits only its areas; the year settings stay with the administrator', () => {
@@ -152,7 +252,7 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
     const memory = memoryGrants();
     setAccessGrantsPortForTestsV1(memory.port);
     const admin = await cookieFor(
-      createApplicationSession({ oid, name: 'Admin', roles: ['ADMINISTRADOR'] }),
+      createApplicationSession({ oid: adminOid, name: 'Admin', roles: ['ADMINISTRADOR'] }),
     );
     const put = (cookie: string, body: unknown) =>
       serve(
@@ -165,9 +265,40 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
 
     const saved = await put(admin, { email: ' Bibliotecaria@Escola.Example ', areas: ['saude'] });
     expect(saved.status).toBe(200);
-    expect(((await saved.json()) as { grants: AccessGrantV1[] }).grants).toMatchObject([
-      { email: librarian, areas: ['saude'], updatedBy: 'Admin' },
+    const answer = (await saved.json()) as {
+      grants: Array<{ id: string; email: string }>;
+      history: AccessGrantChangeViewV1[];
+    };
+    expect(answer.grants).toMatchObject([
+      { id: oid, email: librarian, areas: ['saude'], updatedBy: 'Admin' },
     ]);
+    // #1530 A5: who, for whom, before and after.
+    expect(answer.history).toMatchObject([
+      { actor: 'Admin', email: librarian, before: [], after: ['saude'] },
+    ]);
+    // An e-mail alias reaches the same person, shown by the sign-in name.
+    expect(
+      (
+        await put(admin, {
+          email: 'biblioteca.alias@escola.example',
+          areas: ['saude', 'desempenho'],
+        })
+      ).status,
+    ).toBe(200);
+    expect([...memory.rows.values()]).toMatchObject([
+      { oid, email: librarian, areas: ['desempenho', 'saude'] },
+    ]);
+    expect(await put(admin, { email: 'ninguem@escola.example', areas: ['saude'] })).toMatchObject({
+      status: 404,
+    });
+    // #1530 A6: an edit of a version changed meanwhile is refused.
+    const stale = await put(admin, {
+      email: librarian,
+      areas: ['saude'],
+      expectedUpdatedAt: '2026-11-17T12:00:00.000Z',
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({ state: 'changed' });
     expect((await put(admin, { email: 'sem-arroba', areas: ['saude'] })).status).toBe(400);
     expect((await put(admin, { email: librarian, areas: ['configuracoes'] })).status).toBe(400);
 
@@ -182,6 +313,7 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
     const me = await serve(call('/api/me', person));
     expect(((await me.json()) as { capabilities: string[] }).capabilities).toEqual([
       'platform.snapshot.read',
+      'area.desempenho',
       'area.saude',
     ]);
     expect((await serve(call('/api/platform/access', person))).status).toBe(403);
@@ -189,6 +321,7 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
 
     expect((await put(admin, { email: librarian, areas: [] })).status).toBe(200);
     expect(memory.rows.size).toBe(0);
+    expect(memory.history[0]).toMatchObject({ email: librarian, after: [] });
   });
 });
 

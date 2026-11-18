@@ -15,6 +15,7 @@ import { RelationMovementReviewV9 } from './relation-movement-review-v9';
 import { FrequencyPanelV2 } from './frequency-panel-v2';
 import type { FrequencyAdminClientV2 } from './frequency-client-v2';
 import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
+import { usePlatformCapabilitiesV1 } from '../../../platform/capabilities-context-v1';
 import type { GradebookRelationWarningV9 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 
 const PROGRESS_STAGE = {
@@ -329,7 +330,11 @@ const STEP_CLASS_V1: Record<ImportStepToneV1, string> = {
 export function NotesImportPanel({
   frequencyClient,
 }: { frequencyClient?: FrequencyAdminClientV2 } = {}) {
-  const [area, setArea] = useState('workbooks');
+  // The Coletor's frequency stays with the Secretaria; the Importação area alone does not open it.
+  const capabilities = usePlatformCapabilitiesV1();
+  const frequency = capabilities === null || capabilities.includes('gradebook.persistence.admin');
+  const [chosen, setArea] = useState('workbooks');
+  const area = frequency ? chosen : 'workbooks';
   // The phone's back button returns to the import area seen before.
   useHistoryStepV1(
     'import-area',
@@ -349,10 +354,12 @@ export function NotesImportPanel({
               Planilhas e Relatório
               <Tabs.Indicator />
             </Tabs.Tab>
-            <Tabs.Tab id="frequency">
-              Frequência
-              <Tabs.Indicator />
-            </Tabs.Tab>
+            {frequency ? (
+              <Tabs.Tab id="frequency">
+                Frequência
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ) : null}
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel id="workbooks" shouldForceMount>
@@ -360,15 +367,17 @@ export function NotesImportPanel({
             <NotesWorkbookImportPanelV2 />
           </div>
         </Tabs.Panel>
-        <Tabs.Panel id="frequency" shouldForceMount>
-          <div hidden={area !== 'frequency'}>
-            <FrequencyPanelV2
-              active={area === 'frequency'}
-              client={frequencyClient}
-              onOpenReport={() => setArea('workbooks')}
-            />
-          </div>
-        </Tabs.Panel>
+        {frequency ? (
+          <Tabs.Panel id="frequency" shouldForceMount>
+            <div hidden={area !== 'frequency'}>
+              <FrequencyPanelV2
+                active={area === 'frequency'}
+                client={frequencyClient}
+                onOpenReport={() => setArea('workbooks')}
+              />
+            </div>
+          </Tabs.Panel>
+        ) : null}
       </Tabs>
     </div>
   );

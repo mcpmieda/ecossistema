@@ -23,20 +23,28 @@ const ADMIN_ONLY = [
   'gradebook.persistence.admin',
 ] as const;
 
+/** Grants by person (oid), as the table keeps them since #1530 A3. */
 let grants: Map<string, AccessArea[]>;
 const port: AccessGrantsPortV1 = {
-  areasFor: async (email) => grants.get(email) ?? [],
+  areasFor: async (id) => grants.get(id) ?? [],
   list: async () =>
-    [...grants].map(([email, areas]) => ({
-      email,
+    [...grants].map(([id, areas]) => ({
+      oid: id,
+      email: attacker,
       areas,
       updatedAt: '2026-11-17T12:00:00.000Z',
       updatedBy: 'Admin',
     })),
-  save: async (email, areas) => {
-    if (areas.length === 0) grants.delete(email);
-    else grants.set(email, [...areas]);
+  save: async (person, areas) => {
+    grants.set(person.oid, [...areas]);
+    return 'saved';
   },
+  remove: async () => {
+    const gone = [...grants.keys()];
+    grants.clear();
+    return gone;
+  },
+  history: async () => [],
 };
 
 const sealed = (session: object, secret = testEnv.SESSION_SECRET) =>
@@ -73,7 +81,7 @@ const adminOnlyCalls: CallV1[] = [
 ];
 
 beforeEach(() => {
-  grants = new Map([[attacker, [...ACCESS_AREA_IDS]]]);
+  grants = new Map([[oid, [...ACCESS_AREA_IDS]]]);
   setAccessGrantsPortForTestsV1(port);
   setSessionRevocationPortForTestsV1(null);
 });
@@ -125,6 +133,31 @@ describe('#1513: what only the Secretaria does stays closed to everyone else, th
     const stuffed = await sealed({ ...personSession(), areas: [...ACCESS_AREA_IDS] });
     expect((await call(stuffed, '/api/me')).status).toBe(401);
     expect((await call(stuffed, '/api/platform/access')).status).toBe(401);
+  });
+
+  it('#1530 A2: the Importação area alone reaches only what the Relação import sends', async () => {
+    grants = new Map([[oid, ['importacao']]]);
+    setAccessGrantsPortForTestsV1(port);
+    const cookie = await sealed(personSession());
+    const reconcile = (operation: string, extra: object = {}) =>
+      call(cookie, '/api/student-reconciliation/v1', 'POST', {
+        contractVersion: 1,
+        academicYear: 2026,
+        operation,
+        ...extra,
+      });
+    for (const [operation, extra] of [
+      ['list', {}],
+      ['pending-count', {}],
+      ['automatic-report', {}],
+      ['detail', { sourceId: crypto.randomUUID() }],
+    ] as const)
+      expect((await reconcile(operation, extra)).status, operation).toBe(403);
+    // The import's own first step is let through to the service (unavailable here: no database).
+    expect((await reconcile('catalog')).status).not.toBe(403);
+    grants = new Map([[oid, ['painel-do-aluno']]]);
+    setAccessGrantsPortForTestsV1(port);
+    expect((await reconcile('list')).status).not.toBe(403);
   });
 
   it('without any area, the person reaches nothing of the Centro', async () => {
