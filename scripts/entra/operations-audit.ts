@@ -57,6 +57,10 @@ type AppRoleAssignmentResponse = {
 };
 
 type Collection<T> = { value?: T[]; '@odata.nextLink'?: string };
+type PermissionGrantResponse = { consentType?: string; scope?: string };
+
+/** Delegated consents of an app, without who they are for; null when they could not be read. */
+export type EntraDelegatedGrants = Array<{ allPrincipals: boolean; scopes: string[] }> | null;
 
 /** Permissions past the first page would escape the baseline: fail closed instead. */
 function singlePage<T>(collection: Collection<T>, stage: string): T[] {
@@ -105,6 +109,7 @@ export type EntraApplicationAudit = {
       resourceId: string;
       createdDateTime: string | null;
     }>;
+    delegatedGrants: EntraDelegatedGrants;
   } | null;
 };
 
@@ -131,6 +136,7 @@ export type EntraOperationsIdentityAudit = {
     resourceId: string;
     createdDateTime: string | null;
   }>;
+  delegatedGrants: EntraDelegatedGrants;
 };
 
 export type EntraSharePointAudit = {
@@ -196,6 +202,26 @@ const EXPECTED_APPLICATIONS = {
 const EXPECTED_OPERATIONS_DISPLAY_NAME = 'Ecossistema Operations - GitHub OIDC';
 const APPLICATION_READ_ALL_ROLE_ID = '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30';
 const SITES_SELECTED_ROLE_ID = '883ea226-0bf2-4a8f-9f9d-92c9162a727d';
+/** Lets Operations read the delegated consents below (#1530 T2); nothing else. */
+const DELEGATED_GRANT_READ_ROLE_ID = '81b4724a-58aa-41c1-8a55-84ef97466587';
+
+/**
+ * The delegated scopes each app may hold (#1530 T2). The Web app signs everyone in; only the
+ * accounts that delete groups from the Centro consented, for themselves, to Group.ReadWrite.All.
+ * A consent for the whole organization beyond sign-in, or any scope outside these, is critical.
+ */
+const SIGN_IN_SCOPES = ['openid', 'profile', 'email', 'offline_access', 'User.Read'];
+const EXPECTED_DELEGATED_SCOPES: Record<
+  'web' | 'graph' | 'operations',
+  { allPrincipals: ReadonlySet<string>; principal: ReadonlySet<string> }
+> = {
+  web: {
+    allPrincipals: new Set(SIGN_IN_SCOPES),
+    principal: new Set([...SIGN_IN_SCOPES, 'Group.ReadWrite.All']),
+  },
+  graph: { allPrincipals: new Set(), principal: new Set() },
+  operations: { allPrincipals: new Set(['User.Read']), principal: new Set() },
+};
 
 const EXPECTED_SHAREPOINT_SITE_ID =
   'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56';
@@ -271,7 +297,32 @@ function applicationDrift(
 
   certificateDrift(label, actual, now, add);
 
-  if (actual.servicePrincipal) permissionDrift(label, actual.servicePrincipal, add);
+  if (actual.servicePrincipal) {
+    permissionDrift(label, actual.servicePrincipal, add);
+    delegatedDrift(label, actual.servicePrincipal.delegatedGrants, add);
+  }
+}
+
+/** Delegated consents against the app's baseline; unreadable ones are a warning. */
+function delegatedDrift(
+  label: 'web' | 'graph' | 'operations',
+  grants: EntraDelegatedGrants,
+  add: AddDriftFinding,
+): void {
+  if (grants === null) {
+    add(label, 'warning', 'delegated-grants-unreadable');
+    return;
+  }
+  const expected = EXPECTED_DELEGATED_SCOPES[label];
+  for (const grant of grants) {
+    const allowed = grant.allPrincipals ? expected.allPrincipals : expected.principal;
+    if (grant.scopes.some((scope) => !allowed.has(scope)))
+      add(
+        label,
+        'critical',
+        grant.allPrincipals ? 'unexpected-organization-consent' : 'unexpected-delegated-scope',
+      );
+  }
 }
 
 /** Application permissions against the exact baseline of the app. */
@@ -333,11 +384,16 @@ function operationsDrift(
   if (sharePointAuditEnabled && !operationsRoles.has(SITES_SELECTED_ROLE_ID))
     add('operations', 'critical', 'sites-selected-missing');
 
-  const allowedOperationsRoles = new Set([APPLICATION_READ_ALL_ROLE_ID, SITES_SELECTED_ROLE_ID]);
+  const allowedOperationsRoles = new Set([
+    APPLICATION_READ_ALL_ROLE_ID,
+    SITES_SELECTED_ROLE_ID,
+    DELEGATED_GRANT_READ_ROLE_ID,
+  ]);
   for (const roleId of operationsRoles) {
     if (!allowedOperationsRoles.has(roleId))
       add('operations', 'critical', 'unexpected-application-permission');
   }
+  delegatedDrift('operations', operationsIdentity.delegatedGrants, add);
 }
 
 function auditDrift(
@@ -423,6 +479,31 @@ async function graphStatus(
   return response.status;
 }
 
+/** The app's delegated consents, or null when this identity may not read them (403). */
+async function readDelegatedGrants(
+  fetcher: GraphFetcher,
+  token: string,
+  servicePrincipalId: string,
+  stage: string,
+): Promise<EntraDelegatedGrants> {
+  let grants: Collection<PermissionGrantResponse>;
+  try {
+    grants = await graphJson<Collection<PermissionGrantResponse>>(
+      fetcher,
+      token,
+      `/servicePrincipals/${encodeURIComponent(servicePrincipalId)}/oauth2PermissionGrants?$select=consentType,scope&$top=100`,
+      stage,
+    );
+  } catch (error) {
+    if (error instanceof EntraOperationsAuditError && error.status === 403) return null;
+    throw error;
+  }
+  return singlePage(grants, stage).map((grant) => ({
+    allPrincipals: grant.consentType === 'AllPrincipals',
+    scopes: (grant.scope ?? '').split(/\s+/u).filter(Boolean),
+  }));
+}
+
 function sanitizedAssignments(
   assignments: AppRoleAssignmentResponse[],
 ): EntraOperationsIdentityAudit['appRoleAssignments'] {
@@ -464,12 +545,15 @@ async function readOperationsIdentity(
   if (!principal.id || !principal.appId || !principal.displayName)
     throw new EntraOperationsAuditError('operations-service-principal-invalid');
 
-  const assignments = await graphJson<Collection<AppRoleAssignmentResponse>>(
-    fetcher,
-    token,
-    `/servicePrincipals/${encodeURIComponent(principal.id)}/appRoleAssignments?$select=id,appRoleId,resourceId,createdDateTime&$top=100`,
-    'operations-app-role-assignments',
-  );
+  const [assignments, delegatedGrants] = await Promise.all([
+    graphJson<Collection<AppRoleAssignmentResponse>>(
+      fetcher,
+      token,
+      `/servicePrincipals/${encodeURIComponent(principal.id)}/appRoleAssignments?$select=id,appRoleId,resourceId,createdDateTime&$top=100`,
+      'operations-app-role-assignments',
+    ),
+    readDelegatedGrants(fetcher, token, principal.id, 'operations-delegated-grants'),
+  ]);
 
   return {
     id: principal.id,
@@ -480,6 +564,7 @@ async function readOperationsIdentity(
     appRoleAssignments: sanitizedAssignments(
       singlePage(assignments, 'operations-app-role-assignments'),
     ),
+    delegatedGrants,
   };
 }
 
@@ -537,6 +622,7 @@ function sanitizeApplication(
   app: ApplicationResponse,
   servicePrincipal: ServicePrincipalResponse | null,
   appRoleAssignments: AppRoleAssignmentResponse[],
+  delegatedGrants: EntraDelegatedGrants = [],
 ): EntraApplicationAudit {
   if (!app.id || !app.appId || !app.displayName)
     throw new EntraOperationsAuditError('invalid-application-response');
@@ -591,6 +677,7 @@ function sanitizeApplication(
                 : null,
             servicePrincipalType: servicePrincipal.servicePrincipalType ?? null,
             appRoleAssignments: sanitizedAssignments(appRoleAssignments),
+            delegatedGrants,
           }
         : null,
   };
@@ -642,10 +729,14 @@ async function readExactApplication(
         `${label}-app-role-assignments`,
       )
     : { value: [] };
+  const delegatedGrants = servicePrincipal?.id
+    ? await readDelegatedGrants(fetcher, token, servicePrincipal.id, `${label}-delegated-grants`)
+    : [];
   return sanitizeApplication(
     app,
     servicePrincipal,
     singlePage(assignments, `${label}-app-role-assignments`),
+    delegatedGrants,
   );
 }
 

@@ -149,7 +149,10 @@ describe('Entra Graph read destination boundary', () => {
               ],
             });
           }
-          if (url.pathname !== `/v1.0/servicePrincipals/${PRINCIPAL}/appRoleAssignments`) {
+          if (
+            url.pathname !== `/v1.0/servicePrincipals/${PRINCIPAL}/appRoleAssignments` &&
+            url.pathname !== `/v1.0/servicePrincipals/${PRINCIPAL}/oauth2PermissionGrants`
+          ) {
             rejectedPathReached = true;
           }
           return json({ value: [] });

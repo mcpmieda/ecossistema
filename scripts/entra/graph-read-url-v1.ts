@@ -3,7 +3,10 @@ const GUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 const READ_PATHS = [
   /^\/servicePrincipals$/u,
   new RegExp(`^/applications/${GUID}$`, 'iu'),
-  new RegExp(`^/servicePrincipals/${GUID}/(?:appRoleAssignments|ownedObjects)$`, 'iu'),
+  new RegExp(
+    `^/servicePrincipals/${GUID}/(?:appRoleAssignments|ownedObjects|oauth2PermissionGrants)$`,
+    'iu',
+  ),
   new RegExp(String.raw`^/sites/eduieda\.sharepoint\.com%2C${GUID}%2C${GUID}(?:/lists)?$`, 'iu'),
 ];
 

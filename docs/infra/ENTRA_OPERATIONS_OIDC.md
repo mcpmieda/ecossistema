@@ -58,7 +58,22 @@ O Job Summary publica somente status e contagens; os app-role assignments detalh
 
 A identidade **Operations também audita a si própria**. O conjunto permitido de application permissions fica limitado a:
 - `Application.Read.All`;
-- `Sites.Selected`, quando/antes da habilitação da prova SharePoint.
+- `Sites.Selected`, quando/antes da habilitação da prova SharePoint;
+- `DelegatedPermissionGrant.Read.All` (ID `81b4724a-58aa-41c1-8a55-84ef97466587`), só para ler os consentimentos delegados abaixo (#1530 T2, autorizado pelo responsável em 18/11/2026).
+
+### Consentimentos delegados (#1530 T2)
+
+A auditoria lê os `oauth2PermissionGrants` dos três service principals e guarda só o tipo (organização ou pessoa) e os escopos, sem quem consentiu. Linha de base de 18/11/2026:
+
+- **Web:** consentimento da organização com exatamente `openid profile email offline_access User.Read` (login); consentimentos por pessoa só com esses escopos e `Group.ReadWrite.All` (contas que excluem grupos pelo Centro, entrega 3 da #1513).
+- **Graph Backend:** nenhum consentimento delegado.
+- **Operations:** consentimento da organização só com `User.Read`.
+
+Escopo fora da linha de base num consentimento da organização (`unexpected-organization-consent`, por exemplo alguém clicar em "Consentir em nome da organização" ao excluir um grupo) ou num consentimento por pessoa (`unexpected-delegated-scope`) é drift **crítico**. Sem a permissão de leitura, a auditoria registra `delegated-grants-unreadable` como warning.
+
+### Administradores Globais
+
+Por decisão do responsável (18/11/2026, #1530 T1), o papel *Global Administrator* fica com a conta administradora do tenant e com a conta `gui@`. Qualquer outra conta com o papel deve ser revisada. A identidade Operations não lê papéis de diretório (exigiria `RoleManagement.Read.Directory`), então essa conferência é manual.
 
 Qualquer application permission adicional no service principal Operations é tratada como drift crítico. Assim, adicionar por engano `Directory.Read.All`, `Sites.Read.All`, `Sites.ReadWrite.All` ou outra permissão não aprovada faz a auditoria falhar fechado.
 
