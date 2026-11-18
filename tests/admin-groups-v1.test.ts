@@ -17,6 +17,9 @@ import {
   type GroupsGraphPortV1,
 } from '../server/platform/groups/groups-graph-v1';
 import { setGroupsGraphForTestsV1 } from '../server/platform/groups/groups-http-v1';
+import { GraphError } from '../server/graph/client';
+import type { GroupRulesPortV1 } from '../server/platform/groups/group-rules-graph-v1';
+import { setGroupRulesForTestsV1 } from '../server/platform/groups/group-rules-v1';
 import {
   setGroupsStoreForTestsV1,
   type GroupChangeRecordV1,
@@ -85,6 +88,7 @@ function fakeEntra() {
       async (id: string, role: string) => globalAdmins.has(id) && role === globalAdminRole,
     ),
     deleteGroupAs: vi.fn(async (id: string) => (groups.delete(id) ? 'deleted' : 'not-found')),
+    groupByMailNickname: vi.fn(async () => null),
     createGroup: vi.fn(async ({ name, description }) => {
       const group = { id: createdId, name, description, mail: 'novo@escola.example' };
       groups.set(createdId, group);
@@ -112,6 +116,7 @@ function memoryStore() {
     record: async (change) => {
       changes.push(change);
     },
+    serializeRuleSaves: (run) => run(),
     history: async (groupId, limit) =>
       changes
         .filter((change) => groupId === null || change.groupId === groupId)
@@ -171,6 +176,7 @@ beforeEach(() => {
 afterEach(() => {
   setGroupsGraphForTestsV1(undefined);
   setGroupsStoreForTestsV1(undefined);
+  setGroupRulesForTestsV1(undefined);
   setSessionRevocationPortForTestsV1(undefined);
   setAccessGrantsPortForTestsV1(undefined);
 });
@@ -293,6 +299,66 @@ describe('#1513 Grupos: only the Secretaria manages, and only the reachable grou
     expect(store.changes.map((change) => change.outcome)).toEqual(['done', 'unchanged']);
   });
 
+  it('#1530 S5: the self-removal guard holds with the ids in capitals', async () => {
+    entra.members.get(testEnv.GROUP_ADMIN_ID)!.add(adminOid);
+    expect(
+      await groups({
+        operation: 'remove-member',
+        groupId: testEnv.GROUP_ADMIN_ID.toUpperCase(),
+        personId: adminOid.toUpperCase(),
+      }),
+    ).toMatchObject({ status: 409, body: { state: 'self-removal' } });
+    expect(entra.port.removeMember).not.toHaveBeenCalled();
+  });
+
+  it('#1530 S7: a group gone from Entra is told as such, not as unavailable', async () => {
+    store.managed.push({ id: createdId, name: 'Biblioteca', createdBy: 'X', createdAt: '' });
+    entra.members.set(createdId, new Set());
+    expect(
+      await groups({ operation: 'remove-member', groupId: createdId, personId: person.id }),
+    ).toMatchObject({ status: 404, body: { state: 'group-not-found' } });
+    vi.mocked(entra.port.members).mockRejectedValueOnce(new GraphError(404, 'c'));
+    expect(await groups({ operation: 'members', groupId: createdId })).toMatchObject({
+      status: 404,
+      body: { state: 'group-not-found' },
+    });
+    vi.mocked(entra.port.createGroup).mockRejectedValueOnce(new GraphError(400, 'c'));
+    expect(await groups({ operation: 'create-group', name: 'Nome recusado' })).toMatchObject({
+      status: 400,
+      body: { state: 'invalid-request' },
+    });
+  });
+
+  it('#1530 P1: marks the members the flow keeps in the group by a job-title rule', async () => {
+    const other = {
+      ...person,
+      id: '34343434-3434-4434-8434-343434343434',
+      email: 'o@escola.example',
+      jobTitle: 'secretaria',
+    };
+    entra.members.get(testEnv.GROUP_APOIO_ID)!.add(person.id).add(other.id);
+    vi.mocked(entra.port.members).mockResolvedValueOnce([person, other]);
+    const rule = (cargoKey: string, groupId: string, active = true) => ({
+      cargoKey,
+      groupId,
+      active,
+      action: 'ADICIONAR',
+    });
+    setGroupRulesForTestsV1({
+      rules: async () => [
+        rule('equipe de apoio', testEnv.GROUP_APOIO_ID.toUpperCase()),
+        rule('secretaria', testEnv.GROUP_APOIO_ID, false),
+      ],
+    } as unknown as GroupRulesPortV1);
+    const answer = await groups({ operation: 'members', groupId: testEnv.GROUP_APOIO_ID });
+    expect(
+      (answer.body.members as GroupPersonV1[]).map((member) => [member.id, member.byRule]),
+    ).toEqual([
+      [person.id, true],
+      [other.id, false],
+    ]);
+  });
+
   it('creates a Microsoft 365 group owned by the institutional account, then reaches it', async () => {
     const created = await groups({
       operation: 'create-group',
@@ -315,6 +381,38 @@ describe('#1513 Grupos: only the Secretaria manages, and only the reachable grou
     expect(
       await groups({ operation: 'add-member', groupId: createdId, email: person.email }),
     ).toMatchObject({ status: 200, body: { result: 'added' } });
+  });
+
+  it('#1530 S6: a group Entra created is kept in the history even if the Centro cannot keep it', async () => {
+    store.port.addManagedGroup = () => Promise.reject(new Error('db down'));
+    expect(await groups({ operation: 'create-group', name: 'Biblioteca' })).toMatchObject({
+      status: 503,
+      body: { state: 'group-unrecorded' },
+    });
+    expect(store.changes.at(-1)).toMatchObject({
+      action: 'create-group',
+      outcome: 'done',
+      groupId: createdId,
+    });
+    expect(store.changes.at(-1)!.correlationId).toMatch(/^[0-9a-f-]{36}$/u);
+  });
+
+  it('#1530 S6: when the answer from Entra is lost, the group it did create is found and kept', async () => {
+    vi.mocked(entra.port.createGroup).mockRejectedValueOnce(new GraphError(503, 'c'));
+    vi.mocked(entra.port.groupByMailNickname).mockResolvedValueOnce({
+      id: createdId,
+      name: 'Biblioteca',
+      description: null,
+      mail: null,
+    });
+    expect(await groups({ operation: 'create-group', name: 'Biblioteca' })).toMatchObject({
+      status: 200,
+      body: { group: { id: createdId } },
+    });
+    expect(entra.port.groupByMailNickname).toHaveBeenCalledWith(
+      expect.stringMatching(/^biblioteca-[0-9a-f]{6}$/u),
+    );
+    expect(store.managed.map((group) => group.id)).toEqual([createdId]);
   });
 
   it('refuses a name already in use, ignoring case and accents', async () => {
@@ -416,6 +514,32 @@ describe('#1513 Grupos: deleting starts only for who may, on a group the Centro 
       ),
     ).toMatchObject({ status: 400, body: { state: 'name-mismatch' } });
     expect(entra.port.deleteGroupAs).not.toHaveBeenCalled();
+  });
+
+  it('#1530 S2: refuses while an active job-title rule still adds people to the group', async () => {
+    const owner = await cookieFor(['ADMINISTRADOR'], ownerId);
+    const rule = {
+      id: '4',
+      cargo: 'bibliotecária',
+      cargoKey: 'bibliotecária',
+      action: 'ADICIONAR' as const,
+      groupId: createdId.toUpperCase(),
+      groupName: 'Biblioteca',
+      active: true,
+      note: null,
+      reviewedAt: null,
+      reviewedBy: null,
+      etag: null,
+    };
+    let rules = [rule];
+    setGroupRulesForTestsV1({ rules: async () => rules } as unknown as GroupRulesPortV1);
+    const start = { operation: 'delete-start', groupId: createdId, confirmName: 'Biblioteca' };
+    expect(await groups(start, owner)).toMatchObject({
+      status: 409,
+      body: { state: 'group-has-rules' },
+    });
+    rules = [{ ...rule, active: false }];
+    expect((await groups(start, owner)).status).toBe(200);
   });
 
   it('sends the person to Microsoft for a one-time sign-in that can delete groups', async () => {

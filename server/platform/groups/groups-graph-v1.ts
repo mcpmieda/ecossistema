@@ -27,6 +27,8 @@ export type GroupsGraphPortV1 = {
   removeMember(groupId: string, personId: string): Promise<'removed' | 'not-member'>;
   /** The person holds the directory role (by its object id in the tenant). */
   holdsDirectoryRole(personId: string, roleObjectId: string): Promise<boolean>;
+  /** Finds a group just created when Entra's answer was lost. */
+  groupByMailNickname(mailNickname: string): Promise<EntraGroupV1 | null>;
   /** Deletes with the person's own delegated token: Entra decides if that person may. */
   deleteGroupAs(groupId: string, token: string): Promise<'deleted' | 'not-found'>;
   createGroup(input: {
@@ -165,7 +167,7 @@ export function graphGroupsPortV1(env: RuntimeEnv): GroupsGraphPortV1 {
         path: `/users/${encodeURIComponent(personId)}/checkMemberGroups`,
         body: { groupIds: [groupId] },
       });
-      return answer.data.value.includes(groupId);
+      return answer.data.value.some((id) => id.toLowerCase() === groupId.toLowerCase());
     },
     async addMember(groupId, personId) {
       try {
@@ -199,11 +201,21 @@ export function graphGroupsPortV1(env: RuntimeEnv): GroupsGraphPortV1 {
       }
     },
     async holdsDirectoryRole(personId, roleObjectId) {
-      // Without a directory permission the roles come with their id only, which is enough here.
+      // Transitive, so a role held through a role-assignable group counts. Without a directory
+      // permission the roles come with their id only, which is enough here.
       const items = await allPages<{ id: string }>(
-        `/users/${encodeURIComponent(personId)}/memberOf?$select=id&$top=999`,
+        `/users/${encodeURIComponent(personId)}/transitiveMemberOf?$select=id&$top=999`,
       );
-      return items.some((item) => item.id === roleObjectId);
+      return items.some((item) => item.id.toLowerCase() === roleObjectId.toLowerCase());
+    },
+    async groupByMailNickname(mailNickname) {
+      const query = new URLSearchParams({
+        $filter: `mailNickname eq '${odataTextV1(mailNickname)}'`,
+        $select: GROUP_FIELDS_V1,
+        $top: '1',
+      });
+      const answer = await get<PageV1<GraphGroupV1>>(`/groups?${query.toString()}`);
+      return answer.value[0] ? groupFromGraphV1(answer.value[0]) : null;
     },
     async deleteGroupAs(groupId, token) {
       try {

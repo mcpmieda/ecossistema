@@ -40,13 +40,16 @@ it('#1513 Grupos: opens a group, adds by search, removes after confirming, and k
   render(<GroupsSettingV1 />);
   await user.click(await screen.findByRole('button', { name: /PROFESSORES.*3 membros/u }));
   const table = await screen.findByRole('grid', { name: 'Membros de PROFESSORES' });
-  expect(within(table).getAllByRole('row')).toHaveLength(4);
+  // #1530 U2: the grid exists before React Aria fills its rows.
+  await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(4), { timeout: 5000 });
+  // #1530 P1: the flow keeps these by their job title.
+  expect(within(table).getAllByText('Por cargo')).toHaveLength(3);
 
   await user.type(screen.getByRole('textbox', { name: 'Adicionar pessoa' }), 'Dav');
   await user.click(
     await screen.findByRole('button', { name: 'Adicionar Davi Modelo' }, { timeout: 2000 }),
   );
-  expect(await screen.findByText('Davi Modelo adicionado.')).toBeTruthy();
+  expect(await screen.findByText('Davi Modelo entrou no grupo.')).toBeTruthy();
   expect(groupButton(/PROFESSORES.*4 membros/u)).toBeTruthy();
   expect(calls.at(-1)).toMatchObject({
     operation: 'add-member',
@@ -57,7 +60,7 @@ it('#1513 Grupos: opens a group, adds by search, removes after confirming, and k
   const dialog = await screen.findByRole('alertdialog');
   expect(within(dialog).getByText('Davi Modelo sai de PROFESSORES.')).toBeTruthy();
   await user.click(within(dialog).getByRole('button', { name: 'Remover' }));
-  expect(await screen.findByText('Davi Modelo removido.')).toBeTruthy();
+  expect(await screen.findByText('Davi Modelo saiu do grupo.')).toBeTruthy();
   expect(groupButton(/PROFESSORES.*3 membros/u)).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: 'Histórico' }));
@@ -70,6 +73,32 @@ it('#1513 Grupos: opens a group, adds by search, removes after confirming, and k
     expect.stringContaining('Removeu davi.modelo@escola.example'),
     expect.stringContaining('Adicionou davi.modelo@escola.example'),
   ]);
+});
+
+it('#1530 P1: removing someone kept by a job-title rule warns that the flow adds them back', async () => {
+  const user = userEvent.setup();
+  render(<GroupsSettingV1 />);
+  await user.click(await screen.findByRole('button', { name: /PROFESSORES/u }));
+  await user.click(
+    await screen.findByRole('button', { name: 'Remover Bruno Fictício de PROFESSORES' }),
+  );
+  expect(
+    within(await screen.findByRole('alertdialog')).getByText(
+      /a automação vai adicioná-la de novo/u,
+    ),
+  ).toBeTruthy();
+});
+
+it('#1530 U1: the result of a deletion is shown once and the address the app keeps loses it', async () => {
+  window.history.replaceState(null, '', '/#/configuracoes?grupos=excluido');
+  const changed = vi.fn();
+  window.addEventListener('hashchange', changed);
+  render(<GroupsSettingV1 />);
+  expect(await screen.findByText('Grupo excluído.')).toBeTruthy();
+  expect(window.location.hash).toBe('#/configuracoes');
+  await waitFor(() => expect(changed).toHaveBeenCalled());
+  window.removeEventListener('hashchange', changed);
+  expect(screen.getAllByText('Grupo excluído.')).toHaveLength(1);
 });
 
 it('#1513 Grupos: says why a change was refused, and creates a group that opens selected', async () => {

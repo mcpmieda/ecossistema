@@ -36,7 +36,8 @@ it('#1513 Regras por cargo: lists the rules and who to review, creates a rule fr
   const user = userEvent.setup();
   render(<GroupRulesSettingV1 />);
   const table = await screen.findByRole('grid', { name: 'Regras por cargo' }, { timeout: 5000 });
-  expect(within(table).getAllByRole('row')).toHaveLength(6);
+  // #1530 U2: the grid exists before React Aria fills its rows.
+  await waitFor(() => expect(within(table).getAllByRole('row')).toHaveLength(6), { timeout: 5000 });
   const review = screen.getByRole('region', { name: 'Pessoas para revisar' });
   expect(within(review).getByText('Sem cargo')).toBeTruthy();
   expect(within(review).getByText('Sem regra')).toBeTruthy();
@@ -76,6 +77,13 @@ it('#1513 Regras por cargo: refuses a second active rule and removes one after c
   const user = userEvent.setup();
   render(<GroupRulesSettingV1 />);
   await screen.findByRole('grid', { name: 'Regras por cargo' }, { timeout: 5000 });
+  await user.click(screen.getByRole('button', { name: 'Registro da automação' }));
+  // #1530 U4: the flow's codes are shown in words.
+  expect(
+    within(screen.getByRole('list', { name: 'Registro da automação' })).getByText(
+      /Helena Fictícia · Sem regra/u,
+    ),
+  ).toBeTruthy();
   await user.click(screen.getByRole('button', { name: 'Nova regra' }));
   const dialog = await screen.findByRole('dialog', { name: 'Nova regra' }, { timeout: 5000 });
   await user.type(within(dialog).getByRole('textbox', { name: 'Cargo' }), 'Professor');
