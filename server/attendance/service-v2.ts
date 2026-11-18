@@ -1028,8 +1028,8 @@ async function changedSourceKeys(tx: Tx, input: FrequencyCollectionV2, stored: S
  * day up to the capture that a record of this collection had before and no longer has. The diary is
  * annual, so a missing day has no lesson for that record now (the Smecel lists a student twice and
  * swaps the rows' order, or the days became "fora do período de matrícula"). Without it the old row
- * stays the latest and the readers keep an incomplete day. A tombstone never proposes removing a
- * mark: the occurrence belongs to the student and another record may still hold it.
+ * stays the latest and the readers keep an incomplete day. The marks the record had on such a day
+ * are a separate question, answered by vanishedEvents.
  */
 async function coverageDelta(
   tx: Tx,
@@ -1109,6 +1109,56 @@ function sourceEvents(
     }
   return events;
 }
+/**
+ * The marks a record held on a day the diary no longer gives it: the student left and the Smecel
+ * blanked the days after the exit, or the day became "fora do período de matrícula" or a non-school
+ * day (17/11/2026: four absences of a student who had left stayed stored, with nothing in the
+ * Smecel). The diary is annual and the collection carries the record's whole reading, so such a
+ * mark is gone from this ficha. It is proposed for removal unless another ficha of the same student
+ * in this collection shows it (the Smecel lists a student twice and swaps the rows' order).
+ * A ficha with no day at all in the collection proposes nothing: a whole diary gone blank is far
+ * more likely a bad reading than a student who never had a lesson. The collector sends a day
+ * whose positions it cannot read as present and incomplete, never as absent (coletor, 17/11/2026).
+ */
+function vanishedEvents(
+  input: FrequencyCollectionV2,
+  source: StoredSource,
+  previous: Map<string, Mark>,
+  sources: StoredSource[],
+): IncomingOccurrence[] {
+  const recordKey = source.record_key;
+  const present = new Set(
+    [...input.coverage, ...input.marks].filter((c) => c.recordKey === recordKey).map((c) => c.date),
+  );
+  const siblings = new Set(
+    sources
+      .filter((s) => s.student_uid === source.student_uid && s.record_key !== recordKey)
+      .map((s) => s.record_key),
+  );
+  const events: IncomingOccurrence[] = [];
+  if (!present.size) return events;
+  for (const [key, mark] of previous) {
+    const [date, slotText] = key.split(':') as [string, string];
+    if (mark === null || present.has(date)) continue;
+    const slot = Number(slotText);
+    // Looked at only for the rare vanished mark, never for every mark of the class. Another ficha
+    // of the student keeps the mark when it shows it, or when its own reading of that day is
+    // incomplete (a position the collector could not read may be this very mark).
+    const elsewhere =
+      input.marks.some((m) => siblings.has(m.recordKey) && m.date === date && m.slot === slot) ||
+      input.coverage.some((c) => siblings.has(c.recordKey) && c.date === date && !c.complete);
+    if (!elsewhere)
+      events.push({
+        uid: text(source.student_uid),
+        date,
+        slot,
+        mark: null,
+        recordKey,
+        changed: true,
+      });
+  }
+  return events;
+}
 export async function collectionEvents(
   tx: Tx,
   input: FrequencyCollectionV2,
@@ -1118,7 +1168,9 @@ export async function collectionEvents(
     `SELECT DISTINCT ON(p.record_key,o.student_uid,o.date,o.slot) p.record_key,o.student_uid::text,o.date::text,o.slot,p.mark FROM attendance.origin_v2 p JOIN attendance.occurrence_v2 o ON o.id=p.occurrence_id JOIN attendance.source_row_v2 s ON s.batch_id=p.batch_id AND s.record_key=p.record_key JOIN attendance.batch_v2 b ON b.id=p.batch_id WHERE b.academic_year=$1 AND b.class_id=$2 AND b.id<>$3::uuid ORDER BY p.record_key,o.student_uid,o.date,o.slot,b.received_at DESC,b.id DESC`,
     [input.academicYear, input.classId, input.requestId],
   );
-  return sources.flatMap((source) => {
+  const events: IncomingOccurrence[] = [];
+  const vanished: IncomingOccurrence[] = [];
+  for (const source of sources) {
     const previous = new Map(
       allPrior
         .filter((p) => p.student_uid === source.student_uid && p.record_key === source.record_key)
@@ -1127,8 +1179,26 @@ export async function collectionEvents(
           p.mark === null ? null : (text(p.mark) as Mark),
         ]),
     );
-    return sourceEvents(input, source, previous);
-  });
+    events.push(...sourceEvents(input, source, previous));
+    vanished.push(...vanishedEvents(input, source, previous, sources));
+  }
+  if (!vanished.length) return events;
+  // A student with a ficha in another class of the school keeps the mark: the occurrence is the
+  // student's, this class's reading cannot say what the other diary shows, and a removal here
+  // would not come back by itself. Rare (a change of class), and read only when a day vanished.
+  const elsewhere = new Set(
+    (
+      await tx.query<Row>(
+        `SELECT DISTINCT s.student_uid::text AS uid FROM attendance.source_row_v2 s JOIN attendance.batch_v2 b ON b.id=s.batch_id WHERE b.academic_year=$1 AND b.class_id<>$2 AND s.student_uid IN(SELECT value::uuid FROM jsonb_array_elements_text($3::text::jsonb))`,
+        [
+          input.academicYear,
+          input.classId,
+          JSON.stringify([...new Set(vanished.map((e) => e.uid))]),
+        ],
+      )
+    ).map((row) => text(row.uid)),
+  );
+  return [...events, ...vanished.filter((e) => !elsewhere.has(e.uid))];
 }
 function unresolvedOf(input: FrequencyCollectionV2, stored: StoredSource[]) {
   return stored

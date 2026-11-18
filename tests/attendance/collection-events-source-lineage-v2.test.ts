@@ -60,3 +60,120 @@ describe('frequency multi-origin baseline', () => {
     ]);
   });
 });
+describe('marks of a day the diary no longer gives a record', () => {
+  const uid = source('a').student_uid as string;
+  const held = (record_key: string, date: string) => ({
+    record_key,
+    student_uid: uid,
+    date,
+    slot: 1,
+    mark: 'X',
+  });
+  const run = async (
+    historical: ReturnType<typeof held>[],
+    input: object,
+    sources: string[],
+    otherClass: string[] = [],
+  ) => {
+    const queries: string[] = [];
+    const tx = {
+      query: async (query: string) => {
+        queries.push(query);
+        return queries.length === 1 ? historical : otherClass.map((value) => ({ uid: value }));
+      },
+    } as unknown as Arguments[0];
+    const events = await collectionEvents(
+      tx,
+      {
+        academicYear: 2026,
+        classId: 1,
+        requestId: '00000000-0000-4000-8000-000000000002',
+        marks: [],
+        coverage: [],
+        ...input,
+      } as unknown as Arguments[1],
+      sources.map(source),
+    );
+    return { events, queries };
+  };
+  const removal = { date: '2026-10-23', slot: 1, mark: null, recordKey: 'a', changed: true };
+
+  it('removes them when the record no longer has the day', async () => {
+    const { events, queries } = await run(
+      [held('a', '2026-10-22'), held('a', '2026-10-23')],
+      {
+        coverage: [{ recordKey: 'a', date: '2026-10-22', slots: [1, 2], complete: true }],
+        marks: [{ recordKey: 'a', date: '2026-10-22', slot: 1, mark: 'X' }],
+      },
+      ['a'],
+    );
+    expect(events.filter((e) => e.mark === null)).toEqual([{ uid, ...removal }]);
+    expect(queries[1]).toContain('b.class_id<>$2');
+  });
+  it('keeps them while another ficha of the student in the same diary shows the mark', async () => {
+    // The Smecel lists a student twice and swaps the rows' order: the day moved to the other ficha.
+    const { events, queries } = await run(
+      [held('a', '2026-10-23')],
+      {
+        coverage: [{ recordKey: 'b', date: '2026-10-23', slots: [1, 2], complete: true }],
+        marks: [{ recordKey: 'b', date: '2026-10-23', slot: 1, mark: 'X' }],
+      },
+      ['a', 'b'],
+    );
+    expect(events.filter((e) => e.mark === null)).toEqual([]);
+    expect(queries).toHaveLength(1);
+  });
+  it('removes them when the other ficha has the day without the mark', async () => {
+    const { events } = await run(
+      [held('a', '2026-10-23')],
+      {
+        coverage: [
+          { recordKey: 'a', date: '2026-10-24', slots: [1, 2], complete: true },
+          { recordKey: 'b', date: '2026-10-23', slots: [1, 2], complete: true },
+        ],
+      },
+      ['a', 'b'],
+    );
+    expect(events).toEqual([{ uid, ...removal }]);
+  });
+  it('keeps them while the other ficha has the day but could not be read whole', async () => {
+    // A position the collector could not read on the other ficha may be this very mark.
+    const { events, queries } = await run(
+      [held('a', '2026-10-23')],
+      {
+        coverage: [
+          { recordKey: 'a', date: '2026-10-24', slots: [1, 2], complete: true },
+          { recordKey: 'b', date: '2026-10-23', slots: [1, 2], complete: false },
+        ],
+      },
+      ['a', 'b'],
+    );
+    expect(events).toEqual([]);
+    expect(queries).toHaveLength(1);
+  });
+  it('keeps them for a student who also has a ficha in another class', async () => {
+    const { events, queries } = await run(
+      [held('a', '2026-10-23')],
+      { coverage: [{ recordKey: 'a', date: '2026-10-22', slots: [1, 2], complete: true }] },
+      ['a'],
+      [uid],
+    );
+    expect(events).toEqual([]);
+    expect(queries).toHaveLength(2);
+  });
+  it('proposes nothing for a ficha with no day at all in the collection', async () => {
+    // A whole diary gone blank is far more likely a bad reading than a student without lessons.
+    const { events, queries } = await run([held('a', '2026-10-23')], {}, ['a']);
+    expect(events).toEqual([]);
+    expect(queries).toHaveLength(1);
+  });
+  it('proposes nothing for a mark already removed or a day the record still has', async () => {
+    const { events, queries } = await run(
+      [{ ...held('a', '2026-10-23'), mark: null as unknown as string }, held('a', '2026-10-22')],
+      { coverage: [{ recordKey: 'a', date: '2026-10-22', slots: [2], complete: false }] },
+      ['a'],
+    );
+    expect(events).toEqual([]);
+    expect(queries).toHaveLength(1);
+  });
+});
