@@ -1116,6 +1116,9 @@ function sourceEvents(
  * Smecel). The diary is annual and the collection carries the record's whole reading, so such a
  * mark is gone from this ficha. It is proposed for removal unless another ficha of the same student
  * in this collection shows it (the Smecel lists a student twice and swaps the rows' order).
+ * A ficha with no day at all in the collection proposes nothing: a whole diary gone blank is far
+ * more likely a bad reading than a student who never had a lesson. The collector sends a day
+ * whose positions it cannot read as present and incomplete, never as absent (coletor, 17/11/2026).
  */
 function vanishedEvents(
   input: FrequencyCollectionV2,
@@ -1133,6 +1136,7 @@ function vanishedEvents(
       .map((s) => s.record_key),
   );
   const events: IncomingOccurrence[] = [];
+  if (!present.size) return events;
   for (const [key, mark] of previous) {
     const [date, slotText] = key.split(':') as [string, string];
     if (mark === null || present.has(date)) continue;

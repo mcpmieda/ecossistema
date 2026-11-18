@@ -126,14 +126,31 @@ describe('marks of a day the diary no longer gives a record', () => {
   it('removes them when the other ficha has the day without the mark', async () => {
     const { events } = await run(
       [held('a', '2026-10-23')],
-      { coverage: [{ recordKey: 'b', date: '2026-10-23', slots: [1, 2], complete: true }] },
+      {
+        coverage: [
+          { recordKey: 'a', date: '2026-10-24', slots: [1, 2], complete: true },
+          { recordKey: 'b', date: '2026-10-23', slots: [1, 2], complete: true },
+        ],
+      },
       ['a', 'b'],
     );
     expect(events).toEqual([{ uid, ...removal }]);
   });
   it('keeps them for a student who also has a ficha in another class', async () => {
-    const { events } = await run([held('a', '2026-10-23')], {}, ['a'], [uid]);
+    const { events, queries } = await run(
+      [held('a', '2026-10-23')],
+      { coverage: [{ recordKey: 'a', date: '2026-10-22', slots: [1, 2], complete: true }] },
+      ['a'],
+      [uid],
+    );
     expect(events).toEqual([]);
+    expect(queries).toHaveLength(2);
+  });
+  it('proposes nothing for a ficha with no day at all in the collection', async () => {
+    // A whole diary gone blank is far more likely a bad reading than a student without lessons.
+    const { events, queries } = await run([held('a', '2026-10-23')], {}, ['a']);
+    expect(events).toEqual([]);
+    expect(queries).toHaveLength(1);
   });
   it('proposes nothing for a mark already removed or a day the record still has', async () => {
     const { events, queries } = await run(

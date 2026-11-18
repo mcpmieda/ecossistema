@@ -1995,6 +1995,19 @@ describe('frequency V2 private PostgreSQL service', () => {
     );
     expect(await corrections()).toHaveLength(2);
     expect((await summary()).marks).toHaveLength(1);
+    // The nightly check reads only absences still stored: the erased ones keep their evidence
+    // lines as history and raise no "Revisar N registro(s) no banco".
+    const pruned = await pg.query<{ r: { checks: Record<string, number> } }>(
+      'SELECT attendance.prune_superseded_evidence_v2() AS r',
+    );
+    expect(pruned.rows[0]!.r.checks).toEqual({
+      occurrencesWithoutEvidence: 0,
+      unprovenRecordWithoutLesson: 0,
+    });
+    expect(
+      (await pg.query("SELECT 1 FROM attendance.failure_v2 WHERE operation='evidence-pruning'"))
+        .rows,
+    ).toEqual([]);
   });
   it('another enrollment for the same UID preserves old provenance without silent reassociation', async () => {
     await service.execute(collection(), actor);
