@@ -17,6 +17,7 @@ import { setGroupRulesForTestsV1 } from '../server/platform/groups/group-rules-v
 import type { GroupsGraphPortV1 } from '../server/platform/groups/groups-graph-v1';
 import { setGroupsGraphForTestsV1 } from '../server/platform/groups/groups-http-v1';
 import {
+  RuleLockUnreachableV1,
   setGroupsStoreForTestsV1,
   type GroupChangeRecordV1,
   type GroupsStorePortV1,
@@ -41,7 +42,10 @@ const ruleOf = (id: string, fields: GroupRuleFieldsV1): GroupRuleV1 => ({
   note: fields.note,
   reviewedAt: fields.reviewedAt,
   reviewedBy: fields.reviewedBy,
+  etag: `"v,${++version}"`,
 });
+let version = 0;
+let ruleWrites: Array<{ id: string; etag?: string }>;
 
 beforeEach(() => {
   nextId = 10;
@@ -59,8 +63,10 @@ beforeEach(() => {
       note: null,
       reviewedAt: null,
       reviewedBy: null,
+      etag: '"v,0"',
     },
   ];
+  ruleWrites = [];
   const port: GroupRulesPortV1 = {
     rules: async () => [...rules],
     people: async () => [
@@ -75,14 +81,18 @@ beforeEach(() => {
     ],
     log: async () => [],
     createRule: async (fields) => {
+      // Lets another request run between this save's check and its write.
+      await new Promise((resolve) => setTimeout(resolve, 5));
       written.push({ fields });
       const rule = ruleOf(String(nextId++), fields);
       rules.push(rule);
       return rule;
     },
-    updateRule: async (id, fields) => {
+    updateRule: async (id, fields, etag) => {
       const index = rules.findIndex((rule) => rule.id === id);
       if (index < 0) return null;
+      ruleWrites.push({ id, ...(etag ? { etag } : {}) });
+      if (etag && rules[index]!.etag !== etag) return 'changed';
       written.push({ id, fields });
       rules[index] = ruleOf(id, fields);
       return rules[index]!;
@@ -103,10 +113,17 @@ beforeEach(() => {
           : null,
     ),
   } as unknown as GroupsGraphPortV1);
+  let queue: Promise<unknown> = Promise.resolve();
   setGroupsStoreForTestsV1({
     managedGroups: async () => [],
     record: async (change: GroupChangeRecordV1) => {
       changes.push(change);
+    },
+    // The advisory lock, in memory: one save at a time.
+    serializeRuleSaves: <T>(run: () => Promise<T>) => {
+      const next = queue.then(run);
+      queue = next.catch(() => undefined);
+      return next;
     },
   } as unknown as GroupsStorePortV1);
   setSessionRevocationPortForTestsV1(null);
@@ -172,7 +189,7 @@ describe('#1513 Regras por cargo', () => {
     });
   });
 
-  it('a new rule keeps the title as written, compares it in lower case and takes the Entra name', async () => {
+  it('a new rule keeps the title as written, compares it as the flow does and takes the Entra name', async () => {
     const answer = await call({
       operation: 'save-rule',
       cargo: '  Bibliotecária  Escolar ',
@@ -181,16 +198,80 @@ describe('#1513 Regras por cargo', () => {
       active: true,
     });
     expect(answer.status).toBe(200);
+    // #1530 S3: the flow compares toLower(trim(jobTitle)), so the inner double space stays.
     expect(written[0]!.fields).toMatchObject({
-      cargo: 'Bibliotecária Escolar',
-      cargoKey: 'bibliotecária escolar',
+      cargo: 'Bibliotecária  Escolar',
+      cargoKey: 'bibliotecária  escolar',
       groupId: testEnv.GROUP_APOIO_ID,
       groupName: 'EQUIPE DE APOIO',
       reviewedBy: 'Secretaria Teste',
     });
     expect(changes).toMatchObject([
-      { action: 'save-rule', target: 'bibliotecária escolar', outcome: 'done' },
+      { action: 'save-rule', target: 'bibliotecária  escolar', outcome: 'done' },
     ]);
+  });
+
+  it('#1530 S1: two saves at once for one title leave exactly one active rule', async () => {
+    const save = { operation: 'save-rule', cargo: 'zelador', action: 'IGNORAR', active: true };
+    const answers = await Promise.all([call(save), call(save)]);
+    expect(answers.map((answer) => answer.status).sort()).toEqual([200, 409]);
+    expect(rules.filter((rule) => rule.cargoKey === 'zelador')).toHaveLength(1);
+    expect(changes).toMatchObject([{ action: 'save-rule', outcome: 'done' }]);
+  });
+
+  it('#1530 S1: a lock that cannot be taken does not stop the save', async () => {
+    const store = {
+      managedGroups: async () => [],
+      record: async () => undefined,
+      serializeRuleSaves: () => Promise.reject(new RuleLockUnreachableV1()),
+    } as unknown as GroupsStorePortV1;
+    setGroupsStoreForTestsV1(store);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(
+      (await call({ operation: 'save-rule', cargo: 'zelador', action: 'IGNORAR', active: true }))
+        .status,
+    ).toBe(200);
+    expect(log.mock.calls.some((line) => String(line[0]).includes('group_rules_lock_failed'))).toBe(
+      true,
+    );
+    log.mockRestore();
+    // A lock held too long by another save is not skipped.
+    setGroupsStoreForTestsV1({
+      ...store,
+      serializeRuleSaves: () => Promise.reject(new Error('statement timeout')),
+    } as unknown as GroupsStorePortV1);
+    expect(
+      (await call({ operation: 'save-rule', cargo: 'porteiro', action: 'IGNORAR', active: true }))
+        .status,
+    ).toBe(503);
+    expect(rules.some((rule) => rule.cargoKey === 'porteiro')).toBe(false);
+  });
+
+  it('#1530 S9: an edit made meanwhile by someone else is not overwritten', async () => {
+    expect(
+      await call({
+        operation: 'save-rule',
+        ruleId: '3',
+        etag: '"v,old"',
+        cargo: 'professor',
+        action: 'IGNORAR',
+        active: true,
+      }),
+    ).toMatchObject({ status: 409, body: { state: 'rule-changed' } });
+    expect(rules[0]).toMatchObject({ action: 'ADICIONAR' });
+    expect(
+      (
+        await call({
+          operation: 'save-rule',
+          ruleId: '3',
+          etag: '"v,0"',
+          cargo: 'professor',
+          action: 'IGNORAR',
+          active: true,
+        })
+      ).status,
+    ).toBe(200);
+    expect(ruleWrites.at(-1)).toEqual({ id: '3', etag: '"v,0"' });
   });
 
   it('refuses a second active rule for the same title, a group outside the Centro and no group', async () => {
@@ -281,12 +362,24 @@ describe('#1513 Regras por cargo: the SharePoint columns', () => {
       GrupoNome: '',
       GrupoID: '',
     });
-    expect(ruleFromItemV1({ id: '8', fields: columns })).toMatchObject({
+    expect(ruleFromItemV1({ id: '8', fields: columns, '@odata.etag': '"x,4"' })).toMatchObject({
       id: '8',
       cargo: 'Coordenador pedagógico',
       cargoKey: 'coordenador pedagógico',
       groupName: 'GRUPO DA SECRETARIA',
       note: null,
+      active: true,
+      etag: '"x,4"',
     });
+  });
+
+  it('#1530 S4: reads a row typed by hand in SharePoint the way the flow reads it', () => {
+    // The flow compares toLower(trim(CargoNormalizado)) and only Ativo = true.
+    expect(
+      ruleFromItemV1({ id: '1', fields: { Title: 'Professor -> PROFESSORES', Ativo: true } }),
+    ).toMatchObject({ cargo: 'Professor', cargoKey: '', active: true });
+    expect(
+      ruleFromItemV1({ id: '2', fields: { CargoNormalizado: ' Professor ', Ativo: null } }),
+    ).toMatchObject({ cargo: 'professor', cargoKey: 'professor', active: false, etag: null });
   });
 });
