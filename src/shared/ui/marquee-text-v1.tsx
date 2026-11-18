@@ -28,7 +28,7 @@ export function MarqueeTextV1({
     const stop = () => {
       slide?.cancel();
       slide = undefined;
-      element.removeAttribute('data-moving');
+      delete element.dataset.moving;
     };
     const play = (iterations: number, delay: number) => {
       stop();
@@ -39,7 +39,7 @@ export function MarqueeTextV1({
       )
         return;
       const end = `translateX(${-hidden}px)`;
-      element.setAttribute('data-moving', '');
+      element.dataset.moving = '';
       const current = text.animate(
         [
           { transform: 'translateX(0)' },
