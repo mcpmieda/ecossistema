@@ -1141,10 +1141,12 @@ function vanishedEvents(
     const [date, slotText] = key.split(':') as [string, string];
     if (mark === null || present.has(date)) continue;
     const slot = Number(slotText);
-    // Looked at only for the rare vanished mark, never for every mark of the class.
-    const elsewhere = input.marks.some(
-      (m) => siblings.has(m.recordKey) && m.date === date && m.slot === slot,
-    );
+    // Looked at only for the rare vanished mark, never for every mark of the class. Another ficha
+    // of the student keeps the mark when it shows it, or when its own reading of that day is
+    // incomplete (a position the collector could not read may be this very mark).
+    const elsewhere =
+      input.marks.some((m) => siblings.has(m.recordKey) && m.date === date && m.slot === slot) ||
+      input.coverage.some((c) => siblings.has(c.recordKey) && c.date === date && !c.complete);
     if (!elsewhere)
       events.push({
         uid: text(source.student_uid),

@@ -136,6 +136,21 @@ describe('marks of a day the diary no longer gives a record', () => {
     );
     expect(events).toEqual([{ uid, ...removal }]);
   });
+  it('keeps them while the other ficha has the day but could not be read whole', async () => {
+    // A position the collector could not read on the other ficha may be this very mark.
+    const { events, queries } = await run(
+      [held('a', '2026-10-23')],
+      {
+        coverage: [
+          { recordKey: 'a', date: '2026-10-24', slots: [1, 2], complete: true },
+          { recordKey: 'b', date: '2026-10-23', slots: [1, 2], complete: false },
+        ],
+      },
+      ['a', 'b'],
+    );
+    expect(events).toEqual([]);
+    expect(queries).toHaveLength(1);
+  });
   it('keeps them for a student who also has a ficha in another class', async () => {
     const { events, queries } = await run(
       [held('a', '2026-10-23')],
