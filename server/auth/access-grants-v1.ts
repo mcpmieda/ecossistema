@@ -29,17 +29,17 @@ export type AccessGrantsPortV1 = {
   areasFor(oid: string): Promise<AccessArea[]>;
   list(): Promise<AccessGrantV1[]>;
   /**
-   * Opens these areas to the person and records the change. With `expectedUpdatedAt` (an edit of a
-   * grant read before), nothing is written if someone changed it meanwhile.
+   * Writes the person's areas (none removes the grant) and its history line in one transaction.
+   * With the sign-in name, a new grant (or a blind overwrite of the person's grant). Without it, an
+   * edit of the grant read before: `changed` when it is gone or `expectedUpdatedAt` is no longer
+   * its version.
    */
-  save(
-    person: { oid: string; email: string },
+  change(
+    person: { oid: string; email?: string },
     areas: readonly AccessArea[],
     actor: { oid: string; name: string },
     expectedUpdatedAt?: string,
   ): Promise<'saved' | 'changed'>;
-  /** Removes every grant shown with this sign-in name; the ids of the people it was for. */
-  remove(email: string, actor: { oid: string; name: string }): Promise<string[]>;
   history(limit: number): Promise<AccessGrantChangeViewV1[]>;
 };
 
@@ -102,54 +102,64 @@ function postgresGrantsV1(connectionString: string): AccessGrantsPortV1 {
           updatedBy: row.updated_by,
         }));
       }),
-    save: (person, areas, actor, expectedUpdatedAt) =>
-      withDatabase(async (db) => {
-        // One statement: the grant and its history line are written together, or neither is.
-        const rows = await db.query<{ saved: number }>(
-          `WITH before AS (
-             SELECT areas FROM admin_access.area_grant_v1 WHERE oid = $1::uuid
-           ), written AS (
-             INSERT INTO admin_access.area_grant_v1 (oid, email, areas, updated_by, updated_at)
-             VALUES ($1::uuid, $2, ARRAY(SELECT jsonb_array_elements_text($3::text::jsonb)), $4,
-                     statement_timestamp())
-             ON CONFLICT (oid) DO UPDATE
-               SET email = excluded.email, areas = excluded.areas,
-                   updated_by = excluded.updated_by, updated_at = excluded.updated_at
-               WHERE $6::timestamptz IS NULL
-                  OR date_trunc('milliseconds', admin_access.area_grant_v1.updated_at) = $6::timestamptz
-             RETURNING areas
-           )
-           INSERT INTO admin_access.area_grant_change_v1
-             (actor_oid, actor_name, target_oid, target_email, before_areas, after_areas)
-           SELECT $5::uuid, $4, $1::uuid, $2, coalesce((SELECT areas FROM before), '{}'::text[]),
-                  written.areas
-             FROM written
-           RETURNING 1 AS saved`,
-          [
-            person.oid,
-            person.email,
-            JSON.stringify(areas),
-            clip(actor.name, 200),
-            actor.oid,
-            expectedUpdatedAt ?? null,
-          ],
-        );
-        return rows.length > 0 ? 'saved' : 'changed';
-      }),
-    remove: (email, actor) =>
-      withDatabase(async (db) => {
-        const rows = await db.query<{ oid: string }>(
-          `WITH gone AS (
-             DELETE FROM admin_access.area_grant_v1 WHERE email = $1 RETURNING oid, email, areas
-           )
-           INSERT INTO admin_access.area_grant_change_v1
-             (actor_oid, actor_name, target_oid, target_email, before_areas, after_areas)
-           SELECT $2::uuid, $3, oid, email, areas, '{}'::text[] FROM gone
-           RETURNING target_oid::text AS oid`,
-          [email, actor.oid, clip(actor.name, 200)],
-        );
-        return rows.map((row) => row.oid);
-      }),
+    change: (person, areas, actor, expectedUpdatedAt) =>
+      withDatabase((db) =>
+        db.transaction(async (transaction) => {
+          // The row is locked first, so "before" in the history is what this change replaced.
+          const rows = await transaction.query<{
+            email: string;
+            areas: unknown;
+            updated_at: Date | string;
+          }>(
+            `SELECT email, array_to_string(areas, ',') AS areas, updated_at
+               FROM admin_access.area_grant_v1 WHERE oid = $1::uuid FOR UPDATE`,
+            [person.oid],
+          );
+          const current = rows[0];
+          if (!person.email) {
+            if (!current) return 'changed';
+            if (
+              expectedUpdatedAt &&
+              new Date(current.updated_at).toISOString() !==
+                new Date(expectedUpdatedAt).toISOString()
+            )
+              return 'changed';
+          }
+          const email = person.email ?? current!.email;
+          if (areas.length === 0) {
+            if (!current) return 'saved';
+            await transaction.executeNative(
+              'DELETE FROM admin_access.area_grant_v1 WHERE oid = $1::uuid',
+              [person.oid],
+            );
+          } else
+            await transaction.executeNative(
+              `INSERT INTO admin_access.area_grant_v1 (oid, email, areas, updated_by, updated_at)
+               VALUES ($1::uuid, $2, ARRAY(SELECT jsonb_array_elements_text($3::text::jsonb)), $4,
+                       statement_timestamp())
+               ON CONFLICT (oid) DO UPDATE
+                 SET email = excluded.email, areas = excluded.areas,
+                     updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+              [person.oid, email, JSON.stringify(areas), clip(actor.name, 200)],
+            );
+          await transaction.executeNative(
+            `INSERT INTO admin_access.area_grant_change_v1
+               (actor_oid, actor_name, target_oid, target_email, before_areas, after_areas)
+             VALUES ($1::uuid, $2, $3::uuid, $4,
+                     coalesce(string_to_array(nullif($5, ''), ','), '{}'::text[]),
+                     ARRAY(SELECT jsonb_array_elements_text($6::text::jsonb)))`,
+            [
+              actor.oid,
+              clip(actor.name, 200),
+              person.oid,
+              email,
+              areasFromDatabaseV1(current?.areas).join(','),
+              JSON.stringify(areas),
+            ],
+          );
+          return 'saved';
+        }),
+      ),
     history: (limit) =>
       withDatabase(async (db) => {
         const rows = await db.query<{
@@ -234,7 +244,16 @@ export async function accessAreasForV1(
     return [];
   }
   if (!port) return [];
-  const ownRead = () => port.areasFor(oid).catch(() => [] as AccessArea[]);
+  const ownRead = () =>
+    port.areasFor(oid).catch((error: unknown) => {
+      console.error(
+        JSON.stringify({
+          event: 'access_grants_read_failed',
+          message: error instanceof Error ? error.name : 'unknown',
+        }),
+      );
+      return [] as AccessArea[];
+    });
   if (cached && !cached.settled && now - cached.startedAt < PENDING_SHARE_MS_V1)
     return joinFlightV1(cached.areas, PENDING_SHARE_MS_V1 - (now - cached.startedAt), ownRead);
 

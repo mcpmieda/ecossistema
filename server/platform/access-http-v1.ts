@@ -26,6 +26,11 @@ import {
 
 const changeSchemaV1 = z
   .object({
+    id: z
+      .string()
+      .uuid()
+      .transform((value) => value.toLowerCase())
+      .optional(),
     email: z.string().max(320),
     areas: z.array(z.enum(ACCESS_AREA_IDS as [string, ...string[]])).max(ACCESS_AREA_IDS.length),
     expectedUpdatedAt: z.string().datetime().optional(),
@@ -57,8 +62,12 @@ function failureV1(error: unknown): { state: AccessFailureStateV1; status: numbe
 type PersonV1 = { oid: string; email: string };
 type GraphUserV1 = { id: string; userPrincipalName?: string | null };
 
+/** Characters Graph would read as part of the address, not of the name. */
+const UNSAFE_LOOKUP_V1 = /[/\\?#%$]/u;
+
 /** The Entra account with this sign-in name, or with this e-mail when only one has it. */
 async function findPersonV1(env: RuntimeEnv, email: string): Promise<PersonV1 | null> {
+  if (UNSAFE_LOOKUP_V1.test(email)) return null;
   const person = (user: GraphUserV1): PersonV1 => ({
     oid: user.id.toLowerCase(),
     email: normalizeAccessEmailV1(user.userPrincipalName ?? email),
@@ -70,7 +79,9 @@ async function findPersonV1(env: RuntimeEnv, email: string): Promise<PersonV1 | 
     });
     return person(answer.data);
   } catch (error) {
-    if (!(error instanceof GraphError && error.status === 404)) throw error;
+    // 400: Graph does not take this text as a sign-in name.
+    if (!(error instanceof GraphError && (error.status === 404 || error.status === 400)))
+      throw error;
   }
   const query = new URLSearchParams({
     $filter: `mail eq '${email.replaceAll("'", "''")}'`,
@@ -119,26 +130,22 @@ export async function handleAccessRequestV1(
       if (!ACCESS_EMAIL_PATTERN_V1.test(email)) throw new HttpError(400, 'Invalid request');
       const areas = ACCESS_AREA_IDS.filter((area) => parsed.data.areas.includes(area));
       const actor = { oid: session.oid, name: session.name };
-      let target: string[];
-      if (areas.length === 0) {
-        // Removing needs no Entra lookup: the account may be gone already.
-        target = await port.remove(email, actor);
+      let oid: string;
+      if (parsed.data.id) {
+        // An edit or a removal follows the grant's person, never the name shown (#1530 A3): no
+        // Entra lookup, and nothing is written over a version changed meanwhile.
+        oid = parsed.data.id;
+        const changed = await port.change({ oid }, areas, actor, parsed.data.expectedUpdatedAt);
+        if (changed === 'changed') throw new AccessRefusalV1('changed', 409);
       } else {
+        if (areas.length === 0) throw new HttpError(400, 'Invalid request');
         const person = await (findPersonOverrideV1 ?? findPersonV1)(env, email);
         if (!person) throw new AccessRefusalV1('account-not-found', 404);
-        const saved = await port.save(person, areas, actor, parsed.data.expectedUpdatedAt);
-        if (saved === 'changed') throw new AccessRefusalV1('changed', 409);
-        target = [person.oid];
+        oid = person.oid;
+        await port.change(person, areas, actor);
       }
-      for (const oid of target) forgetAccessGrantV1(oid);
-      console.log(
-        JSON.stringify({
-          event: 'access_grant_changed',
-          actorOid: session.oid,
-          targets: target,
-          areas,
-        }),
-      );
+      forgetAccessGrantV1(oid);
+      console.log(JSON.stringify({ event: 'access_grant_changed', areas: areas.length }));
     }
     const [grants, history] = await Promise.all([port.list(), port.history(HISTORY_LIMIT_V1)]);
     return reply({

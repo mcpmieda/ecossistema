@@ -142,13 +142,20 @@ export async function readSession(request: Request, env: RuntimeEnv): Promise<Se
     ? []
     : await accessAreasForV1(env, session.oid);
   const granted = areas.length > 0 ? { areas: [...areas] } : {};
-  // An area can change data, so it holds a session to the same cap as a role that can (#1530 A6).
-  if (
-    areas.length > 0 &&
-    session.authenticatedAt !== undefined &&
-    Math.min(exp, session.authenticatedAt + WRITE_SESSION_MAX_HOURS * 60 * 60) <= Date.now() / 1000
-  )
-    return null;
+  // An area can change data, so it holds a session to the same cap as a role that can (#1530 A6),
+  // and the session says so (the Centro shows when it ends).
+  if (areas.length > 0 && session.authenticatedAt !== undefined) {
+    const capped = Math.min(exp, session.authenticatedAt + WRITE_SESSION_MAX_HOURS * 60 * 60);
+    if (capped <= Math.floor(Date.now() / 1000)) return null;
+    if (capped !== session.exp)
+      return {
+        ...session,
+        exp: capped,
+        durationHours: WRITE_SESSION_MAX_HOURS,
+        roles: [...session.roles],
+        ...granted,
+      };
+  }
   if (exp !== session.exp)
     return {
       ...session,

@@ -55,31 +55,32 @@ function memoryGrants(initial: Record<string, AccessArea[]> = {}) {
     async list() {
       return [...rows.values()];
     },
-    async save(person, areas, actor, expectedUpdatedAt) {
+    // As the SQL does: an edit (no e-mail) needs the grant and its version; a new one overwrites.
+    async change(person, areas, actor, expectedUpdatedAt) {
       const before = rows.get(person.oid);
-      if (before && expectedUpdatedAt && before.updatedAt !== expectedUpdatedAt) return 'changed';
-      rows.set(person.oid, {
-        ...person,
-        areas: [...areas],
-        updatedAt: new Date((clock += 1000)).toISOString(),
-        updatedBy: actor.name,
-      });
+      if (
+        !person.email &&
+        (!before || (expectedUpdatedAt && before.updatedAt !== expectedUpdatedAt))
+      )
+        return 'changed';
+      const email = person.email ?? before!.email;
+      if (areas.length === 0) rows.delete(person.oid);
+      else
+        rows.set(person.oid, {
+          oid: person.oid,
+          email,
+          areas: [...areas],
+          updatedAt: new Date((clock += 1000)).toISOString(),
+          updatedBy: actor.name,
+        });
       history.unshift({
         at: new Date(clock).toISOString(),
         actor: actor.name,
-        email: person.email,
+        email,
         before: before?.areas ?? [],
         after: [...areas],
       });
       return 'saved';
-    },
-    async remove(email, actor) {
-      const gone = [...rows.values()].filter((row) => row.email === email);
-      for (const row of gone) {
-        rows.delete(row.oid);
-        history.unshift({ at: '', actor: actor.name, email, before: row.areas, after: [] });
-      }
-      return gone.map((row) => row.oid);
     },
     async history(limit) {
       return history.slice(0, limit);
@@ -293,12 +294,40 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
     });
     // #1530 A6: an edit of a version changed meanwhile is refused.
     const stale = await put(admin, {
+      id: oid,
       email: librarian,
       areas: ['saude'],
       expectedUpdatedAt: '2026-11-17T12:00:00.000Z',
     });
     expect(stale.status).toBe(409);
     expect(await stale.json()).toEqual({ state: 'changed' });
+    // An edit goes by the person, even when the name shown now belongs to someone else.
+    const shown = [...memory.rows.values()][0]!;
+    people[librarian] = { oid: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', email: librarian };
+    expect(
+      (
+        await put(admin, {
+          id: oid.toUpperCase(),
+          email: librarian,
+          areas: ['desempenho', 'saude'],
+          expectedUpdatedAt: shown.updatedAt,
+        })
+      ).status,
+    ).toBe(200);
+    expect([...memory.rows.keys()]).toEqual([oid]);
+    people[librarian] = { oid, email: librarian };
+    // Removing needs the grant's id; a grant gone meanwhile is "changed".
+    expect((await put(admin, { email: librarian, areas: [] })).status).toBe(400);
+    expect(
+      (
+        await put(admin, {
+          id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+          email: librarian,
+          areas: [],
+        })
+      ).status,
+    ).toBe(409);
+    expect((await put(admin, { email: 'a/b@escola.example', areas: ['saude'] })).status).toBe(404);
     expect((await put(admin, { email: 'sem-arroba', areas: ['saude'] })).status).toBe(400);
     expect((await put(admin, { email: librarian, areas: ['configuracoes'] })).status).toBe(400);
 
@@ -319,7 +348,7 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
     expect((await serve(call('/api/platform/access', person))).status).toBe(403);
     expect((await put(person, { email: librarian, areas: ['desempenho'] })).status).toBe(403);
 
-    expect((await put(admin, { email: librarian, areas: [] })).status).toBe(200);
+    expect((await put(admin, { id: oid, email: librarian, areas: [] })).status).toBe(200);
     expect(memory.rows.size).toBe(0);
     expect(memory.history[0]).toMatchObject({ email: librarian, after: [] });
   });

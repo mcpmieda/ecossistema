@@ -35,14 +35,10 @@ const port: AccessGrantsPortV1 = {
       updatedAt: '2026-11-17T12:00:00.000Z',
       updatedBy: 'Admin',
     })),
-  save: async (person, areas) => {
-    grants.set(person.oid, [...areas]);
+  change: async (person, areas) => {
+    if (areas.length === 0) grants.delete(person.oid);
+    else grants.set(person.oid, [...areas]);
     return 'saved';
-  },
-  remove: async () => {
-    const gone = [...grants.keys()];
-    grants.clear();
-    return gone;
   },
   history: async () => [],
 };

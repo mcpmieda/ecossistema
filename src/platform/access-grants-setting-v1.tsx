@@ -30,16 +30,18 @@ type StateV1 =
 
 const EMAIL_V1 = /^[^\s@]{1,64}@[^\s@]{1,255}$/u;
 const areaLabel = (area: AccessArea) => ACCESS_AREAS.find((item) => item.id === area)?.label;
-const FAILURE_TEXT_V1: Record<AccessFailureStateV1, string> = {
+type AccessClientStateV1 = AccessFailureStateV1 | 'session-ended';
+const FAILURE_TEXT_V1: Record<AccessClientStateV1, string> = {
   'invalid-request': 'Dados inválidos.',
   refused: 'Sem permissão para alterar acessos.',
   'account-not-found': 'Nenhuma conta com esse e-mail.',
   changed: 'O acesso foi alterado por outra pessoa. Confira e salve de novo.',
+  'session-ended': 'Sua sessão terminou. Entre novamente.',
   unavailable: 'Não foi possível salvar o acesso.',
 };
 
 class AccessClientErrorV1 extends Error {
-  constructor(readonly state: AccessFailureStateV1) {
+  constructor(readonly state: AccessClientStateV1) {
     super(state);
   }
 }
@@ -50,6 +52,7 @@ async function requestGrantsV1(init?: RequestInit): Promise<AccessGrantsResponse
     cache: 'no-store',
     ...init,
   });
+  if (response.status === 401) throw new AccessClientErrorV1('session-ended');
   const body = (await response.json().catch(() => null)) as
     AccessGrantsResponseV1 | { state?: AccessFailureStateV1 } | null;
   if (!response.ok || !body || !('grants' in body)) {
@@ -68,7 +71,9 @@ export function AccessGrantsSettingV1() {
   const [email, setEmail] = useState('');
   const [areas, setAreas] = useState<AccessArea[]>([]);
   // The grant being edited, so a change saved meanwhile by someone else is not overwritten.
-  const [editing, setEditing] = useState<{ email: string; updatedAt: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; email: string; updatedAt: string } | null>(
+    null,
+  );
   const [saving, setSaving] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [removing, setRemoving] = useState<AccessGrantViewV1 | null>(null);
@@ -76,27 +81,33 @@ export function AccessGrantsSettingV1() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const emailField = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    requestGrantsV1({ signal: controller.signal })
+  const load = (signal?: AbortSignal) =>
+    requestGrantsV1({ signal })
       .then((answer) =>
         setState({ status: 'ready', grants: answer.grants, history: answer.history }),
       )
       .catch((error: Error) => {
         if (error.name !== 'AbortError') setState({ status: 'error' });
       });
+  useEffect(() => {
+    const controller = new AbortController();
+    void load(controller.signal);
     return () => controller.abort();
   }, []);
 
-  async function save(target: string, chosen: readonly AccessArea[]) {
+  /** A new grant goes by the e-mail typed; a grant shown (edit or removal) by its person's id. */
+  async function save(
+    target: string,
+    chosen: readonly AccessArea[],
+    grant?: { id: string; updatedAt?: string },
+  ) {
     setSaving(target);
     setFailure(null);
     const change: AccessGrantChangeRequestV1 = {
       email: target,
       areas: [...chosen],
-      ...(editing && editing.email === target && chosen.length > 0
-        ? { expectedUpdatedAt: editing.updatedAt }
-        : {}),
+      ...(grant ? { id: grant.id } : {}),
+      ...(grant?.updatedAt ? { expectedUpdatedAt: grant.updatedAt } : {}),
     };
     try {
       const answer = await requestGrantsV1({
@@ -105,15 +116,22 @@ export function AccessGrantsSettingV1() {
         body: JSON.stringify(change),
       });
       setState({ status: 'ready', grants: answer.grants, history: answer.history });
-      if (target === email.trim().toLowerCase() || chosen.length === 0) {
+      // A removal from the list leaves a form being filled for someone else as it was.
+      if (chosen.length > 0 || editing?.id === grant?.id) {
         setEmail('');
         setAreas([]);
         setEditing(null);
       }
     } catch (error) {
-      setFailure(
-        FAILURE_TEXT_V1[error instanceof AccessClientErrorV1 ? error.state : 'unavailable'],
-      );
+      const state = error instanceof AccessClientErrorV1 ? error.state : 'unavailable';
+      setFailure(FAILURE_TEXT_V1[state]);
+      // Someone else changed it: the list shows what is there now, and the form starts over.
+      if (state === 'changed') {
+        setEditing(null);
+        setEmail('');
+        setAreas([]);
+        void load();
+      }
     } finally {
       setSaving(null);
     }
@@ -138,7 +156,14 @@ export function AccessGrantsSettingV1() {
           className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (EMAIL_V1.test(normalized) && areas.length > 0) void save(normalized, areas);
+            if (EMAIL_V1.test(normalized) && areas.length > 0)
+              void save(
+                normalized,
+                areas,
+                editing && editing.email === normalized
+                  ? { id: editing.id, updatedAt: editing.updatedAt }
+                  : undefined,
+              );
           }}
         >
           <TextField fullWidth>
@@ -235,7 +260,7 @@ export function AccessGrantsSettingV1() {
                   onPress={() => {
                     setEmail(grant.email);
                     setAreas(grant.areas);
-                    setEditing({ email: grant.email, updatedAt: grant.updatedAt });
+                    setEditing({ id: grant.id, email: grant.email, updatedAt: grant.updatedAt });
                     setFailure(null);
                     emailField.current?.focus();
                   }}
@@ -292,7 +317,8 @@ export function AccessGrantsSettingV1() {
                 variant="danger"
                 onPress={() => {
                   setRemoveOpen(false);
-                  if (removing && saving === null) void save(removing.email, []);
+                  if (removing && saving === null)
+                    void save(removing.email, [], { id: removing.id });
                 }}
               >
                 Remover

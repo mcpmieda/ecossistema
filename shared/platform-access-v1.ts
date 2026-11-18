@@ -29,10 +29,12 @@ export type AccessGrantsResponseV1 = {
 };
 
 /**
- * PUT: opens the areas to the account with this sign-in name or e-mail; no area removes the grant.
- * `expectedUpdatedAt` is the version edited, so a change made meanwhile is not overwritten.
+ * PUT. Without `id`: opens the areas to the account with this sign-in name or e-mail. With `id`
+ * (a grant shown): changes that person's grant, no area removes it, and `expectedUpdatedAt` is the
+ * version edited, so a change made meanwhile is not overwritten.
  */
 export type AccessGrantChangeRequestV1 = {
+  id?: string;
   email: string;
   areas: AccessArea[];
   expectedUpdatedAt?: string;

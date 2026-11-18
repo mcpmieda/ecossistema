@@ -186,8 +186,7 @@ describe('#1513 Grupos: only the Secretaria manages, and only the reachable grou
     setAccessGrantsPortForTestsV1({
       areasFor: async () => [...ACCESS_AREA_IDS],
       list: async () => [],
-      save: async () => 'saved' as const,
-      remove: async () => [],
+      change: async () => 'saved' as const,
       history: async () => [],
     });
     const cookie = await cookieFor(['APOIO'], person.id);

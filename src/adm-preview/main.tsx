@@ -183,18 +183,25 @@ const previewAccessHistoryV1: Array<{
 function previewAccessV1(init?: RequestInit): Response {
   if (init?.method === 'PUT' && typeof init.body === 'string') {
     const change = JSON.parse(init.body) as {
+      id?: string;
       email: string;
       areas: string[];
       expectedUpdatedAt?: string;
     };
-    const email = change.email.trim().toLowerCase();
-    const before = previewGrantsV1.find((grant) => grant.email === email);
-    if (change.expectedUpdatedAt && before && before.updatedAt !== change.expectedUpdatedAt)
+    // A grant shown is changed by its person; a new one by the e-mail typed.
+    const before = change.id
+      ? previewGrantsV1.find((grant) => grant.id === change.id)
+      : previewGrantsV1.find((grant) => grant.email === change.email.trim().toLowerCase());
+    if (
+      change.id &&
+      (!before || (change.expectedUpdatedAt && before.updatedAt !== change.expectedUpdatedAt))
+    )
       return json({ state: 'changed' }, 409);
+    const email = before?.email ?? change.email.trim().toLowerCase();
     // Only the synthetic school's accounts exist here.
-    if (change.areas.length > 0 && !email.endsWith('@escola.example'))
+    if (!change.id && !email.endsWith('@escola.example'))
       return json({ state: 'account-not-found' }, 404);
-    previewGrantsV1 = previewGrantsV1.filter((grant) => grant.email !== email);
+    previewGrantsV1 = previewGrantsV1.filter((grant) => grant !== before);
     if (change.areas.length > 0)
       previewGrantsV1.push({
         id: before?.id ?? crypto.randomUUID(),

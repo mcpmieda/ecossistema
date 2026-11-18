@@ -65,7 +65,10 @@ it('removing an access asks first, and Cancelar keeps it', async () => {
   await waitFor(() =>
     expect(screen.queryByRole('list', { name: 'Acessos concedidos' })).toBeNull(),
   );
-  expect(puts).toEqual([{ email: 'biblioteca@escola.example', areas: [] }]);
+  // #1530 A3: a grant shown is removed by its person, not by the name shown.
+  expect(puts).toEqual([
+    { email: 'biblioteca@escola.example', areas: [], id: '30000000-0000-4000-8000-000000000001' },
+  ]);
 });
 
 it('editing fills the form, moves the focus to the e-mail and sends the version edited', async () => {
@@ -80,10 +83,28 @@ it('editing fills the form, moves the focus to the e-mail and sends the version 
   await user.click(screen.getByRole('button', { name: 'Salvar acesso' }));
   await waitFor(() => expect(puts).toHaveLength(1));
   expect(puts[0]).toEqual({
+    id: '30000000-0000-4000-8000-000000000001',
     email: 'biblioteca@escola.example',
     areas: ['saude'],
     expectedUpdatedAt: '2026-11-17T12:00:00.000Z',
   });
+});
+
+it('a change made meanwhile is said once, the list is read again and the form starts over', async () => {
+  const user = userEvent.setup();
+  const fetcher = vi.mocked(fetch);
+  render(<AccessGrantsSettingV1 />);
+  await user.click(
+    await screen.findByRole('button', { name: 'Editar acesso de biblioteca@escola.example' }),
+  );
+  fetcher.mockImplementationOnce(async () => Response.json({ state: 'changed' }, { status: 409 }));
+  const before = fetcher.mock.calls.length;
+  await user.click(screen.getByRole('button', { name: 'Salvar acesso' }));
+  expect(
+    await screen.findByText('O acesso foi alterado por outra pessoa. Confira e salve de novo.'),
+  ).toBeTruthy();
+  await waitFor(() => expect(fetcher.mock.calls.length).toBe(before + 2));
+  expect((screen.getByRole('textbox', { name: 'E-mail' }) as HTMLInputElement).value).toBe('');
 });
 
 it('says when no account has the e-mail typed', async () => {
