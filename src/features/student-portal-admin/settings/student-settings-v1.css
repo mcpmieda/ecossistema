@@ -548,18 +548,20 @@
   flex: 1 1 18rem;
   margin: 0;
 }
-/* The classes and shifts of the policy scope open on request, beside "Toda a escola". */
-.school-class-tabs:has(> .pa-scope-toggle) {
+/* The classes and shifts of the policy scope open on request, beside "Toda a escola".
+   A class set by the component, not :has(): .school-class-tabs also wraps the grade matrices,
+   and a :has() anchored there restyles a whole matrix on every hover. */
+.school-class-tabs.pa-scope-tabs--toggle {
   flex-flow: row wrap;
   align-items: center;
   column-gap: 0.5rem;
 }
-.school-class-tabs:has(> .pa-scope-toggle) > .tabs__list-container {
+.school-class-tabs.pa-scope-tabs--toggle > .tabs__list-container {
   flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
 }
-.school-class-tabs:has(> .pa-scope-toggle) > :not(.tabs__list-container, .pa-scope-toggle) {
+.school-class-tabs.pa-scope-tabs--toggle > .tabs__panel {
   flex: 1 1 100%;
   min-width: 0;
 }

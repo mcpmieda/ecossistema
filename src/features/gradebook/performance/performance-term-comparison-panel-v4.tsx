@@ -2,6 +2,7 @@ import type {
   PerformanceTermComparisonV4,
   PerformanceTermComparisonValueV4,
 } from '../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
+import { memo, useMemo } from 'react';
 import { subjectText } from './performance-display-v2';
 import { PerformanceGridV2 } from './performance-grid-v2';
 
@@ -18,7 +19,7 @@ const REASON: Record<Exclude<PerformanceTermComparisonValueV4['reason'], null>, 
   'reference-no-positive-maximum': 'Referência sem máximo',
 };
 
-export function PerformanceTermComparisonPanelV4({
+export const PerformanceTermComparisonPanelV4 = memo(function PerformanceTermComparisonPanelV4({
   value,
   open,
 }: {
@@ -34,8 +35,41 @@ export function PerformanceTermComparisonPanelV4({
       },
       { higher: 0, equal: 0, lower: 0, unavailable: 0 },
     );
-  const students = new Map(value.analysis.matrix.rows.map((row) => [row.student.id, row.student]));
-  const offers = new Map(value.analysis.matrix.offers.map((offer) => [offer.id, offer]));
+  // Built once per reading, so the grid keeps its rendered rows across other renders.
+  const grid = useMemo(() => {
+    const students = new Map(
+      value.analysis.matrix.rows.map((row) => [row.student.id, row.student]),
+    );
+    const offers = new Map(value.analysis.matrix.offers.map((offer) => [offer.id, offer]));
+    return {
+      columns: value.columns.map((column) => ({
+        key: column.key,
+        label: subjectText(offers.get(column.offerId)!),
+        title: column.label,
+        offerId: column.offerId,
+      })),
+      rows: value.rows.map((row) => ({
+        student: students.get(row.studentId)!,
+        values: row.values.map((item) =>
+          item.state === 'unavailable' ? (
+            <span key={item.key} className="inline-flex flex-col items-center gap-0.5">
+              <span className="font-semibold">—</span>
+              <span className="text-[10px] text-muted">{REASON[item.reason]}</span>
+            </span>
+          ) : (
+            <span key={item.key} className="inline-flex flex-col items-center gap-0.5">
+              <span className="font-semibold">
+                {RELATION[item.relation]} · {signed(item.deltaPercentagePoints)}
+              </span>
+              <span className="text-[10px] text-muted">
+                {percent(item.currentPercent)} × {percent(item.referencePercent)}
+              </span>
+            </span>
+          ),
+        ),
+      })),
+    };
+  }, [value]);
   const current = value.analysis.matrix.period;
   return (
     <section
@@ -71,32 +105,8 @@ export function PerformanceTermComparisonPanelV4({
       </div>
       <PerformanceGridV2
         label={`Comparação T${current} com T${value.referencePeriod}`}
-        columns={value.columns.map((column) => ({
-          key: column.key,
-          label: subjectText(offers.get(column.offerId)!),
-          title: column.label,
-          offerId: column.offerId,
-        }))}
-        rows={value.rows.map((row) => ({
-          student: students.get(row.studentId)!,
-          values: row.values.map((item) =>
-            item.state === 'unavailable' ? (
-              <span key={item.key} className="inline-flex flex-col items-center gap-0.5">
-                <span className="font-semibold">—</span>
-                <span className="text-[10px] text-muted">{REASON[item.reason]}</span>
-              </span>
-            ) : (
-              <span key={item.key} className="inline-flex flex-col items-center gap-0.5">
-                <span className="font-semibold">
-                  {RELATION[item.relation]} · {signed(item.deltaPercentagePoints)}
-                </span>
-                <span className="text-[10px] text-muted">
-                  {percent(item.currentPercent)} × {percent(item.referencePercent)}
-                </span>
-              </span>
-            ),
-          ),
-        }))}
+        columns={grid.columns}
+        rows={grid.rows}
         open={open}
       />
       <p className="text-xs text-muted">
@@ -106,4 +116,4 @@ export function PerformanceTermComparisonPanelV4({
       </p>
     </section>
   );
-}
+});

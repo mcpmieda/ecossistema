@@ -2,10 +2,12 @@ import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
 import { LiveRefreshScopeV1 } from '../shared/live-data/live-refresh-scope-v1';
 import {
   Component,
+  memo,
   Suspense,
   type ComponentType,
   type KeyboardEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -60,7 +62,8 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   },
 ] as const;
 
-type GradebookWorkspaceSurfaceId = (typeof GRADEBOOK_WORKSPACE_SURFACES)[number]['id'];
+type GradebookWorkspaceSurfaceV1 = (typeof GRADEBOOK_WORKSPACE_SURFACES)[number];
+type GradebookWorkspaceSurfaceId = GradebookWorkspaceSurfaceV1['id'];
 const NOTES_TABS_V1 = GRADEBOOK_WORKSPACE_SURFACES.filter((surface) => surface.id !== 'importacao');
 
 const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao';
@@ -263,7 +266,8 @@ function GradebookWorkspaceShellContent() {
   }
   const tabRefs = useRef(new Map<GradebookWorkspaceSurfaceId, HTMLButtonElement>());
 
-  const activateSurface = (surfaceId: GradebookWorkspaceSurfaceId) => {
+  // Stable: it reads only setters and the address, so the areas kept mounted can skip renders.
+  const activateSurface = useCallback((surfaceId: GradebookWorkspaceSurfaceId) => {
     if (!allowDraftNavigationV1()) return;
     setVisits((current) => {
       if (current.surfaces.has(surfaceId)) return current;
@@ -275,7 +279,8 @@ function GradebookWorkspaceShellContent() {
     // A new history entry, so the phone's back button returns to the previous area.
     const nextHash = workspaceSurfaceHash(surfaceId);
     if (window.location.hash !== nextHash) window.location.hash = nextHash;
-  };
+  }, []);
+  const leaveSurface = useCallback(() => activateSurface(DEFAULT_SURFACE), [activateSurface]);
 
   useEffect(() => {
     const onHashChange = () => {
@@ -355,46 +360,64 @@ function GradebookWorkspaceShellContent() {
 
       {GRADEBOOK_WORKSPACE_SURFACES.map((surface) => {
         if (!visitedSurfaces.has(surface.id)) return null;
-        const active = surface.id === activeSurface;
         return (
-          <div
+          <WorkspaceSurfaceV1
             key={surface.id}
-            id={`gradebook-panel-${surface.id}`}
-            role={surface.id === 'importacao' ? undefined : 'tabpanel'}
-            aria-labelledby={
-              surface.id === 'importacao' ? undefined : `gradebook-tab-${surface.id}`
-            }
-            hidden={!active}
-            className="min-w-0"
-          >
-            <LiveRefreshScopeV1 active={active}>
-              <p className="sr-only">{surface.description}</p>
-              {surface.id === 'importacao' ? (
-                <NotesImportPanel />
-              ) : (
-                <GradebookSurfaceBoundary
-                  label={surface.label}
-                  onLeave={() => activateSurface(DEFAULT_SURFACE)}
-                >
-                  <Suspense fallback={<SurfaceLoading label={surface.label} />}>
-                    {(() => {
-                      const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
-                      const scopeKey = scope?.epoch;
-                      if (surface.id === 'performance')
-                        return <PerformancePage key={scopeKey} isActive={active} />;
-                      if (surface.id === 'settings')
-                        return <SettingsPage key={scopeKey} isActive={active} />;
-                      if (surface.id === 'onedrive')
-                        return <OneDriveSyncPage key={scopeKey} isActive={active} />;
-                      return <SurfaceComponent key={scopeKey} />;
-                    })()}
-                  </Suspense>
-                </GradebookSurfaceBoundary>
-              )}
-            </LiveRefreshScopeV1>
-          </div>
+            surface={surface}
+            active={surface.id === activeSurface}
+            scopeKey={scope?.epoch}
+            onLeave={leaveSurface}
+          />
         );
       })}
     </section>
   );
 }
+
+/**
+ * One area of the workspace. Memoized: an area kept mounted out of sight renders again only when
+ * it is shown or hidden, not on every change of the workspace around it.
+ */
+const WorkspaceSurfaceV1 = memo(function WorkspaceSurfaceV1({
+  surface,
+  active,
+  scopeKey,
+  onLeave,
+}: {
+  readonly surface: GradebookWorkspaceSurfaceV1;
+  readonly active: boolean;
+  readonly scopeKey: number | undefined;
+  readonly onLeave: () => void;
+}) {
+  return (
+    <div
+      id={`gradebook-panel-${surface.id}`}
+      role={surface.id === 'importacao' ? undefined : 'tabpanel'}
+      aria-labelledby={surface.id === 'importacao' ? undefined : `gradebook-tab-${surface.id}`}
+      hidden={!active}
+      className="min-w-0"
+    >
+      <LiveRefreshScopeV1 active={active}>
+        <p className="sr-only">{surface.description}</p>
+        {surface.id === 'importacao' ? (
+          <NotesImportPanel />
+        ) : (
+          <GradebookSurfaceBoundary label={surface.label} onLeave={onLeave}>
+            <Suspense fallback={<SurfaceLoading label={surface.label} />}>
+              {(() => {
+                const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
+                if (surface.id === 'performance')
+                  return <PerformancePage key={scopeKey} isActive={active} />;
+                if (surface.id === 'settings')
+                  return <SettingsPage key={scopeKey} isActive={active} />;
+                if (surface.id === 'onedrive')
+                  return <OneDriveSyncPage key={scopeKey} isActive={active} />;
+                return <SurfaceComponent key={scopeKey} />;
+              })()}
+            </Suspense>
+          </GradebookSurfaceBoundary>
+        )}
+      </LiveRefreshScopeV1>
+    </div>
+  );
+});

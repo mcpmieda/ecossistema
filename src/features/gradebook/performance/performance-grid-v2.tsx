@@ -1,5 +1,6 @@
 import {
   createContext,
+  memo,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -56,8 +57,9 @@ function statusShort(student: PerformanceRowV2['student']) {
   return student.status === 7 ? student.statusLabel : STATUS_SHORT[student.status];
 }
 
-/** Shared table anatomy keeps all four lenses compact and keyboard-resizable. */
-export function PerformanceGridV2({
+/** Shared table anatomy keeps all four lenses compact and keyboard-resizable. Memoized: the
+ * matrix renders again only when its own columns, rows or callbacks change. */
+export const PerformanceGridV2 = memo(function PerformanceGridV2({
   columns,
   rows,
   open,
@@ -73,17 +75,23 @@ export function PerformanceGridV2({
   readonly label: string;
 }) {
   const academicYear = useContext(PerformanceGridYearV2);
-  const headers = [
-    { id: 'number', label: 'Nº', width: 28 },
-    { id: 'status', label: 'Situação', width: 72 },
-    { id: 'student', label: 'Aluno', width: 192 },
-    ...columns.map((column) => ({
-      id: `value-${column.key}`,
-      label: column.label,
-      width: column.label.length > 5 ? 112 : 44,
-    })),
-    ...(showAnnual ? [{ id: 'annual', label: 'Resultado', width: 150 }] : []),
-  ];
+  const headers = useMemo(
+    () => [
+      { id: 'number', label: 'Nº', width: 28 },
+      { id: 'status', label: 'Situação', width: 72 },
+      { id: 'student', label: 'Aluno', width: 192 },
+      ...columns.map((column) => ({
+        id: `value-${column.key}`,
+        label: column.label,
+        width: column.label.length > 5 ? 112 : 44,
+      })),
+      ...(showAnnual ? [{ id: 'annual', label: 'Resultado', width: 150 }] : []),
+    ],
+    [columns, showAnnual],
+  );
+  // React Aria keeps each rendered row and cell while its item stays the same; these are what
+  // the cells read besides their own row and column, so a change in any of them renders anew.
+  const dependencies = [headers, columns, open, focusOffer, academicYear];
   // Shown in alphabetical order and counted from 1 over what is listed; the number and the
   // order of the source spreadsheet stay where they are stored.
   const ordered = useMemo(
@@ -118,14 +126,18 @@ export function PerformanceGridV2({
       ),
     );
   };
+  /** The cells of the column under the pointer, so the next column clears only those. */
+  const marked = useRef<HTMLTableCellElement[]>([]);
   const markColumn = (column: number) => {
-    root.current
-      ?.querySelectorAll<HTMLElement>('[data-col-hover]')
-      .forEach((cell) => delete cell.dataset.colHover);
+    marked.current.forEach((cell) => delete cell.dataset.colHover);
+    marked.current = [];
     if (column < FIXED_COLUMNS) return;
-    root.current
-      ?.querySelectorAll<HTMLTableRowElement>('tbody tr')
-      .forEach((line) => line.cells[column]?.setAttribute('data-col-hover', ''));
+    for (const line of root.current?.querySelector('tbody')?.rows ?? []) {
+      const cell = line.cells[column];
+      if (!cell) continue;
+      cell.dataset.colHover = '';
+      marked.current.push(cell);
+    }
   };
   const point = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') return;
@@ -218,12 +230,13 @@ export function PerformanceGridV2({
       window.removeEventListener('resize', onResize);
     };
   }, []);
-  // New columns or labels: the copy on screen takes their widths again.
+  // New columns, labels or rows: the copy on screen takes their widths and marks again. `headers`
+  // follows the columns; `below` follows the rows.
   useLayoutEffect(() => {
     if (!pinned.current) return;
     align(true);
     markBelow(hovered.current.row);
-  });
+  }, [headers, below]);
 
   return (
     <div
@@ -258,7 +271,7 @@ export function PerformanceGridV2({
             className="w-full text-xs"
             style={{ minWidth: headers.reduce((sum, col) => sum + col.width, 0) }}
           >
-            <Table.Header columns={headers}>
+            <Table.Header columns={headers} dependencies={dependencies}>
               {(header) => {
                 const column = columns.find((item) => `value-${item.key}` === header.id);
                 // A component's column opens its assessments when the page offers that.
@@ -295,9 +308,18 @@ export function PerformanceGridV2({
                 );
               }}
             </Table.Header>
-            <Table.Body items={ordered} renderEmptyState={() => 'Nenhum aluno neste recorte.'}>
+            <Table.Body
+              items={ordered}
+              dependencies={dependencies}
+              renderEmptyState={() => 'Nenhum aluno neste recorte.'}
+            >
               {(row) => (
-                <Table.Row id={row.id} columns={headers} className="performance-grid__row">
+                <Table.Row
+                  id={row.id}
+                  columns={headers}
+                  dependencies={dependencies}
+                  className="performance-grid__row"
+                >
                   {(header) => {
                     const index = headers.indexOf(header) - FIXED_COLUMNS;
                     let content: ReactNode;
@@ -375,4 +397,4 @@ export function PerformanceGridV2({
       </Table>
     </div>
   );
-}
+});

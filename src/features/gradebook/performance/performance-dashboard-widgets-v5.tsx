@@ -1,5 +1,5 @@
 import { MarqueeTextV1 } from '../../../shared/ui/marquee-text-v1';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button, Chip, Surface } from '@heroui/react';
 import {
   ArrowDown,
@@ -682,7 +682,7 @@ function ClassPanoramaV5({
   );
 }
 
-export function PerformanceDashboardWidgetsV5({
+export const PerformanceDashboardWidgetsV5 = memo(function PerformanceDashboardWidgetsV5({
   value,
   previous = null,
   selection,
@@ -720,4 +720,4 @@ export function PerformanceDashboardWidgetsV5({
       </div>
     </div>
   );
-}
+});

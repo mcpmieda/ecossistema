@@ -659,6 +659,11 @@ function useRankingSealsV1(
   return { counts, forget };
 }
 
+const ACCOUNT_TABLE_CLASS_V1 = {
+  class: 'pa-account-table pa-account-table--selectable',
+  all: 'pa-account-table',
+} as const;
+
 const AccountsResultsV1 = memo(function AccountsResultsV1(
   props: AccountsBodyPropsV1 & {
     query: AdminReadQueryV2;
@@ -851,6 +856,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
   };
   const loadingRows = orderedItems.length <= visibleLimit && read.refreshing;
   const qrClass = scope.kind === 'class' ? scope : null;
+  const tableKind = qrClass ? 'class' : 'all';
   const row: AccountRowContextV1 = {
     selectedId,
     selectable: qrClass !== null,
@@ -990,7 +996,7 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
           {current && visibleItems.length === 0 && !current.nextCursor && <NoAccountsNoticeV1 />}
           {current && visibleItems.length > 0 && (
             // Rows are kept per account; a class adds the selection column, so its table is another.
-            <Table key={qrClass ? 'class' : 'all'} className="pa-account-table">
+            <Table key={tableKind} className={ACCOUNT_TABLE_CLASS_V1[tableKind]}>
               <Table.ScrollContainer
                 className="pa-account-scroll"
                 tabIndex={0}

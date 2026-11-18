@@ -66,7 +66,7 @@ export function PolicyScopeTabsV1({ reader, selectedShift, onShiftChange, ...pro
   const open = asked || narrowed;
   return (
     <Tabs
-      className="school-class-tabs"
+      className={narrowed ? 'school-class-tabs' : 'school-class-tabs pa-scope-tabs--toggle'}
       selectedKey={selected}
       keyboardActivation="manual"
       onSelectionChange={(key) => {

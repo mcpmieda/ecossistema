@@ -297,12 +297,12 @@ button.performance-kpi__button:hover {
   }
 }
 
-/* Components where the student under the pointer is below the minimum. */
+/* Components where the student under the pointer is below the minimum. Colour only: a change of
+   weight changes the header's width and makes the whole table lay out again on every row. */
 .performance-grid__head[data-below],
 .performance-grid__head[data-below] button,
 .performance-grid-pin__track > span[data-below] {
   color: var(--danger);
-  font-weight: 800;
 }
 
 /* The header again, under the top bar, once the table's own has scrolled away. */
@@ -711,45 +711,31 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__column:nth-child(2) .performance-bar {
-  animation-delay:
-    30ms,
-    -1.06s;
+  animation-delay: 30ms;
 }
 
 .performance-bars__column:nth-child(3) .performance-bar {
-  animation-delay:
-    60ms,
-    -1.59s;
+  animation-delay: 60ms;
 }
 
 .performance-bars__column:nth-child(4) .performance-bar {
-  animation-delay:
-    90ms,
-    -2.12s;
+  animation-delay: 90ms;
 }
 
 .performance-bars__column:nth-child(5) .performance-bar {
-  animation-delay:
-    120ms,
-    -2.65s;
+  animation-delay: 120ms;
 }
 
 .performance-bars__column:nth-child(6) .performance-bar {
-  animation-delay:
-    150ms,
-    -3.18s;
+  animation-delay: 150ms;
 }
 
 .performance-bars__column:nth-child(7) .performance-bar {
-  animation-delay:
-    180ms,
-    -3.71s;
+  animation-delay: 180ms;
 }
 
 .performance-bars__column:nth-child(8) .performance-bar {
-  animation-delay:
-    210ms,
-    -0.04s;
+  animation-delay: 210ms;
 }
 
 .performance-bars__column:nth-child(n + 9) .performance-bar {
@@ -1328,9 +1314,7 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__column:nth-child(1) .performance-bar {
-  animation-delay:
-    0ms,
-    -0.53s;
+  animation-delay: 0ms;
 }
 
 .performance-bars__column:nth-child(1) .performance-bar--below {
@@ -1382,9 +1366,7 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__column:nth-child(9) .performance-bar {
-  animation-delay:
-    240ms,
-    -0.57s;
+  animation-delay: 240ms;
 }
 
 .performance-bars__column:nth-child(9) .performance-bar--below {

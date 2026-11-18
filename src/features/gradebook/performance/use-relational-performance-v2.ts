@@ -12,7 +12,7 @@ import type {
   PerformanceReferencePeriodV4,
   PerformanceTermComparisonV4,
 } from '../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { PERFORMANCE_LENSES_V3 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { readSessionViewV1, writeSessionViewV1 } from '../../../shared/ui/session-view-v1';
@@ -410,6 +410,20 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     setDetailOpen(true);
     await readDetail(target);
   }
+  // The actions keep one identity for the life of the page and run this render's version, so
+  // the memoized matrix and panels that receive them do not render again when the detail opens.
+  const latest = useRef({ select, refresh, open, closeDetail, loadClasses });
+  useLayoutEffect(() => {
+    latest.current = { select, refresh, open, closeDetail, loadClasses };
+  });
+  const [actions] = useState(() => ({
+    select: (next: Partial<Filters>, forceDashboard?: boolean) =>
+      latest.current.select(next, forceDashboard),
+    refresh: (forceDashboard?: boolean) => latest.current.refresh(forceDashboard),
+    open: (studentId: number, offerId?: number) => latest.current.open(studentId, offerId),
+    closeDetail: () => latest.current.closeDetail(),
+    loadClasses: (offset?: number) => latest.current.loadClasses(offset),
+  }));
   return {
     year,
     classes,
@@ -425,10 +439,6 @@ export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = t
     busy,
     failure,
     detailFailure,
-    select,
-    refresh,
-    open,
-    closeDetail,
-    loadClasses,
+    ...actions,
   };
 }

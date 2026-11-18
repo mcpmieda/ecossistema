@@ -1,6 +1,6 @@
 import './performance-v2.css';
 import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Button, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
 import { usePerformanceAnalyticsV6 } from './use-performance-analytics-v6';
 import {
@@ -171,6 +171,9 @@ function comparisonItemsV2(period: unknown): FilterItem[] {
   if (period === 3) items.push({ id: '2', label: '2º trimestre' });
   return items;
 }
+
+/** The same empty list on every render while the classes are not read, for the memoized matrix. */
+const NO_STATUS_OPTIONS: readonly { value: PerformanceStatusV2; label: string }[] = [];
 
 const studentCountTextV2 = (matrix: { rows: readonly unknown[] } | null | undefined) =>
   matrix ? ` · ${matrix.rows.length} estudantes` : '';
@@ -350,35 +353,51 @@ function useDetailStepsV2(detail: {
   const [history, setHistory] = useState<DetailStepV2[]>([]);
   // Where the detail was opened from, when that place can be reopened (the overview's list).
   const [origin, setOrigin] = useState<(() => void) | null>(null);
-  const show = (step: DetailStepV2) => {
-    current.current = step;
-    setOpeningId(step.studentId);
-    setFocusTerm(step.term ?? null);
-    detail.open(step.studentId, step.offerId);
-  };
-  const open = (studentId: number, offerId?: number, term?: 1 | 2 | 3) => {
-    const previous = current.current;
-    if (!detail.isOpen) {
-      lastFocus.current = document.activeElement as HTMLElement;
-      setHistory([]);
-      setOrigin(null);
-    } else if (previous) {
-      setHistory((steps) => [...steps, previous]);
-    }
-    show({ studentId, offerId, term });
-  };
-  const openFromAnalytics = (studentId: number, offerId?: number, from?: () => void) => {
-    open(studentId, offerId);
-    setOrigin(() => from ?? null);
-  };
-  const close = () => {
+  // Read when a step opens, so `open` keeps one identity while the panel opens and closes and the
+  // matrix that receives it does not render again.
+  const isOpen = useRef(detail.isOpen);
+  useLayoutEffect(() => {
+    isOpen.current = detail.isOpen;
+  }, [detail.isOpen]);
+  const { open: openDetail, close: closeDetail } = detail;
+  const show = useCallback(
+    (step: DetailStepV2) => {
+      current.current = step;
+      setOpeningId(step.studentId);
+      setFocusTerm(step.term ?? null);
+      openDetail(step.studentId, step.offerId);
+    },
+    [openDetail],
+  );
+  const open = useCallback(
+    (studentId: number, offerId?: number, term?: 1 | 2 | 3) => {
+      const previous = current.current;
+      if (!isOpen.current) {
+        lastFocus.current = document.activeElement as HTMLElement;
+        setHistory([]);
+        setOrigin(null);
+      } else if (previous) {
+        setHistory((steps) => [...steps, previous]);
+      }
+      show({ studentId, offerId, term });
+    },
+    [show],
+  );
+  const openFromAnalytics = useCallback(
+    (studentId: number, offerId?: number, from?: () => void) => {
+      open(studentId, offerId);
+      setOrigin(() => from ?? null);
+    },
+    [open],
+  );
+  const close = useCallback(() => {
     setOrigin(null);
     setHistory([]);
     current.current = null;
     setFocusTerm(null);
-    detail.close();
+    closeDetail();
     lastFocus.current?.focus();
-  };
+  }, [closeDetail]);
   const previous = history.at(-1);
   const goBack = () => {
     if (previous) {
@@ -414,6 +433,7 @@ export function RelationalPerformancePageV2({
     storedView?.selection ?? { studentId: null, offerId: null, teacherId: null },
   );
   const state = useRelationalPerformanceV2(perspective === 'notes', isActive);
+  const { select, refresh, closeDetail } = state;
   const viewYear = state.year;
   useEffect(() => {
     // What was picked belongs to its year: another year starts clean.
@@ -440,16 +460,38 @@ export function RelationalPerformancePageV2({
     },
     parseViewV2,
   );
-  function navigate(tab: PerformancePerspectiveV6) {
-    if (tab === perspective) return;
-    state.closeDetail();
-    setPerspective(tab);
-    if (tab === 'notes') void state.refresh(true);
-  }
-  function openAssessmentNotes(offerId: number) {
-    setPerspective('notes');
-    void state.select({ lens: 'assessments', offerId, mode: 'regular', statuses: [null, 7] }, true);
-  }
+  // The callbacks below keep their identity across renders: the memoized matrix, panels and
+  // indicators that receive them skip the renders of the student panel.
+  const navigate = useCallback(
+    (tab: PerformancePerspectiveV6) => {
+      if (tab === perspective) return;
+      closeDetail();
+      setPerspective(tab);
+      if (tab === 'notes') void refresh(true);
+    },
+    [perspective, closeDetail, refresh],
+  );
+  const openAssessmentNotes = useCallback(
+    (offerId: number) => {
+      setPerspective('notes');
+      void select({ lens: 'assessments', offerId, mode: 'regular', statuses: [null, 7] }, true);
+    },
+    [select],
+  );
+  const changeSelection = useCallback(
+    (next: Partial<PerformanceSelectionV6>) =>
+      setSelection((previous) => ({ ...previous, ...next })),
+    [],
+  );
+  const changePeriod = useCallback((period: 1 | 2 | 3) => void select({ period }), [select]);
+  const focusOffer = useCallback(
+    (offerId: number) => void select({ lens: 'assessments', offerId }),
+    [select],
+  );
+  const changeStatuses = useCallback(
+    (statuses: PerformanceStatusV2[]) => void select({ statuses }),
+    [select],
+  );
   const [openSelect, setOpenSelect] = useState<PerformanceSelectId | null>(null);
   const changeOpenSelect = useCallback((id: PerformanceSelectId, isOpen: boolean) => {
     setOpenSelect((current) => {
@@ -463,11 +505,7 @@ export function RelationalPerformancePageV2({
     });
   }, []);
   const { openingId, focusTerm, open, openFromAnalytics, close, goBack, backLabel, depth } =
-    useDetailStepsV2({
-      isOpen: state.detailOpen,
-      open: (studentId, offerId) => void state.open(studentId, offerId),
-      close: state.closeDetail,
-    });
+    useDetailStepsV2({ isOpen: state.detailOpen, open: state.open, close: closeDetail });
   const lensLabel: Record<PerformanceLensV3, string> = {
     result: 'Resultado',
     quantitative: 'Quantitativo',
@@ -679,22 +717,16 @@ export function RelationalPerformancePageV2({
                               previous={state.previousDashboard}
                               open={open}
                               statuses={state.filters.statuses}
-                              focusOffer={(offerId) =>
-                                void state.select({ lens: 'assessments', offerId })
-                              }
+                              focusOffer={focusOffer}
                               renderResult={(ids) => (
                                 <PerformanceResultMatrixV2
                                   value={state.analysis!.matrix}
                                   open={open}
                                   allowedIds={ids}
-                                  focusOffer={(offerId) =>
-                                    void state.select({ lens: 'assessments', offerId })
-                                  }
-                                  statusOptions={state.classes?.statusOptions ?? []}
+                                  focusOffer={focusOffer}
+                                  statusOptions={state.classes?.statusOptions ?? NO_STATUS_OPTIONS}
                                   statuses={state.filters.statuses}
-                                  onStatusesChange={(statuses: PerformanceStatusV2[]) =>
-                                    void state.select({ statuses })
-                                  }
+                                  onStatusesChange={changeStatuses}
                                 />
                               )}
                             />
@@ -716,9 +748,9 @@ export function RelationalPerformancePageV2({
                   analytics={analytics}
                   tab={perspective}
                   selection={selection}
-                  onSelection={(next) => setSelection((previous) => ({ ...previous, ...next }))}
+                  onSelection={changeSelection}
                   onNavigate={navigate}
-                  onPeriod={(period) => void state.select({ period })}
+                  onPeriod={changePeriod}
                   onCell={openFromAnalytics}
                   onNotes={openAssessmentNotes}
                   classChosen={state.filters.classId !== null}
