@@ -46,9 +46,13 @@ type SessionIdentity = Pick<Session, 'oid' | 'name' | 'username' | 'roles'> & {
  * whatever length was chosen. */
 export const WRITE_SESSION_MAX_HOURS: SessionDurationHours = 8;
 
-/** The lengths this identity may choose: a session with write power never above the cap. */
-export function sessionDurationOptionsFor(roles: readonly Role[]): SessionDurationHours[] {
-  const writes = capabilitiesForRoles(roles).length > 0;
+/** The lengths this identity may choose: a session with write power (a role, or an area opened to
+ * the person, #1530 A6) never above the cap. */
+export function sessionDurationOptionsFor(
+  roles: readonly Role[],
+  areas: readonly unknown[] = [],
+): SessionDurationHours[] {
+  const writes = capabilitiesForRoles(roles).length > 0 || areas.length > 0;
   return SESSION_DURATION_OPTIONS_HOURS.filter(
     (hours) => !writes || hours <= WRITE_SESSION_MAX_HOURS,
   );
@@ -140,8 +144,22 @@ export async function readSession(request: Request, env: RuntimeEnv): Promise<Se
   // The administrator has every area; anyone else gets what was opened to them.
   const areas = session.roles.includes('ADMINISTRADOR')
     ? []
-    : await accessAreasForV1(env, session.username);
+    : await accessAreasForV1(env, session.oid);
   const granted = areas.length > 0 ? { areas: [...areas] } : {};
+  // An area can change data, so it holds a session to the same cap as a role that can (#1530 A6),
+  // and the session says so (the Centro shows when it ends).
+  if (areas.length > 0 && session.authenticatedAt !== undefined) {
+    const capped = Math.min(exp, session.authenticatedAt + WRITE_SESSION_MAX_HOURS * 60 * 60);
+    if (capped <= Math.floor(Date.now() / 1000)) return null;
+    if (capped !== session.exp)
+      return {
+        ...session,
+        exp: capped,
+        durationHours: WRITE_SESSION_MAX_HOURS,
+        roles: [...session.roles],
+        ...granted,
+      };
+  }
   if (exp !== session.exp)
     return {
       ...session,

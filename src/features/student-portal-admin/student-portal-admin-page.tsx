@@ -121,6 +121,8 @@ type PanelCommonV1 = {
   scopeLabel: string;
   identityKey: string;
   canWrite: boolean;
+  /** The Centro's own settings (the public demonstration) are the Secretaria's (#1530 A4). */
+  platformSettings: boolean;
   onAuthorizationLost: (error: PortalClientErrorV1) => void;
 };
 
@@ -313,7 +315,7 @@ function sectionContentV1({
     case 'settings':
       return (
         <>
-          <PublicDemoControlV1 canWrite={common.canWrite} />
+          {common.platformSettings ? <PublicDemoControlV1 canWrite={common.canWrite} /> : null}
           <StudentSettingsV1
             client={common.client}
             scope={SCHOOL}
@@ -489,6 +491,7 @@ function PortalWorkspace({
         identity.capabilities.includes('platform.settings.write') ||
         (identity.capabilities.includes('area.painel-do-aluno') &&
           !identity.capabilities.includes('platform.settings.read')),
+      platformSettings: identity.capabilities.includes('platform.settings.read'),
       onAuthorizationLost: onLost,
     }),
     [clients, identity, onLost, panelScope],

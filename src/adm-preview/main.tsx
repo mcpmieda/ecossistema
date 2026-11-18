@@ -159,33 +159,67 @@ function unansweredV1(path: string): Response {
 
 /** Configurações › Acessos (#1513), in memory, with one synthetic person. */
 let previewGrantsV1: Array<{
+  id: string;
   email: string;
   areas: string[];
   updatedAt: string;
   updatedBy: string;
 }> = [
   {
+    id: '30000000-0000-4000-8000-000000000001',
     email: 'bibliotecaria@escola.example',
     areas: ['painel-do-aluno'],
     updatedAt: '2026-11-17T12:00:00.000Z',
     updatedBy: 'Administração sintética',
   },
 ];
+const previewAccessHistoryV1: Array<{
+  at: string;
+  actor: string;
+  email: string;
+  before: string[];
+  after: string[];
+}> = [];
 function previewAccessV1(init?: RequestInit): Response {
   if (init?.method === 'PUT' && typeof init.body === 'string') {
-    const change = JSON.parse(init.body) as { email: string; areas: string[] };
-    const email = change.email.trim().toLowerCase();
-    previewGrantsV1 = previewGrantsV1.filter((grant) => grant.email !== email);
+    const change = JSON.parse(init.body) as {
+      id?: string;
+      email: string;
+      areas: string[];
+      expectedUpdatedAt?: string;
+    };
+    // A grant shown is changed by its person; a new one by the e-mail typed.
+    const before = change.id
+      ? previewGrantsV1.find((grant) => grant.id === change.id)
+      : previewGrantsV1.find((grant) => grant.email === change.email.trim().toLowerCase());
+    if (
+      change.id &&
+      (!before || (change.expectedUpdatedAt && before.updatedAt !== change.expectedUpdatedAt))
+    )
+      return json({ state: 'changed' }, 409);
+    const email = before?.email ?? change.email.trim().toLowerCase();
+    // Only the synthetic school's accounts exist here.
+    if (!change.id && !email.endsWith('@escola.example'))
+      return json({ state: 'account-not-found' }, 404);
+    previewGrantsV1 = previewGrantsV1.filter((grant) => grant !== before);
     if (change.areas.length > 0)
       previewGrantsV1.push({
+        id: before?.id ?? crypto.randomUUID(),
         email,
         areas: change.areas,
         updatedAt: new Date().toISOString(),
         updatedBy: 'Administração sintética',
       });
     previewGrantsV1.sort((a, b) => a.email.localeCompare(b.email));
+    previewAccessHistoryV1.unshift({
+      at: new Date().toISOString(),
+      actor: 'Administração sintética',
+      email,
+      before: before?.areas ?? [],
+      after: change.areas,
+    });
   }
-  return json({ contractVersion: 1, grants: previewGrantsV1 });
+  return json({ contractVersion: 1, grants: previewGrantsV1, history: previewAccessHistoryV1 });
 }
 
 /** The synthetic answer for an API path, or null when this preview has none. */

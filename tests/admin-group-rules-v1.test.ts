@@ -168,7 +168,8 @@ describe('#1513 Regras por cargo', () => {
     setAccessGrantsPortForTestsV1({
       areasFor: async () => [...ACCESS_AREA_IDS],
       list: async () => [],
-      save: async () => undefined,
+      change: async () => 'saved' as const,
+      history: async () => [],
     });
     for (const body of [
       { operation: 'rules' },
