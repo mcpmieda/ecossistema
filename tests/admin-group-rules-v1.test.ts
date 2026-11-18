@@ -45,7 +45,6 @@ const ruleOf = (id: string, fields: GroupRuleFieldsV1): GroupRuleV1 => ({
 });
 let version = 0;
 let ruleWrites: Array<{ id: string; etag?: string }>;
-let basePort: GroupRulesPortV1;
 
 beforeEach(() => {
   nextId = 10;
@@ -80,8 +79,9 @@ beforeEach(() => {
       },
     ],
     log: async () => [],
-    keptByRule: async () => new Set<string>(),
     createRule: async (fields) => {
+      // Lets another request run between this save's check and its write.
+      await new Promise((resolve) => setTimeout(resolve, 5));
       written.push({ fields });
       const rule = ruleOf(String(nextId++), fields);
       rules.push(rule);
@@ -103,7 +103,6 @@ beforeEach(() => {
     },
   };
   setGroupRulesForTestsV1(port);
-  basePort = port;
   setGroupsGraphForTestsV1({
     group: vi.fn(async (id: string) =>
       id === otherTenantGroup
@@ -113,10 +112,17 @@ beforeEach(() => {
           : null,
     ),
   } as unknown as GroupsGraphPortV1);
+  let queue: Promise<unknown> = Promise.resolve();
   setGroupsStoreForTestsV1({
     managedGroups: async () => [],
     record: async (change: GroupChangeRecordV1) => {
       changes.push(change);
+    },
+    // The advisory lock, in memory: one save at a time.
+    serializeRuleSaves: <T>(run: () => Promise<T>) => {
+      const next = queue.then(run);
+      queue = next.catch(() => undefined);
+      return next;
     },
   } as unknown as GroupsStorePortV1);
   setSessionRevocationPortForTestsV1(null);
@@ -202,22 +208,30 @@ describe('#1513 Regras por cargo', () => {
     ]);
   });
 
-  it('#1530 S1: of two saves at once for one title, the one that finds the other gives way', async () => {
-    // The other save lands between this one's check and its write.
-    const port = { ...basePort };
-    const createRule = port.createRule;
-    port.createRule = async (fields) => {
-      rules.push({ ...ruleOf('9', fields), etag: '"v,9"' });
-      return createRule(fields);
-    };
-    setGroupRulesForTestsV1(port);
+  it('#1530 S1: two saves at once for one title leave exactly one active rule', async () => {
+    const save = { operation: 'save-rule', cargo: 'zelador', action: 'IGNORAR', active: true };
+    const answers = await Promise.all([call(save), call(save)]);
+    expect(answers.map((answer) => answer.status).sort()).toEqual([200, 409]);
+    expect(rules.filter((rule) => rule.cargoKey === 'zelador')).toHaveLength(1);
+    expect(changes).toMatchObject([{ action: 'save-rule', outcome: 'done' }]);
+  });
+
+  it('#1530 S1: a lock that cannot be taken does not stop the save', async () => {
+    const store = {
+      managedGroups: async () => [],
+      record: async () => undefined,
+      serializeRuleSaves: () => Promise.reject(new Error('db down')),
+    } as unknown as GroupsStorePortV1;
+    setGroupsStoreForTestsV1(store);
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(
-      await call({ operation: 'save-rule', cargo: 'zelador', action: 'IGNORAR', active: true }),
-    ).toMatchObject({ status: 409, body: { state: 'rule-duplicate' } });
-    expect(rules.filter((rule) => rule.cargoKey === 'zelador').map((rule) => rule.id)).toEqual([
-      '9',
-    ]);
-    expect(changes).toMatchObject([{ action: 'save-rule', outcome: 'failed' }]);
+      (await call({ operation: 'save-rule', cargo: 'zelador', action: 'IGNORAR', active: true }))
+        .status,
+    ).toBe(200);
+    expect(log.mock.calls.some((line) => String(line[0]).includes('group_rules_lock_failed'))).toBe(
+      true,
+    );
+    log.mockRestore();
   });
 
   it('#1530 S9: an edit made meanwhile by someone else is not overwritten', async () => {

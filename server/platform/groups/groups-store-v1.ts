@@ -26,6 +26,11 @@ export type GroupsStorePortV1 = {
   removeManagedGroup(id: string): Promise<void>;
   record(change: GroupChangeRecordV1): Promise<void>;
   history(groupId: string | null, limit: number): Promise<GroupChangeV1[]>;
+  /**
+   * Runs one rule save at a time across every instance (a transaction-scoped advisory lock), so two
+   * saves never both pass the duplicate check (#1530 S1). The lock ends with the transaction.
+   */
+  serializeRuleSaves<T>(run: () => Promise<T>): Promise<T>;
 };
 
 type HyperdriveBindingV1 = { readonly connectionString: string };
@@ -100,6 +105,18 @@ function postgresGroupsStoreV1(connectionString: string): GroupsStorePortV1 {
           ],
         );
       }),
+    serializeRuleSaves: (run) =>
+      withDatabase((db) =>
+        db.transaction(async (transaction) => {
+          // Waiting for another save may take longer than one statement usually does.
+          await transaction.executeNative("SET LOCAL statement_timeout = '15s'", []);
+          await transaction.executeNative(
+            "SELECT pg_advisory_xact_lock(hashtext('admin_access.group-rules'))",
+            [],
+          );
+          return run();
+        }),
+      ),
     history: (groupId, limit) =>
       withDatabase(async (db) => {
         const rows = await db.query<{

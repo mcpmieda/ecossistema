@@ -353,11 +353,13 @@ function GroupDetailV1({
     try {
       const answer = await requestGroupsV1({ operation: 'add-member', groupId: group.id, email });
       const name = answer.person.name ?? answer.person.email ?? email;
-      // Already a member in Entra but not in this list yet: the list and the count catch up.
-      if (!memberIds.has(answer.person.id)) {
-        setMembers((list) => [...(list ?? []), answer.person]);
-        onCountChange(group.id, 1);
-      }
+      // Shown once even if the list arrived meanwhile; the count changes only when Entra did.
+      setMembers((list) =>
+        list && !list.some((member) => member.id === answer.person.id)
+          ? [...list, answer.person]
+          : list,
+      );
+      if (answer.result === 'added') onCountChange(group.id, 1);
       setNotice({
         tone: 'success',
         text: answer.result === 'added' ? `${name} entrou no grupo.` : `${name} já está no grupo.`,
@@ -382,8 +384,7 @@ function GroupDetailV1({
         personId: person.id,
       });
       setMembers((list) => list?.filter((member) => member.id !== person.id) ?? null);
-      // Either way the person was in the list and the count, and is no longer in the group.
-      onCountChange(group.id, -1);
+      if (answer.result === 'removed') onCountChange(group.id, -1);
       setNotice({
         tone: 'success',
         text:

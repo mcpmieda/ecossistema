@@ -116,6 +116,7 @@ function memoryStore() {
     record: async (change) => {
       changes.push(change);
     },
+    serializeRuleSaves: (run) => run(),
     history: async (groupId, limit) =>
       changes
         .filter((change) => groupId === null || change.groupId === groupId)
@@ -333,12 +334,21 @@ describe('#1513 Grupos: only the Secretaria manages, and only the reachable grou
       ...person,
       id: '34343434-3434-4434-8434-343434343434',
       email: 'o@escola.example',
+      jobTitle: 'secretaria',
     };
     entra.members.get(testEnv.GROUP_APOIO_ID)!.add(person.id).add(other.id);
     vi.mocked(entra.port.members).mockResolvedValueOnce([person, other]);
+    const rule = (cargoKey: string, groupId: string, active = true) => ({
+      cargoKey,
+      groupId,
+      active,
+      action: 'ADICIONAR',
+    });
     setGroupRulesForTestsV1({
-      keptByRule: async (groupId: string) =>
-        new Set(groupId === testEnv.GROUP_APOIO_ID ? [person.id] : []),
+      rules: async () => [
+        rule('equipe de apoio', testEnv.GROUP_APOIO_ID.toUpperCase()),
+        rule('secretaria', testEnv.GROUP_APOIO_ID, false),
+      ],
     } as unknown as GroupRulesPortV1);
     const answer = await groups({ operation: 'members', groupId: testEnv.GROUP_APOIO_ID });
     expect(

@@ -29,8 +29,6 @@ export type GroupRulesPortV1 = {
   rules(): Promise<GroupRuleV1[]>;
   people(): Promise<GroupRulePersonV1[]>;
   log(limit: number): Promise<GroupFlowLogV1[]>;
-  /** The people (Entra ids, lower case) the flow keeps in the group by a rule (ESTADO, status OK). */
-  keptByRule(groupId: string): Promise<ReadonlySet<string>>;
   createRule(fields: GroupRuleFieldsV1): Promise<GroupRuleV1>;
   /** null when the rule no longer exists; `changed` when `etag` is no longer its version. */
   updateRule(
@@ -217,23 +215,6 @@ export function groupRulesGraphPortV1(env: RuntimeEnv): GroupRulesPortV1 | null 
         }))
         .sort((left, right) => (right.at ?? '').localeCompare(left.at ?? ''))
         .slice(0, limit);
-    },
-    async keptByRule(groupId) {
-      const found = await items<Record<string, unknown>>(stateList, [
-        'EntraID',
-        'GrupoGerenciadoID',
-        'Status',
-      ]);
-      return new Set(
-        found
-          .filter(
-            (item) =>
-              item.fields.Status === 'OK' &&
-              sameIdV1(text(item.fields.GrupoGerenciadoID), groupId) &&
-              text(item.fields.EntraID),
-          )
-          .map((item) => text(item.fields.EntraID)!.toLowerCase()),
-      );
     },
     async createRule(fields) {
       const answer = await graphRequest<ItemV1<RuleFieldsV1>>({

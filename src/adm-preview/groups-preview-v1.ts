@@ -113,9 +113,12 @@ const plainV1 = (value: string) =>
     .toLowerCase();
 /** As the flow would: an active rule for the person's job title adds them to this group. */
 const byRuleV1 = (person: GroupPersonV1, groupId: string) =>
+  person.enabled !== false &&
+  person.jobTitle !== null &&
   rules.some(
     (item) =>
       item.active &&
+      item.action === 'ADICIONAR' &&
       item.groupId === groupId &&
       item.cargoKey === (person.jobTitle ?? '').trim().toLowerCase(),
   );

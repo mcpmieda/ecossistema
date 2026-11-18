@@ -56,10 +56,32 @@ async function ruleGroupV1(context: ContextV1, groupId: string): Promise<string>
   return name;
 }
 
-async function duplicatedV1(port: GroupRulesPortV1, ruleId: string | undefined, cargoKey: string) {
-  return (await port.rules()).some(
-    (rule) => rule.active && rule.cargoKey === cargoKey && rule.id !== ruleId,
-  );
+/**
+ * One rule save at a time (#1530 S1). Without the database the save still runs alone on this
+ * request; a lock that cannot be taken does not block the Secretaria either (logged).
+ */
+async function oneSaveAtATimeV1<T>(context: ContextV1, run: () => Promise<T>): Promise<T> {
+  if (!context.store) return run();
+  const state: { started: boolean; result?: { value: T } } = { started: false };
+  try {
+    await context.store.serializeRuleSaves(async () => {
+      state.started = true;
+      state.result = { value: await run() };
+    });
+  } catch (error) {
+    // The save ran and only ending the lock failed: the save stands.
+    if (state.result) return state.result.value;
+    if (state.started) throw error;
+    console.error(
+      JSON.stringify({
+        event: 'group_rules_lock_failed',
+        correlationId: context.correlationId,
+        message: error instanceof Error ? error.name : 'unknown',
+      }),
+    );
+    return run();
+  }
+  return state.result!.value;
 }
 
 export async function saveRuleV1(
@@ -85,6 +107,17 @@ export async function saveRuleV1(
     input.action === 'ADICIONAR' && input.groupId
       ? await ruleGroupV1(context, input.groupId)
       : null;
+  return oneSaveAtATimeV1(context, () =>
+    writeRuleV1(context, port, input, { cargo, cargoKey, groupName }),
+  );
+}
+
+async function writeRuleV1(
+  context: ContextV1,
+  port: GroupRulesPortV1,
+  input: Parameters<typeof saveRuleV1>[1],
+  { cargo, cargoKey, groupName }: { cargo: string; cargoKey: string; groupName: string | null },
+): Promise<GroupsResponseV1> {
   // The flow stops on two active rules for the same title (REGRA_DUPLICADA).
   const rules = await port.rules();
   if (input.ruleId && !rules.some((rule) => rule.id === input.ruleId))
@@ -118,14 +151,6 @@ export async function saveRuleV1(
       : await port.createRule(fields);
     if (!rule) throw new GroupsRefusalV1('rule-not-found', 404);
     if (rule === 'changed') throw new GroupsRefusalV1('rule-changed', 409);
-    if (input.active && (await duplicatedV1(port, rule.id, cargoKey))) {
-      // Two saves at once both passed the check above. The one that finds the other gives way, so
-      // the flow never sees two active rules for one title (at worst neither stays active).
-      if (input.ruleId) await port.updateRule(rule.id, { ...fields, active: false });
-      else await port.deleteRule(rule.id);
-      await recordV1(context, { ...change, outcome: 'failed' });
-      throw new GroupsRefusalV1('rule-duplicate', 409);
-    }
     await recordV1(context, { ...change, outcome: 'done' });
     return { contractVersion: 1, state: 'ok', operation: 'save-rule', rule };
   } catch (error) {

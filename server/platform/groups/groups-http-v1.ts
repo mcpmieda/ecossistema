@@ -31,7 +31,7 @@ import {
   type ContextV1,
 } from './groups-context-v1';
 import { canDeleteGroupsV1, startGroupDeleteV1 } from './groups-delete-v1';
-import { sameIdV1 } from './group-rules-graph-v1';
+import { cargoKeyV1, sameIdV1 } from './group-rules-graph-v1';
 import { deleteRuleV1, listRulesV1, rulesPortV1, saveRuleV1 } from './group-rules-v1';
 import { GraphError } from '../../graph/client';
 import { mailNicknameV1, type GroupsGraphPortV1 } from './groups-graph-v1';
@@ -194,11 +194,15 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
     }
     case 'members': {
       await reachableV1(context, input.groupId);
-      const [members, kept] = await Promise.all([
-        graph.members(input.groupId),
-        keptByRuleV1(context, input.groupId),
+      const [members, titles] = await Promise.all([
+        graph.members(input.groupId).catch(groupGoneV1),
+        ruleTitlesV1(context, input.groupId),
       ]);
-      for (const member of members) member.byRule = kept.has(member.id.toLowerCase());
+      for (const member of members)
+        member.byRule =
+          member.enabled !== false &&
+          member.jobTitle !== null &&
+          titles.has(cargoKeyV1(member.jobTitle));
       members.sort((left, right) =>
         (left.name ?? left.email ?? '').localeCompare(right.name ?? right.email ?? '', 'pt-BR'),
       );
@@ -233,7 +237,7 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
       const groupName = await groupNameV1(context, input.groupId, reach.name ?? reach.role);
       const target = person.email ?? input.email;
       try {
-        const result = await graph.addMember(input.groupId, person.id);
+        const result = await graph.addMember(input.groupId, person.id).catch(groupGoneV1);
         await recordV1(context, {
           action: 'add-member',
           groupId: input.groupId,
@@ -314,11 +318,10 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
           ownerId,
         });
       } catch (error) {
-        // A lost answer (timeout, 5xx) may hide a group Entra did create: look for it first.
+        // A lost answer (timeout, 5xx) may hide a group Entra did create: look for it first,
+        // again after a moment, since a new group takes a little to show up in searches.
         const ambiguous = error instanceof GraphError && error.status >= 500;
-        created = ambiguous
-          ? await graph.groupByMailNickname(mailNickname).catch(() => null)
-          : null;
+        created = ambiguous ? await findCreatedV1(graph, mailNickname) : null;
         if (!created) {
           await recordV1(context, {
             action: 'create-group',
@@ -371,18 +374,45 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
   }
 }
 
-/** Who the flow keeps in the group by a rule; without the lists nobody is marked. */
-async function keptByRuleV1(context: ContextV1, groupId: string): Promise<ReadonlySet<string>> {
+/**
+ * The job titles an active rule adds to this group: the flow puts (and puts back) whoever has one
+ * of them. Without the lists nobody is marked.
+ */
+async function ruleTitlesV1(context: ContextV1, groupId: string): Promise<ReadonlySet<string>> {
   const port = rulesPortV1(context.env);
   if (!port) return new Set();
-  return port.keptByRule(groupId).catch(() => new Set<string>());
+  const rules = await port.rules().catch(() => []);
+  return new Set(
+    rules
+      .filter(
+        (rule) =>
+          rule.active &&
+          rule.action === 'ADICIONAR' &&
+          rule.cargoKey !== '' &&
+          sameIdV1(rule.groupId, groupId),
+      )
+      .map((rule) => rule.cargoKey),
+  );
+}
+
+/** Graph answers 404 on a group's members when the group itself is gone. */
+const groupGoneV1 = (error: unknown): never => {
+  if (error instanceof GraphError && error.status === 404)
+    throw new GroupsRefusalV1('group-not-found', 404);
+  throw error;
+};
+
+async function findCreatedV1(graph: GroupsGraphPortV1, mailNickname: string) {
+  for (const waitMs of [0, 2000]) {
+    if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    const found = await graph.groupByMailNickname(mailNickname).catch(() => null);
+    if (found) return found;
+  }
+  return null;
 }
 
 function failureV1(error: unknown): { state: GroupsFailureStateV1; status: number } {
   if (error instanceof GroupsRefusalV1) return { state: error.state, status: error.status };
-  // A 404 that reaches here is about the group: people and rules are looked up before.
-  if (error instanceof GraphError && error.status === 404)
-    return { state: 'group-not-found', status: 404 };
   if (error instanceof AuthenticationError) return { state: 'not-authorized', status: 401 };
   if (error instanceof AuthorizationError) return { state: 'not-authorized', status: 403 };
   if (error instanceof HttpError && error.status < 500)
