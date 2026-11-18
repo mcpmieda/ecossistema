@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState } from 'react';
+import { memo, Suspense, useEffect, useState } from 'react';
 import {
   Alert,
   Button,
@@ -269,7 +269,12 @@ function SettingsPage() {
   );
 }
 
-export function PageContent({
+/**
+ * The page of the current area. Memoized: the shell's own state (side column, phone menu, the
+ * periodic reading of the Centro) must not render the page again, tables and all. A new section
+ * still does: some pages read the address while they render.
+ */
+export const PageContent = memo(function PageContent({
   route,
 }: Readonly<{
   route: PlatformRoute;
@@ -312,7 +317,7 @@ export function PageContent({
         </AreaErrorBoundaryV1>
       );
   }
-}
+});
 
 export function LoadingWorkspace() {
   return (

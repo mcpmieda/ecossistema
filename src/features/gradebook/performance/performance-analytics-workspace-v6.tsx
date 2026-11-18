@@ -1,5 +1,5 @@
 import { performanceResultCountsV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { PerformanceTeacherExportV6 } from './performance-teacher-export-v6';
 import { PerformanceLearningOverviewV1 } from './performance-learning-overview-v1';
 import { PerformanceStudentLearningV1 } from './performance-student-learning-v1';
@@ -274,7 +274,7 @@ function AnalyticsEntityHeaderV6({
   );
 }
 
-export function PerformanceAnalyticsWorkspaceV6({
+export const PerformanceAnalyticsWorkspaceV6 = memo(function PerformanceAnalyticsWorkspaceV6({
   value,
   tab,
   selection,
@@ -300,14 +300,20 @@ export function PerformanceAnalyticsWorkspaceV6({
     value.components.find((item) => item.offer.id === selection.offerId) ?? value.components[0];
   const teacher =
     value.teachers.find((item) => item.id === selection.teacherId) ?? value.teachers[0];
-  const openStudent = (id: number) => {
-    onSelection({ studentId: id });
-    onNavigate('students');
-  };
-  const openComponent = (id: number) => {
-    onSelection({ offerId: id });
-    onNavigate('components');
-  };
+  const openStudent = useCallback(
+    (id: number) => {
+      onSelection({ studentId: id });
+      onNavigate('students');
+    },
+    [onSelection, onNavigate],
+  );
+  const openComponent = useCallback(
+    (id: number) => {
+      onSelection({ offerId: id });
+      onNavigate('components');
+    },
+    [onSelection, onNavigate],
+  );
   if (tab === 'overview')
     return (
       <div data-testid="performance-analytics-v6" className="min-w-0">
@@ -440,4 +446,4 @@ export function PerformanceAnalyticsWorkspaceV6({
       )}
     </div>
   );
-}
+});

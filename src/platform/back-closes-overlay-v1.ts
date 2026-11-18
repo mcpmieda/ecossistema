@@ -43,6 +43,7 @@ const OPEN_SELECTOR_V1 = [
  * is how many steps are open inside the window, so each step gets an entry of its own.
  */
 export const BACK_STEP_ATTRIBUTE_V1 = 'data-back-step';
+const TRACKED_SELECTOR_V1 = `${OPEN_SELECTOR_V1}, [${BACK_STEP_ATTRIBUTE_V1}]`;
 
 /** The open layers, bottom to top. A window playing its closing animation is already closed. */
 function openLayers(): HTMLElement[] {
@@ -222,7 +223,22 @@ export function useBackClosesOverlayV1(): void {
       event.preventDefault();
       goToHashV1(hash);
     };
-    const observer = new MutationObserver(sync);
+    // Only nodes that are, or hold, a layer or a step concern the stack. Skipping the rest spares
+    // a scan of the whole page after every render that adds rows, cells or lists.
+    const concerns = (node: Node) =>
+      node instanceof Element &&
+      (node.matches(TRACKED_SELECTOR_V1) || node.querySelector(TRACKED_SELECTOR_V1) !== null);
+    const observer = new MutationObserver((mutations) => {
+      if (
+        mutations.some(
+          (mutation) =>
+            mutation.type === 'attributes' ||
+            [...mutation.addedNodes].some(concerns) ||
+            [...mutation.removedNodes].some(concerns),
+        )
+      )
+        sync();
+    });
     observer.observe(document.body, {
       subtree: true,
       childList: true,

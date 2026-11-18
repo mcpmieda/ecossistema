@@ -399,9 +399,7 @@ body {
   transform-origin: bottom;
   border-radius: 999px 999px 0.3rem 0.3rem;
   width: min(42%, 1.3rem);
-  animation:
-    performance-bar-rise 420ms var(--platform-ease) both,
-    performance-bar-breathe 7s ease-in-out infinite;
+  animation: performance-bar-rise 420ms var(--platform-ease) both;
 }
 
 .performance-bar > span {
@@ -1691,9 +1689,8 @@ body {
     gap: 0 0.5rem;
     padding-left: 0.25rem;
   }
-  .platform-shell--v2 {
-    transition: grid-template-columns 160ms ease;
-  }
+  /* The column snaps open or shut in one layout: animating the grid track would lay out the whole
+     page, matrices included, on every frame. */
   .platform-shell--v2[data-side='collapsed'] {
     --shell-aside: 3.5rem;
   }
@@ -1727,11 +1724,6 @@ body {
     position: relative;
     justify-content: center;
     padding-inline: 0;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .platform-shell--v2 {
-      transition: none;
-    }
   }
 }
 /* The crest of the school without its shadow, in the whole Centro. */
@@ -1866,27 +1858,36 @@ body {
       0 0 0 1px rgb(255 255 255 / 0.7);
     backdrop-filter: var(--glass-blur);
   }
-  /* Floating menus, lists and hints of HeroUI are frosted. */
-  .popover__dialog,
-  .dropdown__popover,
-  .select__popover,
-  .combo-box__popover,
-  .autocomplete__popover,
-  .tooltip {
-    border: 1px solid var(--glass-edge, rgb(255 255 255 / 0.85));
-    background: rgb(255 255 255 / 0.8);
-    backdrop-filter: saturate(180%) blur(24px);
-  }
-  /* What is behind a dialog or a drawer is blurred, not only darkened. */
-  .modal__backdrop,
-  .drawer__backdrop,
-  .alert-dialog__backdrop {
-    background: rgb(15 23 42 / 0.28);
-    backdrop-filter: blur(8px) saturate(120%);
-  }
+}
+/* Floating menus, lists and hints of HeroUI are nearly opaque, without blur: a blur is redone on
+   every frame in which anything under it changes, such as a hover in a grade matrix. */
+.popover__dialog,
+.dropdown__popover,
+.select__popover,
+.combo-box__popover,
+.autocomplete__popover,
+.tooltip {
+  border: 1px solid var(--glass-edge, rgb(255 255 255 / 0.85));
+  background: rgb(255 255 255 / 0.97);
+}
+/* What is behind a dialog or a drawer is darkened, not blurred: the drawer itself is a child of
+   this layer, so a blur would redo the whole window on every frame of its slide and of any hover
+   or scroll inside it. */
+.modal__backdrop,
+.drawer__backdrop,
+.alert-dialog__backdrop {
+  background: rgb(15 23 42 / 0.36);
+}
+/* A button in a table cell (every grade of a matrix is one) is not a GPU layer of its own: HeroUI
+   gives every button will-change and translateZ, hundreds per table. The press still scales. */
+.table__cell .button {
+  will-change: auto;
+}
+.table__cell .button:not(:active, [data-pressed='true']) {
+  transform: none;
 }
 @media (min-width: 901px) {
-  /* The page slides under the head of the sheet, which is glass. */
+  /* The page slides under the head of the sheet. */
   .platform-shell--v2:has(> .shell-areabar:not(:empty)) .shell-main--service {
     grid-row: 2 / span 2;
     padding-top: calc(2.75rem + 0.75rem);
@@ -1894,11 +1895,12 @@ body {
     scroll-timeline: --sheet-scroll block;
     border-radius: var(--sheet-radius) 0 0;
   }
+  /* Nearly solid rather than blurred glass, as on the phone: a blur under a bar that stays on
+     screen is redone on every frame of a scroll and of every hover under it. */
   .platform-shell--v2 > .shell-areabar:not(:empty) {
     z-index: 5;
     border-bottom-color: transparent;
-    background: color-mix(in oklab, var(--sheet) 70%, transparent);
-    backdrop-filter: var(--glass-blur);
+    background: color-mix(in oklab, var(--sheet) 96%, transparent);
   }
   @supports (animation-timeline: scroll()) {
     /* At rest the head is one with the sheet; once the page moves, its edge and shadow appear. */
@@ -1917,7 +1919,7 @@ body {
   }
   to {
     border-bottom-color: rgb(15 23 42 / 0.08);
-    background: color-mix(in oklab, #fff 60%, transparent);
+    background: color-mix(in oklab, #fff 96%, transparent);
     box-shadow: 0 10px 24px -18px rgb(15 23 42 / 0.35);
   }
 }
@@ -1941,9 +1943,10 @@ body {
     background: #fff;
     backdrop-filter: none;
   }
+  /* The side drawer slides over the page: nearly solid, since a blur under it is redone on every
+     frame of the slide. */
   .platform-shell--v2 .shell-aside {
-    background: rgb(247 249 250 / 0.82);
-    backdrop-filter: saturate(180%) blur(28px);
+    background: rgb(247 249 250 / 0.97);
   }
 }
 
@@ -2176,16 +2179,6 @@ body {
 .performance-ranking__open small {
   color: var(--muted);
   font-size: 0.65rem;
-}
-
-@keyframes performance-bar-breathe {
-  0%,
-  100% {
-    scale: 1 1;
-  }
-  50% {
-    scale: 1 1.03;
-  }
 }
 
 /* Phone: the side drawer runs to the bottom of the screen whatever the browser bars do (with the

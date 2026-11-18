@@ -153,7 +153,8 @@ fieldset.pa-account-actions {
   max-width: 48px;
   padding-inline: 0.5rem;
 }
-.pa-account-table:has(th[data-key='selection']) td:first-child {
+/* A class, not :has(): a :has() on the table restyles every cell on each hover. */
+.pa-account-table--selectable td:first-child {
   width: 48px;
   min-width: 48px;
   max-width: 48px;

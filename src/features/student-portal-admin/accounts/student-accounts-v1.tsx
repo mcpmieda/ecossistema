@@ -990,7 +990,12 @@ const AccountsResultsV1 = memo(function AccountsResultsV1(
           {current && visibleItems.length === 0 && !current.nextCursor && <NoAccountsNoticeV1 />}
           {current && visibleItems.length > 0 && (
             // Rows are kept per account; a class adds the selection column, so its table is another.
-            <Table key={qrClass ? 'class' : 'all'} className="pa-account-table">
+            <Table
+              key={qrClass ? 'class' : 'all'}
+              className={
+                qrClass ? 'pa-account-table pa-account-table--selectable' : 'pa-account-table'
+              }
+            >
               <Table.ScrollContainer
                 className="pa-account-scroll"
                 tabIndex={0}

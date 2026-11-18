@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { Button, Chip, Popover, Surface } from '@heroui/react';
 import {
   CircleAlert,
@@ -33,7 +33,7 @@ function statusSummaryV2(shown: readonly string[], total: number) {
   return (shown[0] ?? '') + more;
 }
 
-export function PerformanceResultMatrixV2({
+export const PerformanceResultMatrixV2 = memo(function PerformanceResultMatrixV2({
   value,
   open,
   allowedIds,
@@ -44,7 +44,7 @@ export function PerformanceResultMatrixV2({
 }: {
   readonly value: PerformanceMatrixV2;
   readonly open: (studentId: number, offerId?: number) => void;
-  readonly allowedIds: ReadonlySet<number> | null;
+  readonly allowedIds: readonly number[] | null;
   readonly focusOffer: (offerId: number) => void;
   readonly statusOptions: readonly {
     readonly value: PerformanceStatusV2;
@@ -54,24 +54,51 @@ export function PerformanceResultMatrixV2({
   readonly onStatusesChange: (statuses: PerformanceStatusV2[]) => void;
 }) {
   const [investigation, setInvestigation] = useState<InvestigationV2>('all');
-  const rows = value.rows
-    .filter((row) => statuses.includes(row.student.status))
-    .filter((row) => allowedIds === null || allowedIds.has(row.student.id))
-    .filter((row) => {
-      if (investigation === 'all') return true;
-      if (!row.student.indicatorEligible) return false;
-      if (investigation === 'below') return row.cells.some((cell) => cell.level === 'below');
-      // Something left undone: a blank activity, a mark not yet entered or a pending recovery.
-      const undone = row.cells.some(
-        (cell) =>
-          cell.state !== 'complete' &&
-          cell.state !== 'no-show' &&
-          cell.state !== 'repeat-failure' &&
-          (value.mode === 'regular' || cell.recoveryApplicable === true),
-      );
-      // Partial and total split the eligible students in two: some activity undone, or all done.
-      return investigation === 'partial' ? undone : !undone;
-    });
+  const rows = useMemo(
+    () =>
+      value.rows
+        .filter((row) => statuses.includes(row.student.status))
+        .filter((row) => allowedIds === null || allowedIds.includes(row.student.id))
+        .filter((row) => {
+          if (investigation === 'all') return true;
+          if (!row.student.indicatorEligible) return false;
+          if (investigation === 'below') return row.cells.some((cell) => cell.level === 'below');
+          // Something left undone: a blank activity, a mark not yet entered or a pending recovery.
+          const undone = row.cells.some(
+            (cell) =>
+              cell.state !== 'complete' &&
+              cell.state !== 'no-show' &&
+              cell.state !== 'repeat-failure' &&
+              (value.mode === 'regular' || cell.recoveryApplicable === true),
+          );
+          // Partial and total split the eligible students in two: some activity undone, or all done.
+          return investigation === 'partial' ? undone : !undone;
+        }),
+    [value, statuses, allowedIds, investigation],
+  );
+  // Built once per reading and filter, so the grid keeps its rendered rows across other renders.
+  const gridColumns = useMemo(
+    () =>
+      value.offers.map((offer) => ({
+        key: String(offer.id),
+        label: subjectText(offer),
+        title: offer.subject.label,
+        offerId: offer.id,
+      })),
+    [value.offers],
+  );
+  const gridRows = useMemo(
+    () =>
+      rows.map((row) => ({
+        student: row.student,
+        values: row.cells.map((cell) => (
+          <GradeValue key={cell.offerId} cell={cell} partialAsMarker />
+        )),
+        below: row.cells.map((cell) => cell.level === 'below'),
+        annual: row.calculatedAnnual?.label,
+      })),
+    [rows],
+  );
   const statusTags = useMemo(
     () => statusOptions.map((option) => ({ id: statusKey(option.value), label: option.label })),
     [statusOptions],
@@ -140,24 +167,12 @@ export function PerformanceResultMatrixV2({
       </header>
       <PerformanceGridV2
         label="Matriz de Desempenho"
-        columns={value.offers.map((offer) => ({
-          key: String(offer.id),
-          label: subjectText(offer),
-          title: offer.subject.label,
-          offerId: offer.id,
-        }))}
-        rows={rows.map((row) => ({
-          student: row.student,
-          values: row.cells.map((cell) => (
-            <GradeValue key={cell.offerId} cell={cell} partialAsMarker />
-          )),
-          below: row.cells.map((cell) => cell.level === 'below'),
-          annual: row.calculatedAnnual?.label,
-        }))}
+        columns={gridColumns}
+        rows={gridRows}
         showAnnual={value.period === 'annual' || value.period === 3 || value.mode === 'recovery'}
         open={open}
         focusOffer={focusOffer}
       />
     </Surface>
   );
-}
+});

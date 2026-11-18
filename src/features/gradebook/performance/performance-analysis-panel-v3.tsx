@@ -1,5 +1,5 @@
 import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Button } from '@heroui/react';
 import type {
   PerformanceAnalysisV3,
@@ -74,7 +74,7 @@ export function PerformanceAnalysisPanelV3({
   /** The same reading of the trimester before, when there is one. */
   readonly previous?: PerformanceDashboardV5 | null;
   readonly open: (studentId: number, offerId?: number) => void;
-  readonly renderResult: (ids: ReadonlySet<number> | null) => ReactNode;
+  readonly renderResult: (ids: readonly number[] | null) => ReactNode;
   readonly focusOffer: (offerId: number) => void;
   /** Situations listed in the lens matrix. */
   readonly statuses: readonly PerformanceStatusV2[];
@@ -93,15 +93,54 @@ export function PerformanceAnalysisPanelV3({
   );
   const column =
     selection?.kind === 'column' ? value.columns.find((item) => item.key === selection.key) : null;
-  // prettier-ignore
-  const ids = selection?.kind === 'group' ? new Set(dashboard.overview.groups[selection.group]) : null;
-  const students = new Map(value.matrix.rows.map((row) => [row.student.id, row.student]));
-  const rows = value.rows.filter(
-    (row) =>
-      (ids === null || ids.has(row.studentId)) &&
-      statuses.includes(students.get(row.studentId)?.status ?? null),
+  // The reading's own list: the same array while the reading and the group stay.
+  const ids = selection?.kind === 'group' ? dashboard.overview.groups[selection.group] : null;
+  const students = useMemo(
+    () => new Map(value.matrix.rows.map((row) => [row.student.id, row.student])),
+    [value],
   );
-  const offers = new Map(value.matrix.offers.map((offer) => [offer.id, offer]));
+  const rows = useMemo(
+    () =>
+      value.rows.filter(
+        (row) =>
+          (ids === null || ids.includes(row.studentId)) &&
+          statuses.includes(students.get(row.studentId)?.status ?? null),
+      ),
+    [value, ids, statuses, students],
+  );
+  // Built once per reading and filter, so the grid keeps its rendered rows across other renders.
+  const gridColumns = useMemo(() => {
+    const offers = new Map(value.matrix.offers.map((offer) => [offer.id, offer]));
+    return value.columns.map((item) => ({
+      key: item.key,
+      label: value.lens === 'assessments' ? item.label : subjectText(offers.get(item.offerId)!),
+      title: item.label,
+      offerId: item.offerId,
+    }));
+  }, [value]);
+  const gridRows = useMemo(
+    () =>
+      rows.map((row) => ({
+        student: students.get(row.studentId)!,
+        below: row.values.map((reading) => reading.bucket === 'below'),
+        values: row.values.map((reading) => (
+          <span key={reading.key} className="inline-flex flex-col items-center gap-0.5">
+            <span className={`font-semibold tabular-nums ${BUCKET_TONE[reading.bucket] ?? ''}`}>
+              {readingContent(reading, value.lens === 'assessments')}
+            </span>
+            {STATE[reading.state] &&
+            !(value.lens === 'assessments' && (reading.notDone || reading.recordedMilli === 0)) ? (
+              <span className="text-[10px]">{STATE[reading.state]}</span>
+            ) : null}
+            {reading.percent !== null &&
+            !(value.lens === 'assessments' && (reading.notDone || reading.recordedMilli === 0)) ? (
+              <span className="text-[10px] text-muted">{percent(reading.percent)}</span>
+            ) : null}
+          </span>
+        )),
+      })),
+    [rows, students, value.lens],
+  );
   const selectionLabel =
     selection?.kind === 'group'
       ? {
@@ -162,38 +201,8 @@ export function PerformanceAnalysisPanelV3({
           label="Matriz da lente"
           open={open}
           focusOffer={focusOffer}
-          columns={value.columns.map((item) => ({
-            key: item.key,
-            label:
-              value.lens === 'assessments' ? item.label : subjectText(offers.get(item.offerId)!),
-            title: item.label,
-            offerId: item.offerId,
-          }))}
-          rows={rows.map((row) => ({
-            student: students.get(row.studentId)!,
-            below: row.values.map((reading) => reading.bucket === 'below'),
-            values: row.values.map((reading) => (
-              <span key={reading.key} className="inline-flex flex-col items-center gap-0.5">
-                <span className={`font-semibold tabular-nums ${BUCKET_TONE[reading.bucket] ?? ''}`}>
-                  {readingContent(reading, value.lens === 'assessments')}
-                </span>
-                {STATE[reading.state] &&
-                !(
-                  value.lens === 'assessments' &&
-                  (reading.notDone || reading.recordedMilli === 0)
-                ) ? (
-                  <span className="text-[10px]">{STATE[reading.state]}</span>
-                ) : null}
-                {reading.percent !== null &&
-                !(
-                  value.lens === 'assessments' &&
-                  (reading.notDone || reading.recordedMilli === 0)
-                ) ? (
-                  <span className="text-[10px] text-muted">{percent(reading.percent)}</span>
-                ) : null}
-              </span>
-            )),
-          }))}
+          columns={gridColumns}
+          rows={gridRows}
         />
       )}
     </>

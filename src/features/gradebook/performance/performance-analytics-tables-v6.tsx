@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Button, Chip, SearchField, Table } from '@heroui/react';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import {
@@ -177,7 +177,8 @@ export function AnalyticsStudentsTableV6({
     </AnalyticsPanelV6>
   );
 }
-export function AnalyticsHeatmapV6({
+/** Memoized: one cell per student and component, rendered again only for its own props. */
+export const AnalyticsHeatmapV6 = memo(function AnalyticsHeatmapV6({
   value,
   onStudent,
   onComponent,
@@ -227,6 +228,7 @@ export function AnalyticsHeatmapV6({
             </Table.Header>
             <Table.Body
               items={value.students}
+              dependencies={[value, onStudent, onCell]}
               renderEmptyState={() => 'Nenhum aluno elegível neste recorte.'}
             >
               {(item) => (
@@ -264,7 +266,7 @@ export function AnalyticsHeatmapV6({
       </Table>
     </AnalyticsPanelV6>
   );
-}
+});
 export function AnalyticsStudentComponentsV6({
   value,
   studentId,
