@@ -59,6 +59,7 @@ function memoryGrants(initial: Record<string, AccessArea[]> = {}) {
     // As the SQL does: an edit (no e-mail) needs the grant and its version; a new one overwrites.
     async change(person, areas, actor, expectedUpdatedAt) {
       const before = rows.get(person.oid);
+      if (person.email && before) return 'changed';
       if (
         !person.email &&
         (!before || (expectedUpdatedAt && before.updatedAt !== expectedUpdatedAt))
@@ -283,12 +284,24 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
     expect(answer.history).toMatchObject([
       { actor: 'Admin', email: librarian, before: [], after: ['saude'] },
     ]);
-    // An e-mail alias reaches the same person, shown by the sign-in name.
+    // An e-mail alias reaches the same person; as a new grant it does not overwrite the one there.
     expect(
       (
         await put(admin, {
           email: 'biblioteca.alias@escola.example',
           areas: ['saude', 'desempenho'],
+        })
+      ).status,
+    ).toBe(409);
+    expect([...memory.rows.values()]).toMatchObject([{ oid, email: librarian, areas: ['saude'] }]);
+    // The grant shown is edited instead.
+    expect(
+      (
+        await put(admin, {
+          id: oid,
+          email: librarian,
+          areas: ['saude', 'desempenho'],
+          expectedUpdatedAt: [...memory.rows.values()][0]!.updatedAt,
         })
       ).status,
     ).toBe(200);

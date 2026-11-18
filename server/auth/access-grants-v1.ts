@@ -30,7 +30,7 @@ export type AccessGrantsPortV1 = {
   list(): Promise<AccessGrantV1[]>;
   /**
    * Writes the person's areas (none removes the grant) and its history line in one transaction.
-   * With the sign-in name, a new grant (or a blind overwrite of the person's grant). Without it, an
+   * With the sign-in name, a new grant (`changed` when the person already has one). Without it, an
    * edit of the grant read before: `changed` when it is gone or `expectedUpdatedAt` is no longer
    * its version.
    */
@@ -121,6 +121,9 @@ function postgresGrantsV1(connectionString: string): AccessGrantsPortV1 {
             [person.oid],
           );
           const current = rows[0];
+          // A new grant for someone who already has one (a list read before it existed) does not
+          // overwrite it: the list is read again and the grant edited.
+          if (person.email && current) return 'changed';
           if (!person.email) {
             if (!current) return 'changed';
             if (
@@ -144,7 +147,13 @@ function postgresGrantsV1(connectionString: string): AccessGrantsPortV1 {
                        statement_timestamp())
                ON CONFLICT (oid) DO UPDATE
                  SET email = excluded.email, areas = excluded.areas,
-                     updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+                     updated_by = excluded.updated_by,
+                     -- Each version differs at the millisecond the screen compares.
+                     updated_at = greatest(
+                       excluded.updated_at,
+                       date_trunc('milliseconds', admin_access.area_grant_v1.updated_at)
+                         + interval '1 millisecond'
+                     )`,
               [person.oid, email, JSON.stringify(areas), clip(actor.name, 200)],
             );
           await transaction.executeNative(

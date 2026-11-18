@@ -142,7 +142,8 @@ export async function handleAccessRequestV1(
         const person = await (findPersonOverrideV1 ?? findPersonV1)(env, email);
         if (!person) throw new AccessRefusalV1('account-not-found', 404);
         oid = person.oid;
-        await port.change(person, areas, actor);
+        if ((await port.change(person, areas, actor)) === 'changed')
+          throw new AccessRefusalV1('changed', 409);
       }
       forgetAccessGrantV1(oid);
       console.log(JSON.stringify({ event: 'access_grant_changed', areas: areas.length }));
