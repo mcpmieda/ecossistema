@@ -46,9 +46,13 @@ type SessionIdentity = Pick<Session, 'oid' | 'name' | 'username' | 'roles'> & {
  * whatever length was chosen. */
 export const WRITE_SESSION_MAX_HOURS: SessionDurationHours = 8;
 
-/** The lengths this identity may choose: a session with write power never above the cap. */
-export function sessionDurationOptionsFor(roles: readonly Role[]): SessionDurationHours[] {
-  const writes = capabilitiesForRoles(roles).length > 0;
+/** The lengths this identity may choose: a session with write power (a role, or an area opened to
+ * the person, #1530 A6) never above the cap. */
+export function sessionDurationOptionsFor(
+  roles: readonly Role[],
+  areas: readonly unknown[] = [],
+): SessionDurationHours[] {
+  const writes = capabilitiesForRoles(roles).length > 0 || areas.length > 0;
   return SESSION_DURATION_OPTIONS_HOURS.filter(
     (hours) => !writes || hours <= WRITE_SESSION_MAX_HOURS,
   );

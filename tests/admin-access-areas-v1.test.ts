@@ -20,6 +20,7 @@ import {
   readSession,
   reconfigureApplicationSession,
   SESSION_COOKIE,
+  sessionDurationOptionsFor,
 } from '../server/auth/session';
 import { setSessionRevocationPortForTestsV1 } from '../server/auth/session-revocation-v1';
 import { authorizeGradebookRuntimeV1 } from '../server/gradebook/authorization-v1';
@@ -228,6 +229,11 @@ describe('#1513: areas of the Centro opened to people outside the admin group', 
     expect(await readSession(call('/api/me', await cookieFor(old)), testEnv)).toBeNull();
     setAccessGrantsPortForTestsV1(memoryGrants().port);
     expect(await readSession(call('/api/me', await cookieFor(old)), testEnv)).not.toBeNull();
+  });
+
+  it('#1530 A6: someone with an area cannot choose a session past the write cap', () => {
+    expect(sessionDurationOptionsFor(['APOIO'])).toEqual([4, 8, 12]);
+    expect(sessionDurationOptionsFor(['APOIO'], ['saude'])).toEqual([4, 8]);
   });
 
   it('#1530 A6: the areas in the code are the ones the table accepts', () => {

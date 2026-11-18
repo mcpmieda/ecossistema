@@ -125,11 +125,13 @@ export function AccessGrantsSettingV1() {
     } catch (error) {
       const state = error instanceof AccessClientErrorV1 ? error.state : 'unavailable';
       setFailure(FAILURE_TEXT_V1[state]);
-      // Someone else changed it: the list shows what is there now, and the form starts over.
+      // Someone else changed it: the list shows what is there now, and an edit of it starts over.
       if (state === 'changed') {
-        setEditing(null);
-        setEmail('');
-        setAreas([]);
+        if (editing?.id === grant?.id) {
+          setEditing(null);
+          setEmail('');
+          setAreas([]);
+        }
         void load();
       }
     } finally {
@@ -318,7 +320,10 @@ export function AccessGrantsSettingV1() {
                 onPress={() => {
                   setRemoveOpen(false);
                   if (removing && saving === null)
-                    void save(removing.email, [], { id: removing.id });
+                    void save(removing.email, [], {
+                      id: removing.id,
+                      updatedAt: removing.updatedAt,
+                    });
                 }}
               >
                 Remover

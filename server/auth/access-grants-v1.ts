@@ -105,7 +105,12 @@ function postgresGrantsV1(connectionString: string): AccessGrantsPortV1 {
     change: (person, areas, actor, expectedUpdatedAt) =>
       withDatabase((db) =>
         db.transaction(async (transaction) => {
-          // The row is locked first, so "before" in the history is what this change replaced.
+          // One change per person at a time, even before the person has a row to lock; then the
+          // row is read locked, so "before" in the history is what this change replaced.
+          await transaction.executeNative(
+            "SELECT pg_advisory_xact_lock(hashtext('admin_access.area-grant:' || $1))",
+            [person.oid],
+          );
           const rows = await transaction.query<{
             email: string;
             areas: unknown;

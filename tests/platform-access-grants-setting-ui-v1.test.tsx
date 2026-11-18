@@ -67,7 +67,12 @@ it('removing an access asks first, and Cancelar keeps it', async () => {
   );
   // #1530 A3: a grant shown is removed by its person, not by the name shown.
   expect(puts).toEqual([
-    { email: 'biblioteca@escola.example', areas: [], id: '30000000-0000-4000-8000-000000000001' },
+    {
+      email: 'biblioteca@escola.example',
+      areas: [],
+      id: '30000000-0000-4000-8000-000000000001',
+      expectedUpdatedAt: '2026-11-17T12:00:00.000Z',
+    },
   ]);
 });
 
