@@ -79,3 +79,12 @@ na baseline `0001`. Não transformar esses diretórios em uma sequência de repl
 sobre o banco existente. Consulte os READMEs de
 [Student Portal](student-portal/README.md) e
 [Gradebook simplificado](gradebook-simplified/README.md).
+
+## Centro de Administração: `admin-access`
+
+Acessos por área, grupos do Microsoft 365, histórico de mudanças e regras por cargo (#1513, #1530),
+no schema `admin_access`. Cada arquivo foi aplicado uma vez, na ordem, com autorização do responsável:
+`0001` acessos por área, `0002` grupos criados pelo Centro e histórico, `0003` exclusão de grupo,
+`0004` regras por cargo no histórico e `0005` acesso pela pessoa (oid) com histórico próprio.
+As tabelas são do `gradebook_app`, com RLS e sem acesso de `anon`, `authenticated`, `service_role`
+ou `student_portal_app`; os históricos aceitam só leitura e inclusão.

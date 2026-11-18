@@ -20,6 +20,10 @@ import type { AccessArea } from '../../../shared/platform-contract';
 
 /** The Conciliação is in the Painel do Aluno; the Relação import reaches it from Importação. */
 const RECONCILIATION_AREAS_V1: readonly AccessArea[] = ['painel-do-aluno', 'importacao'];
+/** What the Relação import sends (catalog → prepare → stage → apply); the rest of the Conciliação
+ * (#1530 A2: resolving links, activating pending rows, lists) stays with the Painel do Aluno. */
+const IMPORT_OPERATIONS_V1: ReadonlySet<string> = new Set(['catalog', 'prepare', 'stage', 'apply']);
+const PANEL_AREAS_V1: readonly AccessArea[] = ['painel-do-aluno'];
 import type { GradebookPostgresDatabaseV1 } from '../../gradebook/persistence/postgres/postgres-database-v1';
 import { StudentReconciliationServiceV1 } from './service-v1';
 
@@ -132,15 +136,13 @@ export async function handleStudentReconciliationRequestV1(
     if (!parsed.success) return responseV1({ contractVersion: 1, state: 'invalid-request' });
     const input = parsed.data;
     const write = !RECONCILIATION_READ_OPERATIONS_V1.includes(input.operation);
-    const context = write
-      ? await verifiedPagesContextV1(
-          request,
-          env,
-          true,
-          readContext.requestId,
-          RECONCILIATION_AREAS_V1,
-        )
-      : readContext;
+    const areas = IMPORT_OPERATIONS_V1.has(input.operation)
+      ? RECONCILIATION_AREAS_V1
+      : PANEL_AREAS_V1;
+    const context =
+      write || areas !== RECONCILIATION_AREAS_V1
+        ? await verifiedPagesContextV1(request, env, write, readContext.requestId, areas)
+        : readContext;
     if (typeof context === 'string')
       return responseV1({ contractVersion: 1, state: 'not-authorized' });
     if (!coreAvailableV1(env)) return responseV1({ contractVersion: 1, state: 'unavailable' });

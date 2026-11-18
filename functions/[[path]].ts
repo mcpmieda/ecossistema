@@ -88,7 +88,7 @@ function sessionPolicyPayload(
     version: 1,
     policy: 'absolute' as const,
     defaultDurationHours: DEFAULT_SESSION_DURATION_HOURS,
-    allowedDurationsHours: sessionDurationOptionsFor(session.roles),
+    allowedDurationsHours: sessionDurationOptionsFor(session.roles, session.areas),
     currentDurationHours: session.durationHours ?? DEFAULT_SESSION_DURATION_HOURS,
     configured: session.durationHours !== undefined,
     authenticatedAt: new Date((session.authenticatedAt ?? now) * 1000).toISOString(),
@@ -405,7 +405,9 @@ async function serveSessionSettingsV1(
   const input = (await request.json().catch(() => null)) as { durationHours?: unknown } | null;
   if (
     !isSessionDurationHours(input?.durationHours) ||
-    !sessionDurationOptionsFor(currentSession.roles).includes(input.durationHours)
+    !sessionDurationOptionsFor(currentSession.roles, currentSession.areas).includes(
+      input.durationHours,
+    )
   ) {
     throw new HttpError(400, 'Invalid session duration');
   }
