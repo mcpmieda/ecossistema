@@ -1,5 +1,6 @@
-/* School crest. White disc so the crest reads on any background; a soft sheen crosses it now
-   and then (and on hover), and the opening screen gives it a slow pulse with a halo. */
+/* School crest. White disc so the crest reads on any background; a soft sheen crosses it once
+   when it appears and again on hover, and the opening screen gives it a slow pulse with a halo.
+   The sheen does not repeat on its own: a running animation makes every repaint dearer. */
 .school-mark {
   position: relative;
   display: inline-grid;
@@ -38,25 +39,28 @@
     transparent 64%
   );
   transform: translateX(-130%);
-  animation: school-mark-shine 8s cubic-bezier(0.45, 0, 0.2, 1) 1.2s infinite;
+  animation: school-mark-shine 960ms cubic-bezier(0.45, 0, 0.2, 1) 1.2s both;
   pointer-events: none;
 }
 
 .school-mark--shine:hover::after,
 :hover > .school-mark--shine::after {
-  animation: school-mark-shine-once 900ms cubic-bezier(0.45, 0, 0.2, 1);
+  /* The pass on appearing stays listed, so leaving the hover does not start it over. */
+  animation:
+    school-mark-shine 960ms cubic-bezier(0.45, 0, 0.2, 1) 1.2s both,
+    school-mark-shine-once 900ms cubic-bezier(0.45, 0, 0.2, 1);
 }
 
 .school-mark--pulse {
   animation: school-mark-pulse 1.8s ease-in-out infinite;
 }
 
+/* Same pass under two names, so hovering starts it again. */
 @keyframes school-mark-shine {
-  0% {
+  from {
     transform: translateX(-130%);
   }
-  12%,
-  100% {
+  to {
     transform: translateX(130%);
   }
 }

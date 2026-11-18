@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import { Button, Chip, SearchField, Table } from '@heroui/react';
+import { CellButtonV1 } from '../../../shared/ui/cell-button-v1';
 import type { PerformanceAnalyticsV6 } from '../../../../shared/gradebook-contracts/performance/performance-analytics-v6';
 import {
   analyticsPercentV6 as percent,
@@ -234,28 +235,24 @@ export const AnalyticsHeatmapV6 = memo(function AnalyticsHeatmapV6({
               {(item) => (
                 <Table.Row id={item.student.id} textValue={item.student.name}>
                   <Table.Cell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+                    <CellButtonV1
                       className="h-auto max-w-64 justify-start whitespace-normal px-1.5 text-left"
-                      onPress={() => onStudent(item.student.id)}
+                      onClick={() => onStudent(item.student.id)}
                     >
                       {item.student.number}. {item.student.name}
-                    </Button>
+                    </CellButtonV1>
                   </Table.Cell>
                   {item.cells.map((cell) => (
                     <Table.Cell key={cell.offerId}>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onPress={() => onCell(item.student.id, cell.offerId)}
+                      <CellButtonV1
+                        onClick={() => onCell(item.student.id, cell.offerId)}
                         aria-label={`${item.student.name}, ${value.components.find((component) => component.offer.id === cell.offerId)?.offer.subject.label}: ${percent(cell.percent)}${cell.result.state === 'partial' ? ', parcial' : ''}`}
                       >
                         <Chip size="sm" variant="soft" color={resultColor(cell.result)}>
                           {percent(cell.percent)}
                           {cell.result.state === 'partial' ? '*' : ''}
                         </Chip>
-                      </Button>
+                      </CellButtonV1>
                     </Table.Cell>
                   ))}
                 </Table.Row>
