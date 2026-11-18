@@ -135,7 +135,7 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
     for (const line of root.current?.querySelector('tbody')?.rows ?? []) {
       const cell = line.cells[column];
       if (!cell) continue;
-      cell.setAttribute('data-col-hover', '');
+      cell.dataset.colHover = '';
       marked.current.push(cell);
     }
   };
