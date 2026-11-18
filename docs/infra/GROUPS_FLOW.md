@@ -18,6 +18,15 @@ A reverificação diária de cada pessoa continua acontecendo e atualizando a ES
 
 **Limpeza diária.** Na execução das 06:00 UTC (03:00 de Brasília), o flow apaga do LOG as linhas com mais de 30 dias que não são erro e qualquer linha `JA_MEMBRO` antiga. Erros ficam guardados.
 
+## Versão `V1-PRODUCAO-R4` (18/11/2026, achado T4 da #1530)
+
+Duas linhas a mais no LOG, sem mudar o resto da R3:
+
+- quem sai de ERRO já sendo membro do grupo ganha uma linha `ADICIONAR` ("Erro resolvido; usuario ja era membro do grupo.");
+- um erro que muda de tipo com o mesmo cargo (por exemplo, de regra duplicada para falha no grupo) é registrado na hora, comparando `DetalheUltimoErro` da ESTADO com o erro previsto pela decisão.
+
+A R3 continua guardada para voltar, se preciso. Depois da troca, as execuções seguiram com sucesso e o LOG continuou sem linhas de rotina.
+
 ## O que o Centro garante (#1530)
 
 - A chave de uma regra (`CargoNormalizado`) é o cargo como o flow compara: `toLower(trim(...))`, sem juntar espaços internos. Uma linha digitada à mão sem `CargoNormalizado`, ou com `Ativo` vazio, não vale para o flow e o Centro a mostra assim.
