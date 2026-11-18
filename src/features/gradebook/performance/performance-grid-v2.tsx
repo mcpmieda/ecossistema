@@ -10,7 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Button, Chip, Table } from '@heroui/react';
+import { Chip, Table } from '@heroui/react';
+import { CellButtonV1 } from '../../../shared/ui/cell-button-v1';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 import '../../student-portal-admin/shared/student-avatar-v1.css';
 import type { PerformanceRowV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
@@ -356,29 +357,25 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
                               }}
                             />
                           )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
+                          <CellButtonV1
                             className="min-h-6 h-auto min-w-0 flex-1 justify-start whitespace-normal break-words px-1.5 py-0 text-left text-xs leading-4"
-                            onPress={() => open(row.student.id)}
+                            onClick={() => open(row.student.id)}
                           >
                             {row.student.name}
-                          </Button>
+                          </CellButtonV1>
                         </span>
                       );
                     } else if (header.id === 'annual') {
                       content = <span className="text-xs">{row.annual ?? '—'}</span>;
                     } else {
                       content = (
-                        <Button
-                          size="sm"
-                          variant="ghost"
+                        <CellButtonV1
                           className="min-h-6 h-auto w-full min-w-0 px-0 py-0 text-xs"
                           aria-label={`${row.student.name}, ${columns[index]!.title}`}
-                          onPress={() => open(row.student.id, columns[index]!.offerId)}
+                          onClick={() => open(row.student.id, columns[index]!.offerId)}
                         >
                           {row.values[index]}
-                        </Button>
+                        </CellButtonV1>
                       );
                     }
                     return (

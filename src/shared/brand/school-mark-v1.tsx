@@ -10,7 +10,7 @@ export const SCHOOL_LOGO_SRC_V1 = new URL(
 ).href;
 
 /**
- * Decorative crest. `shine` passes a soft light across it from time to time; `pulse` is the
+ * Decorative crest. `shine` passes a soft light across it when it appears and on hover; `pulse` is the
  * opening/loading beat. Both stop under prefers-reduced-motion. Callers name it for assistive
  * technology when it stands alone (it is aria-hidden here).
  */

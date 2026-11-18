@@ -1111,37 +1111,26 @@ body {
   gap: 0.15rem 0.6rem;
 }
 
-/* Text that does not fit slides instead of being cut. */
+/* Text that does not fit ends in an ellipsis; while it slides (data-moving) it shows the rest. */
 .marquee-text-v1 {
   display: block;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
-.marquee-text-v1 > span {
+.marquee-text-v1[data-moving] {
+  text-overflow: clip;
+}
+.marquee-text-v1[data-moving] > span {
   display: inline-block;
 }
-.marquee-text-v1[data-sliding] > span {
-  animation: marquee-text-v1 7s ease-in-out 1s infinite alternate;
-}
-@keyframes marquee-text-v1 {
-  0%,
-  18% {
-    transform: translateX(0);
-  }
-  82%,
-  100% {
-    transform: translateX(var(--marquee-shift, 0));
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .marquee-text-v1[data-sliding] {
-    text-overflow: ellipsis;
-  }
-  .marquee-text-v1[data-sliding] > span {
-    display: inline;
-    animation: none;
-  }
+
+/* Native buttons in matrix cells: HeroUI's focus ring when reached by keyboard. */
+.cell-button-v1:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--focus);
 }
 
 /* Phones: the service menu shows when there is more to the side. */
