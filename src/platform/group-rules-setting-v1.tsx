@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 import {
   Alert,
   AlertDialog,
@@ -26,7 +26,7 @@ import {
   type GroupRuleV1,
   type GroupViewV1,
 } from '../../shared/platform-groups-v1';
-import { failureTextV1, requestGroupsV1 } from './groups-client-v1';
+import { failureTextV1, GroupsClientErrorV1, requestGroupsV1 } from './groups-client-v1';
 import { formatDate } from './presentation';
 
 const STATUS_LABELS_V1: Record<GroupRuleStatusV1, string> = {
@@ -35,10 +35,26 @@ const STATUS_LABELS_V1: Record<GroupRuleStatusV1, string> = {
   PENDENTE_GRUPO: 'Grupo pendente',
   ERRO: 'Erro',
 };
+/** What the flow wrote in the LOG list; an unknown code is shown as it is. */
+const OPERATION_LABELS_V1: Record<string, string> = {
+  ADICIONAR: 'Adicionado ao grupo',
+  JA_MEMBRO: 'Já era membro',
+  ALTERACAO_CARGO: 'Cargo alterado',
+  SEM_REGRA: 'Sem regra',
+  ANALISAR: 'Para revisar',
+  IGNORAR: 'Ignorado',
+  ERRO: 'Erro',
+};
+const RESULT_LABELS_V1: Record<string, string> = { AVISO: 'aviso', ERRO: 'erro' };
+/** The list changed under the Secretaria: it is read again. */
+const staleV1 = (error: unknown) =>
+  error instanceof GroupsClientErrorV1 &&
+  (error.state === 'rule-not-found' || error.state === 'rule-changed');
 
 type Notice = { tone: 'success' | 'danger'; text: string } | null;
 type DraftV1 = {
   ruleId?: string;
+  etag?: string | null;
   cargo: string;
   action: GroupRuleActionV1;
   groupId: string | null;
@@ -71,9 +87,10 @@ type DataV1 = { rules: GroupRuleV1[]; people: GroupRulePersonV1[]; log: GroupFlo
 export function GroupRulesSettingV1() {
   const [data, setData] = useState<DataV1 | null>(null);
   const [failed, setFailed] = useState(false);
-  const [groups, setGroups] = useState<GroupViewV1[]>([]);
   const [draft, setDraft] = useState<DraftV1 | null>(null);
   const [removing, setRemoving] = useState<GroupRuleV1 | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [logOpen, setLogOpen] = useState(false);
 
@@ -89,20 +106,21 @@ export function GroupRulesSettingV1() {
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal);
-    requestGroupsV1({ operation: 'list' }, controller.signal)
-      .then((answer) => setGroups(answer.groups.filter((group) => group.available)))
-      .catch(() => undefined);
     return () => controller.abort();
   }, [load]);
 
   async function remove(rule: GroupRuleV1) {
     setNotice(null);
+    setRemovingId(rule.id);
     try {
       await requestGroupsV1({ operation: 'delete-rule', ruleId: rule.id });
       setNotice({ tone: 'success', text: `Regra "${rule.cargo}" removida.` });
       await load();
     } catch (error) {
       setNotice({ tone: 'danger', text: failureTextV1(error) });
+      if (staleV1(error)) await load();
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -182,9 +200,11 @@ export function GroupRulesSettingV1() {
                               variant="ghost"
                               isIconOnly
                               aria-label={`Editar regra ${rule.cargo}`}
+                              isDisabled={removingId === rule.id}
                               onPress={() =>
                                 setDraft({
                                   ruleId: rule.id,
+                                  etag: rule.etag,
                                   cargo: rule.cargo,
                                   action: rule.action,
                                   groupId: rule.groupId,
@@ -200,7 +220,12 @@ export function GroupRulesSettingV1() {
                               variant="ghost"
                               isIconOnly
                               aria-label={`Remover regra ${rule.cargo}`}
-                              onPress={() => setRemoving(rule)}
+                              isPending={removingId === rule.id}
+                              isDisabled={removingId !== null}
+                              onPress={() => {
+                                setRemoving(rule);
+                                setRemoveOpen(true);
+                              }}
                             >
                               <Trash2 className="size-4" aria-hidden="true" />
                             </Button>
@@ -258,7 +283,7 @@ export function GroupRulesSettingV1() {
             <div>
               <Button size="sm" variant="ghost" onPress={() => setLogOpen((open) => !open)}>
                 <ScrollText className="size-4" aria-hidden="true" />
-                {logOpen ? 'Ocultar registro do flow' : 'Registro do flow'}
+                {logOpen ? 'Ocultar registro da automação' : 'Registro da automação'}
               </Button>
               {logOpen ? <FlowLogV1 log={data.log} /> : null}
             </div>
@@ -269,19 +294,19 @@ export function GroupRulesSettingV1() {
       {draft ? (
         <RuleEditorV1
           draft={draft}
-          groups={groups}
           onClose={() => setDraft(null)}
           onSaved={(rule) => {
             setDraft(null);
             setNotice({ tone: 'success', text: `Regra "${rule.cargo}" salva.` });
             void load();
           }}
+          onStale={() => void load()}
         />
       ) : null}
 
       <AlertDialog.Backdrop
-        isOpen={removing !== null}
-        onOpenChange={(open) => (open ? undefined : setRemoving(null))}
+        isOpen={removeOpen}
+        onOpenChange={(open) => (open ? undefined : setRemoveOpen(false))}
       >
         <AlertDialog.Container size="sm" placement="center">
           <AlertDialog.Dialog>
@@ -292,15 +317,14 @@ export function GroupRulesSettingV1() {
               <p>{removing?.cargo}</p>
             </AlertDialog.Body>
             <AlertDialog.Footer>
-              <Button autoFocus variant="secondary" onPress={() => setRemoving(null)}>
+              <Button autoFocus variant="secondary" onPress={() => setRemoveOpen(false)}>
                 Cancelar
               </Button>
               <Button
                 variant="danger"
                 onPress={() => {
-                  const rule = removing;
-                  setRemoving(null);
-                  if (rule) void remove(rule);
+                  setRemoveOpen(false);
+                  if (removing && removingId === null) void remove(removing);
                 }}
               >
                 Remover
@@ -316,17 +340,18 @@ export function GroupRulesSettingV1() {
 function FlowLogV1({ log }: Readonly<{ log: GroupFlowLogV1[] }>) {
   if (log.length === 0) return <p className="mt-2 text-sm text-muted">Nenhum registro.</p>;
   return (
-    <ul className="mt-2 grid gap-1 text-sm" aria-label="Registro do flow">
+    <ul className="mt-2 grid gap-1 text-sm" aria-label="Registro da automação">
       {log.map((entry, index) => (
         <li key={`${entry.at ?? ''}-${index}`} className="flex flex-wrap gap-x-2">
           <span className="tabular-nums text-muted">{entry.at ? formatDate(entry.at) : '—'}</span>
           <span>
-            {entry.name ?? entry.email ?? '—'} · {entry.operation ?? '—'}
+            {entry.name ?? entry.email ?? '—'} ·{' '}
+            {entry.operation ? (OPERATION_LABELS_V1[entry.operation] ?? entry.operation) : '—'}
             {entry.groupName ? ` · ${entry.groupName}` : ''}
           </span>
           {entry.result && entry.result !== 'SUCESSO' ? (
             <span className={entry.result === 'ERRO' ? 'text-danger' : 'text-muted'}>
-              ({entry.result.toLowerCase()})
+              ({RESULT_LABELS_V1[entry.result] ?? entry.result.toLowerCase()})
             </span>
           ) : null}
           {entry.detail ? <span className="text-muted">{entry.detail}</span> : null}
@@ -338,20 +363,38 @@ function FlowLogV1({ log }: Readonly<{ log: GroupFlowLogV1[] }>) {
 
 function RuleEditorV1({
   draft: initial,
-  groups,
   onClose,
   onSaved,
+  onStale,
 }: Readonly<{
   draft: DraftV1;
-  groups: GroupViewV1[];
   onClose: () => void;
   onSaved: (rule: GroupRuleV1) => void;
+  onStale: () => void;
 }>) {
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  // Read when the editor opens, so a group created a moment ago is there.
+  const [groups, setGroups] = useState<GroupViewV1[] | null>(null);
+  const [groupsFailure, setGroupsFailure] = useState<string | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    requestGroupsV1({ operation: 'list' }, controller.signal)
+      .then((answer) => setGroups(answer.groups.filter((group) => group.available)))
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError'))
+          setGroupsFailure(failureTextV1(error));
+      });
+    return () => controller.abort();
+  }, []);
   const valid =
     draft.cargo.trim().length > 0 && (draft.action === 'IGNORAR' || draft.groupId !== null);
+  const submitOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || saving || !valid) return;
+    event.preventDefault();
+    void save();
+  };
 
   async function save() {
     setSaving(true);
@@ -360,6 +403,7 @@ function RuleEditorV1({
       const answer = await requestGroupsV1({
         operation: 'save-rule',
         ...(draft.ruleId ? { ruleId: draft.ruleId } : {}),
+        ...(draft.ruleId && draft.etag ? { etag: draft.etag } : {}),
         cargo: draft.cargo.trim(),
         action: draft.action,
         ...(draft.action === 'ADICIONAR' && draft.groupId ? { groupId: draft.groupId } : {}),
@@ -370,6 +414,7 @@ function RuleEditorV1({
     } catch (error) {
       setNotice({ tone: 'danger', text: failureTextV1(error) });
       setSaving(false);
+      if (staleV1(error)) onStale();
     }
   }
 
@@ -388,6 +433,7 @@ function RuleEditorV1({
                 value={draft.cargo}
                 maxLength={GROUP_RULE_CARGO_MAX_V1}
                 onChange={(event) => setDraft({ ...draft, cargo: event.currentTarget.value })}
+                onKeyDown={submitOnEnter}
                 autoComplete="off"
               />
             </TextField>
@@ -417,6 +463,8 @@ function RuleEditorV1({
             </Select>
             {draft.action === 'ADICIONAR' ? (
               <Select
+                isRequired
+                placeholder="Escolha um grupo"
                 selectedKey={draft.groupId}
                 onSelectionChange={(key) =>
                   setDraft({ ...draft, groupId: key === null ? null : String(key) })
@@ -429,7 +477,7 @@ function RuleEditorV1({
                 </Select.Trigger>
                 <Select.Popover>
                   <ListBox>
-                    {groups.map((group) => (
+                    {(groups ?? []).map((group) => (
                       <ListBox.Item key={group.id} id={group.id} textValue={group.name}>
                         {group.name}
                         <ListBox.ItemIndicator />
@@ -438,6 +486,12 @@ function RuleEditorV1({
                   </ListBox>
                 </Select.Popover>
               </Select>
+            ) : null}
+            {draft.action === 'ADICIONAR' && groups === null && !groupsFailure ? (
+              <Spinner size="sm" aria-label="Carregando grupos" />
+            ) : null}
+            {draft.action === 'ADICIONAR' && groupsFailure ? (
+              <p className="text-sm text-danger">{groupsFailure}</p>
             ) : null}
             <Checkbox
               isSelected={draft.active}
@@ -456,6 +510,7 @@ function RuleEditorV1({
                 value={draft.note}
                 maxLength={GROUP_RULE_NOTE_MAX_V1}
                 onChange={(event) => setDraft({ ...draft, note: event.currentTarget.value })}
+                onKeyDown={submitOnEnter}
                 autoComplete="off"
               />
             </TextField>

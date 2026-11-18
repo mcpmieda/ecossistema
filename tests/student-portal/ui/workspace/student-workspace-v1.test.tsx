@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { StudentPortalWorkspaceV1 } from '../../../../src/features/student-portal/workspace/student-workspace-v1';
 import { gradesFixtureV1 } from '../grades/fixtures-v1';
 import { setupOperationsDomV1 } from '../overview/dom-v1';
@@ -246,6 +246,12 @@ describe('student portal grade workspace', () => {
   });
 
   it('drags the Boletim between trimesters without opening the subject under the finger', () => {
+    // The tap after a release is swallowed for 60 ms on the event clock. A loaded test machine may
+    // take longer between two fireEvent calls than a phone between release and tap (#1530 T6).
+    vi.useFakeTimers({ toFake: ['Date', 'performance'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
     const data = gradesFixtureV1(false);
     for (const subject of data.subjects)
       subject.periods = [

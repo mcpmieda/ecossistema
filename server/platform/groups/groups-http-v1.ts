@@ -31,12 +31,18 @@ import {
   type ContextV1,
 } from './groups-context-v1';
 import { canDeleteGroupsV1, startGroupDeleteV1 } from './groups-delete-v1';
-import { deleteRuleV1, listRulesV1, saveRuleV1 } from './group-rules-v1';
+import { cargoKeyV1, sameIdV1 } from './group-rules-graph-v1';
+import { deleteRuleV1, listRulesV1, rulesPortV1, saveRuleV1 } from './group-rules-v1';
+import { GraphError } from '../../graph/client';
 import { mailNicknameV1, type GroupsGraphPortV1 } from './groups-graph-v1';
 
 export { roleGroupsV1, setGroupsGraphForTestsV1 } from './groups-context-v1';
 
-const id = z.string().uuid();
+// Entra ids are compared without case; they are kept in lower case from here on.
+const id = z
+  .string()
+  .uuid()
+  .transform((value) => value.toLowerCase());
 const requestSchemaV1 = z.discriminatedUnion('operation', [
   z.object({ contractVersion: z.literal(1), operation: z.literal('list') }).strict(),
   z
@@ -101,6 +107,7 @@ const requestSchemaV1 = z.discriminatedUnion('operation', [
         .string()
         .regex(/^\d{1,9}$/u)
         .optional(),
+      etag: z.string().max(200).optional(),
       cargo: z.string().trim().min(1).max(GROUP_RULE_CARGO_MAX_V1),
       action: z.enum(['ADICIONAR', 'IGNORAR']),
       groupId: id.optional(),
@@ -187,7 +194,15 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
     }
     case 'members': {
       await reachableV1(context, input.groupId);
-      const members = await graph.members(input.groupId);
+      const [members, titles] = await Promise.all([
+        graph.members(input.groupId).catch(groupGoneV1),
+        ruleTitlesV1(context, input.groupId),
+      ]);
+      for (const member of members)
+        member.byRule =
+          member.enabled !== false &&
+          member.jobTitle !== null &&
+          titles.has(cargoKeyV1(member.jobTitle));
       members.sort((left, right) =>
         (left.name ?? left.email ?? '').localeCompare(right.name ?? right.email ?? '', 'pt-BR'),
       );
@@ -222,7 +237,7 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
       const groupName = await groupNameV1(context, input.groupId, reach.name ?? reach.role);
       const target = person.email ?? input.email;
       try {
-        const result = await graph.addMember(input.groupId, person.id);
+        const result = await graph.addMember(input.groupId, person.id).catch(groupGoneV1);
         await recordV1(context, {
           action: 'add-member',
           groupId: input.groupId,
@@ -245,13 +260,16 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
     case 'remove-member': {
       const reach = await reachableV1(context, input.groupId);
       // Nobody removes themselves from the admin group: they would lose the Centro at once.
-      if (input.groupId === env.GROUP_ADMIN_ID && input.personId === session.oid)
+      if (sameIdV1(input.groupId, env.GROUP_ADMIN_ID) && sameIdV1(input.personId, session.oid))
         throw new GroupsRefusalV1('self-removal', 409);
       const groupName = await groupNameV1(context, input.groupId, reach.name ?? reach.role);
       const target =
         (await graph.person(input.personId).catch(() => null))?.email ?? input.personId;
       try {
         const result = await graph.removeMember(input.groupId, input.personId);
+        // Graph answers "not a member" also when the group itself is gone.
+        if (result === 'not-member' && !(await graph.group(input.groupId)))
+          throw new GroupsRefusalV1('group-not-found', 404);
         await recordV1(context, {
           action: 'remove-member',
           groupId: input.groupId,
@@ -290,32 +308,35 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
       const taken = [...managed.map((group) => group.name), ...roleNames.map((g) => g?.name)];
       if (taken.some((name) => name && sameName(name, input.name)))
         throw new GroupsRefusalV1('name-taken', 409);
+      const mailNickname = mailNicknameV1(input.name);
       let created;
       try {
         created = await graph.createGroup({
           name: input.name,
           description: input.description || null,
-          mailNickname: mailNicknameV1(input.name),
+          mailNickname,
           ownerId,
         });
       } catch (error) {
-        await recordV1(context, {
-          action: 'create-group',
-          groupId: null,
-          groupName: input.name,
-          target: null,
-          outcome: 'failed',
-        });
-        throw error;
+        // A lost answer (timeout, 5xx) may hide a group Entra did create: look for it first,
+        // again after a moment, since a new group takes a little to show up in searches.
+        const ambiguous = error instanceof GraphError && error.status >= 500;
+        created = ambiguous ? await findCreatedV1(graph, mailNickname) : null;
+        if (!created) {
+          await recordV1(context, {
+            action: 'create-group',
+            groupId: null,
+            groupName: input.name,
+            target: null,
+            outcome: 'failed',
+          });
+          // Entra refuses a name its naming policy does not accept.
+          if (error instanceof GraphError && error.status === 400)
+            throw new GroupsRefusalV1('invalid-request', 400);
+          throw error;
+        }
       }
-      try {
-        await store.addManagedGroup({ id: created.id, name: input.name, createdBy: session.name });
-      } catch (error) {
-        // The group exists in Entra but the Centro could not keep it: logged with its id so it can
-        // be added by hand.
-        console.error(JSON.stringify({ event: 'groups_create_unrecorded', groupId: created.id }));
-        throw error;
-      }
+      // The history keeps the new group's id even if the Centro cannot keep the group itself.
       await recordV1(context, {
         action: 'create-group',
         groupId: created.id,
@@ -323,6 +344,18 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
         target: null,
         outcome: 'done',
       });
+      try {
+        await store.addManagedGroup({ id: created.id, name: input.name, createdBy: session.name });
+      } catch {
+        console.error(
+          JSON.stringify({
+            event: 'groups_create_unrecorded',
+            groupId: created.id,
+            correlationId: context.correlationId,
+          }),
+        );
+        throw new GroupsRefusalV1('group-unrecorded', 503);
+      }
       return {
         contractVersion: 1,
         state: 'ok',
@@ -339,6 +372,43 @@ async function runV1(context: ContextV1, input: GroupsRequestV1): Promise<Groups
       };
     }
   }
+}
+
+/**
+ * The job titles an active rule adds to this group: the flow puts (and puts back) whoever has one
+ * of them. Without the lists nobody is marked.
+ */
+async function ruleTitlesV1(context: ContextV1, groupId: string): Promise<ReadonlySet<string>> {
+  const port = rulesPortV1(context.env);
+  if (!port) return new Set();
+  const rules = await port.rules().catch(() => []);
+  return new Set(
+    rules
+      .filter(
+        (rule) =>
+          rule.active &&
+          rule.action === 'ADICIONAR' &&
+          rule.cargoKey !== '' &&
+          sameIdV1(rule.groupId, groupId),
+      )
+      .map((rule) => rule.cargoKey),
+  );
+}
+
+/** Graph answers 404 on a group's members when the group itself is gone. */
+const groupGoneV1 = (error: unknown): never => {
+  if (error instanceof GraphError && error.status === 404)
+    throw new GroupsRefusalV1('group-not-found', 404);
+  throw error;
+};
+
+async function findCreatedV1(graph: GroupsGraphPortV1, mailNickname: string) {
+  for (const waitMs of [0, 2000]) {
+    if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    const found = await graph.groupByMailNickname(mailNickname).catch(() => null);
+    if (found) return found;
+  }
+  return null;
 }
 
 function failureV1(error: unknown): { state: GroupsFailureStateV1; status: number } {
@@ -361,6 +431,7 @@ export async function handleGroupsRequestV1(
 ): Promise<Response | null> {
   if (new URL(request.url).pathname !== GROUPS_PATH_V1) return null;
   let operation = 'unknown';
+  let correlationId: string | null = null;
   try {
     enforceOfficialOrigin(request, env);
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
@@ -371,6 +442,7 @@ export async function handleGroupsRequestV1(
     if (!parsed.success) throw new HttpError(400, 'Invalid request');
     operation = parsed.data.operation;
     const context = groupsContextV1(env, session);
+    correlationId = context.correlationId;
     if (parsed.data.operation === 'delete-start') {
       const started = await startGroupDeleteV1(context, parsed.data);
       const response = reply({
@@ -384,7 +456,7 @@ export async function handleGroupsRequestV1(
     }
     const answer = await runV1(context, parsed.data);
     if (!['list', 'members', 'find-people', 'history', 'rules'].includes(operation))
-      console.log(JSON.stringify({ event: 'groups_changed', operation }));
+      console.log(JSON.stringify({ event: 'groups_changed', operation, correlationId }));
     return reply(answer);
   } catch (error) {
     const { state, status } = failureV1(error);
@@ -393,6 +465,7 @@ export async function handleGroupsRequestV1(
         JSON.stringify({
           event: 'groups_failed',
           operation,
+          correlationId,
           message: error instanceof Error ? error.name : 'unknown',
         }),
       );
