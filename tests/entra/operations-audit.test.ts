@@ -37,6 +37,36 @@ function json(value: unknown, status = 200) {
   });
 }
 
+/** The delegated consents as the tenant had them on 18/11/2026 (#1530 T2), by service principal. */
+const SIGN_IN = 'openid profile email offline_access User.Read';
+let delegatedOverride: ((url: string) => Response | null) | null = null;
+const GRAPH_RESOURCE = 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0';
+function delegatedGrants(url: string): Response | null {
+  // Microsoft Graph's own service principal, the API the scopes belong to.
+  if (url.includes('00000003-0000-0000-c000-000000000000'))
+    return json({ value: [{ id: GRAPH_RESOURCE }] });
+  if (!url.includes('/oauth2PermissionGrants')) return null;
+  const changed = delegatedOverride?.(url);
+  if (changed) return changed;
+  if (url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/'))
+    return json({
+      value: [
+        { consentType: 'AllPrincipals', scope: SIGN_IN, resourceId: GRAPH_RESOURCE },
+        {
+          consentType: 'Principal',
+          scope: 'openid Group.ReadWrite.All',
+          resourceId: GRAPH_RESOURCE,
+        },
+        { consentType: 'Principal', scope: 'Group.ReadWrite.All', resourceId: GRAPH_RESOURCE },
+      ],
+    });
+  if (url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/'))
+    return json({
+      value: [{ consentType: 'AllPrincipals', scope: 'User.Read', resourceId: GRAPH_RESOURCE }],
+    });
+  return json({ value: [] });
+}
+
 describe('Entra operations read-only audit', () => {
   it('reads only the two exact applications and sanitizes credential metadata', async () => {
     const fetcher = vi.fn<typeof fetch>(async (input, init) => {
@@ -174,6 +204,8 @@ describe('Entra operations read-only audit', () => {
           ],
         });
       }
+      const grants = delegatedGrants(url);
+      if (grants) return grants;
       throw new Error(`Unexpected URL: ${url}`);
     });
 
@@ -186,7 +218,7 @@ describe('Entra operations read-only audit', () => {
       now: () => new Date('2026-09-19T00:00:00Z'),
     });
 
-    expect(fetcher).toHaveBeenCalledTimes(8);
+    expect(fetcher).toHaveBeenCalledTimes(12);
     expect(result.generatedAt).toBe('2026-09-19T00:00:00.000Z');
     expect(result.applications.web.servicePrincipal?.accountEnabled).toBe(true);
     expect(result.applications.web.redirectUris.web).toEqual([
@@ -333,6 +365,8 @@ describe('Entra operations read-only audit', () => {
         });
       if (url.includes(encodeURIComponent(isolationSite)))
         return new Response(null, { status: 403 });
+      const grants = delegatedGrants(url);
+      if (grants) return grants;
       throw new Error(`Unexpected URL: ${url}`);
     });
 
@@ -346,7 +380,7 @@ describe('Entra operations read-only audit', () => {
       now: () => new Date('2026-09-19T00:00:00Z'),
     });
 
-    expect(fetcher).toHaveBeenCalledTimes(11);
+    expect(fetcher).toHaveBeenCalledTimes(15);
     expect(result.drift.status).toBe('ok');
     expect(result.sharePoint).toEqual({
       enabled: true,
@@ -448,6 +482,8 @@ describe('Entra operations read-only audit', () => {
           webUrl: 'https://example.invalid/sites/selected',
         });
       if (url.includes(encodeURIComponent(isolationSite))) return json({ id: isolationSite });
+      const grants = delegatedGrants(url);
+      if (grants) return grants;
       throw new Error(`Unexpected URL: ${url}`);
     });
 
@@ -534,6 +570,8 @@ describe('Entra operations read-only audit', () => {
           )
             return roleAssignments([APPLICATION_READ_ALL]);
           if (url.includes('/appRoleAssignments')) return roleAssignments([]);
+          const grants = delegatedGrants(url);
+          if (grants) return grants;
           throw new Error(`Unexpected URL: ${url}`);
         }),
         now: () => new Date('2026-11-17T00:00:00Z'),
@@ -574,6 +612,65 @@ describe('Entra operations read-only audit', () => {
           code: 'expected-application-permission-missing',
         },
       ],
+    });
+
+    // #1530 T2: delegated consents beyond the baseline.
+    const withGrants = async (principal: string, value: object[] | number) => {
+      delegatedOverride = (url) =>
+        url.includes(`/servicePrincipals/${principal}/`)
+          ? typeof value === 'number'
+            ? json({ error: 'denied' }, value)
+            : json({ value })
+          : null;
+      try {
+        return (await audit(GRAPH_BACKEND_ROLES)).drift;
+      } finally {
+        delegatedOverride = null;
+      }
+    };
+    const web = '88888888-8888-4888-8888-888888888888';
+    expect(
+      await withGrants(web, [
+        {
+          consentType: 'AllPrincipals',
+          scope: 'openid profile email offline_access User.Read Group.ReadWrite.All',
+          resourceId: GRAPH_RESOURCE,
+        },
+      ]),
+    ).toEqual({
+      status: 'critical',
+      findings: [
+        { application: 'web', severity: 'critical', code: 'unexpected-organization-consent' },
+      ],
+    });
+    expect(
+      await withGrants(web, [
+        { consentType: 'Principal', scope: 'Directory.ReadWrite.All', resourceId: GRAPH_RESOURCE },
+      ]),
+    ).toEqual({
+      status: 'critical',
+      findings: [{ application: 'web', severity: 'critical', code: 'unexpected-delegated-scope' }],
+    });
+    expect(
+      await withGrants('99999999-9999-4999-8999-999999999999', [
+        { consentType: 'Principal', scope: 'User.Read', resourceId: GRAPH_RESOURCE },
+      ]),
+    ).toMatchObject({ status: 'critical', findings: [{ application: 'graph' }] });
+    // The same scope name of another API is not the sign-in consent approved for Microsoft Graph.
+    expect(
+      await withGrants(web, [
+        { consentType: 'AllPrincipals', scope: 'User.Read', resourceId: crypto.randomUUID() },
+      ]),
+    ).toEqual({
+      status: 'critical',
+      findings: [
+        { application: 'web', severity: 'critical', code: 'unexpected-delegated-resource' },
+      ],
+    });
+    // Without DelegatedPermissionGrant.Read.All the consents cannot be checked: a warning.
+    expect(await withGrants(web, 403)).toEqual({
+      status: 'warning',
+      findings: [{ application: 'web', severity: 'warning', code: 'delegated-grants-unreadable' }],
     });
   });
 
