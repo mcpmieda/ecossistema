@@ -29,8 +29,15 @@ export type GroupRulesPortV1 = {
   rules(): Promise<GroupRuleV1[]>;
   people(): Promise<GroupRulePersonV1[]>;
   log(limit: number): Promise<GroupFlowLogV1[]>;
+  /** The people (Entra ids, lower case) the flow keeps in the group by a rule (ESTADO, status OK). */
+  keptByRule(groupId: string): Promise<ReadonlySet<string>>;
   createRule(fields: GroupRuleFieldsV1): Promise<GroupRuleV1>;
-  updateRule(id: string, fields: GroupRuleFieldsV1): Promise<GroupRuleV1 | null>;
+  /** null when the rule no longer exists; `changed` when `etag` is no longer its version. */
+  updateRule(
+    id: string,
+    fields: GroupRuleFieldsV1,
+    etag?: string,
+  ): Promise<GroupRuleV1 | null | 'changed'>;
   deleteRule(id: string): Promise<'deleted' | 'not-found'>;
 };
 
@@ -42,7 +49,7 @@ const REVIEW_STATUSES_V1: ReadonlySet<string> = new Set<GroupRuleStatusV1>([
 ]);
 const LIST_PAGES_MAX_V1 = 20;
 
-type ItemV1<F> = { id: string; fields: F };
+type ItemV1<F> = { id: string; fields: F; '@odata.etag'?: string; eTag?: string };
 type PageV1<F> = { value: ItemV1<F>[]; '@odata.nextLink'?: string };
 type RuleFieldsV1 = {
   Title?: string;
@@ -60,23 +67,31 @@ type RuleFieldsV1 = {
 const text = (value: unknown) =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : null;
 
-/** The job title as the flow compares it. */
+/** The job title as the flow compares it: `toLower(trim(...))`, inner spaces kept. */
 export const cargoKeyV1 = (cargo: string) => cargo.trim().toLowerCase();
 
+/** Entra ids compared the way Entra does, without case. */
+export const sameIdV1 = (left: string | null | undefined, right: string | null | undefined) =>
+  !!left && !!right && left.toLowerCase() === right.toLowerCase();
+
+/** A rule as the flow reads it: the key is CargoNormalizado and only `Ativo = true` counts. */
 export function ruleFromItemV1(item: ItemV1<RuleFieldsV1>): GroupRuleV1 {
   const fields = item.fields;
-  const cargoKey = text(fields.CargoNormalizado) ?? cargoKeyV1(text(fields.Title) ?? '');
+  const cargoKey = cargoKeyV1(text(fields.CargoNormalizado) ?? '');
   return {
     id: item.id,
-    cargo: text(fields.CargoOriginalReferencia) ?? cargoKey,
+    cargo:
+      text(fields.CargoOriginalReferencia) ??
+      (cargoKey || (text(fields.Title)?.split(' -> ')[0]?.trim() ?? '')),
     cargoKey,
     action: fields.Acao === 'IGNORAR' ? 'IGNORAR' : 'ADICIONAR',
     groupId: text(fields.GrupoID),
     groupName: text(fields.GrupoNome),
-    active: fields.Ativo !== false,
+    active: fields.Ativo === true,
     note: text(fields.Observacao),
     reviewedAt: text(fields.DataRevisao),
     reviewedBy: text(fields.RevisadoPor),
+    etag: text(item['@odata.etag']) ?? text(item.eTag),
   };
 }
 
@@ -174,7 +189,8 @@ export function groupRulesGraphPortV1(env: RuntimeEnv): GroupRulesPortV1 | null 
         );
     },
     async log(limit) {
-      const found = await items<Record<string, unknown>>(logList, [
+      // DataHora is indexed, so SharePoint sorts it: only the newest rows come.
+      const columns = [
         'DataHora',
         'NomeExibicao',
         'UPN',
@@ -183,8 +199,12 @@ export function groupRulesGraphPortV1(env: RuntimeEnv): GroupRulesPortV1 | null 
         'Operacao',
         'Resultado',
         'Detalhes',
-      ]);
-      return found
+      ];
+      const answer = await graphRequest<PageV1<Record<string, unknown>>>({
+        env,
+        path: `${listPath(logList)}?$expand=fields($select=${columns.join(',')})&$orderby=fields/DataHora desc&$top=${limit}`,
+      });
+      return answer.data.value
         .map((item) => ({
           at: text(item.fields.DataHora),
           name: text(item.fields.NomeExibicao),
@@ -198,6 +218,23 @@ export function groupRulesGraphPortV1(env: RuntimeEnv): GroupRulesPortV1 | null 
         .sort((left, right) => (right.at ?? '').localeCompare(left.at ?? ''))
         .slice(0, limit);
     },
+    async keptByRule(groupId) {
+      const found = await items<Record<string, unknown>>(stateList, [
+        'EntraID',
+        'GrupoGerenciadoID',
+        'Status',
+      ]);
+      return new Set(
+        found
+          .filter(
+            (item) =>
+              item.fields.Status === 'OK' &&
+              sameIdV1(text(item.fields.GrupoGerenciadoID), groupId) &&
+              text(item.fields.EntraID),
+          )
+          .map((item) => text(item.fields.EntraID)!.toLowerCase()),
+      );
+    },
     async createRule(fields) {
       const answer = await graphRequest<ItemV1<RuleFieldsV1>>({
         env,
@@ -207,16 +244,18 @@ export function groupRulesGraphPortV1(env: RuntimeEnv): GroupRulesPortV1 | null 
       });
       return (await rule(answer.data.id)) ?? ruleFromItemV1(answer.data);
     },
-    async updateRule(id, fields) {
+    async updateRule(id, fields, etag) {
       try {
         await graphRequest({
           env,
           method: 'PATCH',
           path: `${listPath(rulesList)}/${encodeURIComponent(id)}/fields`,
           body: itemFieldsV1(fields),
+          etag,
         });
       } catch (error) {
         if (error instanceof GraphError && error.status === 404) return null;
+        if (error instanceof GraphError && error.status === 412) return 'changed';
         throw error;
       }
       return rule(id);

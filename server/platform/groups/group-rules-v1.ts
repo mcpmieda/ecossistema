@@ -1,7 +1,12 @@
 import type { GroupRuleActionV1, GroupsResponseV1 } from '../../../shared/platform-groups-v1';
 import type { RuntimeEnv } from '../../env';
 import { GroupsRefusalV1, recordV1, roleGroupsV1, type ContextV1 } from './groups-context-v1';
-import { cargoKeyV1, groupRulesGraphPortV1, type GroupRulesPortV1 } from './group-rules-graph-v1';
+import {
+  cargoKeyV1,
+  groupRulesGraphPortV1,
+  sameIdV1,
+  type GroupRulesPortV1,
+} from './group-rules-graph-v1';
 
 /** The rules of the flow "Grupos por Cargo", edited from Configurações › Grupos (#1513). */
 let rulesOverrideV1: GroupRulesPortV1 | null | undefined;
@@ -9,7 +14,7 @@ let rulesOverrideV1: GroupRulesPortV1 | null | undefined;
 export function setGroupRulesForTestsV1(port: GroupRulesPortV1 | null | undefined): void {
   rulesOverrideV1 = port;
 }
-const rulesPortV1 = (env: RuntimeEnv) =>
+export const rulesPortV1 = (env: RuntimeEnv) =>
   rulesOverrideV1 === undefined ? groupRulesGraphPortV1(env) : rulesOverrideV1;
 const LOG_LIMIT_V1 = 50;
 
@@ -29,12 +34,21 @@ export async function listRulesV1(context: ContextV1): Promise<GroupsResponseV1>
   return { contractVersion: 1, state: 'ok', operation: 'rules', rules, people, log };
 }
 
+/** An active rule still adds people to the group, so it is not deleted before that changes. */
+export async function groupHasRulesV1(context: ContextV1, groupId: string): Promise<boolean> {
+  const port = rulesPortV1(context.env);
+  if (!port) return false;
+  return (await port.rules()).some(
+    (rule) => rule.active && rule.action === 'ADICIONAR' && sameIdV1(rule.groupId, groupId),
+  );
+}
+
 /** The group a rule adds to: a role group or one created by the Centro, with its Entra name. */
 async function ruleGroupV1(context: ContextV1, groupId: string): Promise<string> {
-  const isRole = roleGroupsV1(context.env).some(([roleGroupId]) => roleGroupId === groupId);
+  const isRole = roleGroupsV1(context.env).some(([roleGroupId]) => sameIdV1(roleGroupId, groupId));
   const managed = isRole
     ? null
-    : (await context.store?.managedGroups())?.find((group) => group.id === groupId);
+    : (await context.store?.managedGroups())?.find((group) => sameIdV1(group.id, groupId));
   if (!isRole && !managed) throw new GroupsRefusalV1('not-allowed', 403);
   const group = await context.graph.group(groupId);
   const name = group?.name || managed?.name;
@@ -42,10 +56,17 @@ async function ruleGroupV1(context: ContextV1, groupId: string): Promise<string>
   return name;
 }
 
+async function duplicatedV1(port: GroupRulesPortV1, ruleId: string | undefined, cargoKey: string) {
+  return (await port.rules()).some(
+    (rule) => rule.active && rule.cargoKey === cargoKey && rule.id !== ruleId,
+  );
+}
+
 export async function saveRuleV1(
   context: ContextV1,
   input: {
     ruleId?: string;
+    etag?: string;
     cargo: string;
     action: GroupRuleActionV1;
     groupId?: string;
@@ -54,7 +75,9 @@ export async function saveRuleV1(
   },
 ): Promise<GroupsResponseV1> {
   const port = requireRulesV1(context.env);
-  const cargo = input.cargo.trim().replace(/\s+/gu, ' ');
+  // The key is what the flow compares: inner spaces are kept, as in the job title in Entra, so a
+  // rule saved again keeps its key.
+  const cargo = input.cargo.trim();
   const cargoKey = cargoKeyV1(cargo);
   if (input.action === 'ADICIONAR' && !input.groupId)
     throw new GroupsRefusalV1('invalid-request', 400);
@@ -91,9 +114,18 @@ export async function saveRuleV1(
   };
   try {
     const rule = input.ruleId
-      ? await port.updateRule(input.ruleId, fields)
+      ? await port.updateRule(input.ruleId, fields, input.etag)
       : await port.createRule(fields);
     if (!rule) throw new GroupsRefusalV1('rule-not-found', 404);
+    if (rule === 'changed') throw new GroupsRefusalV1('rule-changed', 409);
+    if (input.active && (await duplicatedV1(port, rule.id, cargoKey))) {
+      // Two saves at once both passed the check above. The one that finds the other gives way, so
+      // the flow never sees two active rules for one title (at worst neither stays active).
+      if (input.ruleId) await port.updateRule(rule.id, { ...fields, active: false });
+      else await port.deleteRule(rule.id);
+      await recordV1(context, { ...change, outcome: 'failed' });
+      throw new GroupsRefusalV1('rule-duplicate', 409);
+    }
     await recordV1(context, { ...change, outcome: 'done' });
     return { contractVersion: 1, state: 'ok', operation: 'save-rule', rule };
   } catch (error) {

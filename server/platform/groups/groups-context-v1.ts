@@ -5,6 +5,7 @@ import type {
 } from '../../../shared/platform-groups-v1';
 import type { Session } from '../../auth/session';
 import type { RuntimeEnv } from '../../env';
+import { sameIdV1 } from './group-rules-graph-v1';
 import { graphGroupsPortV1, type GroupsGraphPortV1 } from './groups-graph-v1';
 import { groupsStoreV1, type GroupsStorePortV1 } from './groups-store-v1';
 
@@ -39,6 +40,8 @@ export type ContextV1 = {
   session: Session;
   graph: GroupsGraphPortV1;
   store: GroupsStorePortV1 | null;
+  /** Ties the history line of this request to its log lines. */
+  correlationId: string;
 };
 /** A context for this request. */
 export const groupsContextV1 = (env: RuntimeEnv, session: Session): ContextV1 => ({
@@ -46,15 +49,18 @@ export const groupsContextV1 = (env: RuntimeEnv, session: Session): ContextV1 =>
   session,
   graph: groupsGraphV1(env),
   store: groupsStoreV1(env),
+  correlationId: crypto.randomUUID(),
 });
 /** The group may be touched: a role group or one created by the Centro. */
 export async function reachableV1(
   context: ContextV1,
   groupId: string,
 ): Promise<{ role: GroupRoleV1 | null; name: string | null }> {
-  const role = roleGroupsV1(context.env).find(([groupId_]) => groupId_ === groupId)?.[1];
+  const role = roleGroupsV1(context.env).find(([groupId_]) => sameIdV1(groupId_, groupId))?.[1];
   if (role) return { role, name: null };
-  const managed = (await context.store?.managedGroups())?.find((group) => group.id === groupId);
+  const managed = (await context.store?.managedGroups())?.find((group) =>
+    sameIdV1(group.id, groupId),
+  );
   if (managed) return { role: null, name: managed.name };
   throw new GroupsRefusalV1('not-allowed', 403);
 }
@@ -74,7 +80,7 @@ export async function recordV1(
     await context.store?.record({
       actorOid: context.session.oid,
       actorName: context.session.name,
-      correlationId: change.correlationId ?? null,
+      correlationId: change.correlationId ?? context.correlationId,
       ...change,
     });
   } catch (error) {

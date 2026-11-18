@@ -59,6 +59,7 @@ const rule = (
   note: null,
   reviewedAt: '2026-08-18T20:11:13.000Z',
   reviewedBy: 'Administração sintética',
+  etag: `"preview,${id}"`,
 });
 const rules: GroupRuleV1[] = [
   rule(1, 'aluno', 2),
@@ -104,6 +105,20 @@ const view = (group: PreviewGroupV1): GroupViewV1 => {
   return { ...rest, memberCount: members.size };
 };
 const ok = (value: object) => ({ contractVersion: 1, state: 'ok', ...value });
+const plainV1 = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .trim()
+    .toLowerCase();
+/** As the flow would: an active rule for the person's job title adds them to this group. */
+const byRuleV1 = (person: GroupPersonV1, groupId: string) =>
+  rules.some(
+    (item) =>
+      item.active &&
+      item.groupId === groupId &&
+      item.cargoKey === (person.jobTitle ?? '').trim().toLowerCase(),
+  );
 const refuse = (state: string) => ({ contractVersion: 1, state });
 const record = (change: Omit<GroupChangeV1, 'at' | 'actor'>) =>
   changes.unshift({ ...change, at: new Date().toISOString(), actor: 'Administração sintética' });
@@ -125,7 +140,9 @@ export function previewGroupsV1(body: string): { status: number; value: object }
         value: ok({
           operation: 'members',
           groupId: group.id,
-          members: people.filter((person) => group.members.has(person.id)),
+          members: people
+            .filter((person) => group.members.has(person.id))
+            .map((person) => ({ ...person, byRule: byRuleV1(person, group.id) })),
         }),
       };
     case 'find-people': {
@@ -180,7 +197,7 @@ export function previewGroupsV1(body: string): { status: number; value: object }
     }
     case 'create-group': {
       const name = (input.name ?? '').trim();
-      if (groups.some((item) => item.name.toLowerCase() === name.toLowerCase()))
+      if (groups.some((item) => plainV1(item.name) === plainV1(name)))
         return { status: 409, value: refuse('name-taken') };
       const created: PreviewGroupV1 = {
         id: `20000000-0000-4000-8000-${String(groups.length).padStart(12, '0')}`,
@@ -209,6 +226,7 @@ export function previewGroupsV1(body: string): { status: number; value: object }
     case 'save-rule': {
       const command = JSON.parse(body) as {
         ruleId?: string;
+        etag?: string;
         cargo: string;
         action: 'ADICIONAR' | 'IGNORAR';
         groupId?: string;
@@ -216,6 +234,15 @@ export function previewGroupsV1(body: string): { status: number; value: object }
         note?: string;
       };
       const cargoKey = command.cargo.trim().toLowerCase();
+      if (command.action === 'ADICIONAR' && !command.groupId)
+        return { status: 400, value: refuse('invalid-request') };
+      const existing = rules.find((item) => item.id === command.ruleId);
+      if (command.ruleId && !existing) return { status: 404, value: refuse('rule-not-found') };
+      if (existing && command.etag && existing.etag !== command.etag)
+        return { status: 409, value: refuse('rule-changed') };
+      const target = groups.find((item) => item.id === command.groupId);
+      if (command.action === 'ADICIONAR' && !target)
+        return { status: 403, value: refuse('not-allowed') };
       if (
         command.active &&
         rules.some(
@@ -223,7 +250,6 @@ export function previewGroupsV1(body: string): { status: number; value: object }
         )
       )
         return { status: 409, value: refuse('rule-duplicate') };
-      const target = groups.find((item) => item.id === command.groupId);
       const saved: GroupRuleV1 = {
         id: command.ruleId ?? String(nextRuleId++),
         cargo: command.cargo.trim(),
@@ -235,7 +261,15 @@ export function previewGroupsV1(body: string): { status: number; value: object }
         note: command.note ?? null,
         reviewedAt: new Date().toISOString(),
         reviewedBy: 'Administração sintética',
+        etag: `"preview,${Date.now()}"`,
       };
+      record({
+        action: 'save-rule',
+        groupId: saved.groupId,
+        groupName: saved.groupName,
+        target: cargoKey,
+        outcome: 'done',
+      });
       const index = rules.findIndex((item) => item.id === saved.id);
       if (index >= 0) rules[index] = saved;
       else rules.push(saved);
@@ -245,13 +279,22 @@ export function previewGroupsV1(body: string): { status: number; value: object }
     case 'delete-rule': {
       const index = rules.findIndex((item) => item.id === input.ruleId);
       if (index < 0) return { status: 404, value: refuse('rule-not-found') };
-      rules.splice(index, 1);
+      const [removed] = rules.splice(index, 1);
+      record({
+        action: 'delete-rule',
+        groupId: removed!.groupId,
+        groupName: removed!.groupName,
+        target: removed!.cargoKey,
+        outcome: 'done',
+      });
       return { status: 200, value: ok({ operation: 'delete-rule' }) };
     }
     case 'delete-start': {
       if (!group || group.role) return { status: 403, value: refuse('delete-not-allowed') };
       if ((input.confirmName ?? '').trim() !== group.name)
         return { status: 400, value: refuse('name-mismatch') };
+      if (rules.some((item) => item.active && item.groupId === group.id))
+        return { status: 409, value: refuse('group-has-rules') };
       // The preview has no Microsoft sign-in: the group goes at once and the page comes back as
       // it would from Microsoft.
       groups.splice(groups.indexOf(group), 1);

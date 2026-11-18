@@ -212,8 +212,9 @@ export async function graphRequest<T>(input: {
       },
     });
   } catch (cause) {
-    // A refused token is not reused by the next call.
-    if (cause instanceof GraphError && cause.status === 401) forgetGraphTokensV1(input.env);
+    // A refused app token is not reused by the next call; a person's own token is not kept.
+    if (cause instanceof GraphError && cause.status === 401 && !input.token)
+      forgetGraphTokensV1(input.env);
     throw cause;
   }
   const data = response.status === 204 ? null : await response.json();

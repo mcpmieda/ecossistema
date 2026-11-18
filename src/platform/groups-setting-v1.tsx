@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import {
   Alert,
   AlertDialog,
@@ -57,6 +57,10 @@ const DELETE_NOTICES_V1: Record<GroupDeleteResultV1, NonNullable<Notice>> = {
   recusado: { tone: 'danger', text: 'A Microsoft recusou a exclusão para esta conta.' },
   cancelado: { tone: 'warning', text: 'Exclusão cancelada.' },
   falhou: { tone: 'danger', text: 'Não foi possível excluir o grupo. Tente de novo.' },
+  'com-regras': {
+    tone: 'warning',
+    text: 'O grupo não foi excluído: uma regra por cargo ainda adiciona pessoas a ele.',
+  },
 };
 
 /** How a deletion ended: read once from the address the browser came back to, then removed. */
@@ -71,6 +75,8 @@ function takeDeleteResultV1(): Notice {
     '',
     `${window.location.pathname}${window.location.search}#/configuracoes${rest ? `?${rest}` : ''}`,
   );
+  // replaceState does not tell the app the address changed, and it would remember the old one.
+  setTimeout(() => window.dispatchEvent(new HashChangeEvent('hashchange')), 0);
   return DELETE_NOTICES_V1[result as GroupDeleteResultV1];
 }
 
@@ -227,6 +233,11 @@ function CreateGroupV1({
     setNotice(null);
     onClose();
   };
+  const submitOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || saving || name.trim().length === 0) return;
+    event.preventDefault();
+    void create();
+  };
   async function create() {
     setSaving(true);
     setNotice(null);
@@ -260,6 +271,7 @@ function CreateGroupV1({
                 value={name}
                 maxLength={GROUP_NAME_MAX_V1}
                 onChange={(event) => setName(event.currentTarget.value)}
+                onKeyDown={submitOnEnter}
                 autoComplete="off"
               />
             </TextField>
@@ -269,6 +281,7 @@ function CreateGroupV1({
                 value={description}
                 maxLength={GROUP_DESCRIPTION_MAX_V1}
                 onChange={(event) => setDescription(event.currentTarget.value)}
+                onKeyDown={submitOnEnter}
                 autoComplete="off"
               />
             </TextField>
@@ -307,6 +320,7 @@ function GroupDetailV1({
   const [filter, setFilter] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
   const [removing, setRemoving] = useState<GroupPersonV1 | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyVersion, setHistoryVersion] = useState(0);
@@ -333,20 +347,26 @@ function GroupDetailV1({
     );
   }, [members, filter]);
 
-  async function add(email: string) {
+  async function add(email: string): Promise<boolean> {
     setBusy(email);
     setNotice(null);
     try {
       const answer = await requestGroupsV1({ operation: 'add-member', groupId: group.id, email });
       const name = answer.person.name ?? answer.person.email ?? email;
-      if (answer.result === 'added') {
+      // Already a member in Entra but not in this list yet: the list and the count catch up.
+      if (!memberIds.has(answer.person.id)) {
         setMembers((list) => [...(list ?? []), answer.person]);
         onCountChange(group.id, 1);
-        setNotice({ tone: 'success', text: `${name} adicionado.` });
-      } else setNotice({ tone: 'success', text: `${name} já está no grupo.` });
+      }
+      setNotice({
+        tone: 'success',
+        text: answer.result === 'added' ? `${name} entrou no grupo.` : `${name} já está no grupo.`,
+      });
       setHistoryVersion((value) => value + 1);
+      return true;
     } catch (error) {
       setNotice({ tone: 'danger', text: failureTextV1(error) });
+      return false;
     } finally {
       setBusy(null);
     }
@@ -362,8 +382,15 @@ function GroupDetailV1({
         personId: person.id,
       });
       setMembers((list) => list?.filter((member) => member.id !== person.id) ?? null);
-      if (answer.result === 'removed') onCountChange(group.id, -1);
-      setNotice({ tone: 'success', text: `${person.name ?? person.email ?? ''} removido.` });
+      // Either way the person was in the list and the count, and is no longer in the group.
+      onCountChange(group.id, -1);
+      setNotice({
+        tone: 'success',
+        text:
+          answer.result === 'removed'
+            ? `${person.name ?? person.email ?? 'A pessoa'} saiu do grupo.`
+            : `${person.name ?? person.email ?? 'A pessoa'} já não estava no grupo.`,
+      });
       setHistoryVersion((value) => value + 1);
     } catch (error) {
       setNotice({ tone: 'danger', text: failureTextV1(error) });
@@ -383,7 +410,7 @@ function GroupDetailV1({
       </header>
       {group.description ? <p className="text-sm text-muted">{group.description}</p> : null}
 
-      <AddPersonV1 memberIds={memberIds} busy={busy} onAdd={(email) => void add(email)} />
+      <AddPersonV1 memberIds={memberIds} busy={busy} onAdd={add} />
       <NoticeV1 notice={notice} />
 
       {members === null && !failed ? <Spinner size="sm" aria-label="Carregando membros" /> : null}
@@ -397,7 +424,7 @@ function GroupDetailV1({
       ) : null}
       {members ? (
         <>
-          {members.length > 8 ? (
+          {members.length > 8 || filter !== '' ? (
             <SearchField
               aria-label={`Filtrar membros de ${group.name}`}
               value={filter}
@@ -429,6 +456,11 @@ function GroupDetailV1({
                     <Table.Row id={member.id} textValue={member.name ?? member.email ?? member.id}>
                       <Table.Cell>
                         <span className="font-medium">{member.name ?? '—'}</span>
+                        {member.byRule ? (
+                          <Chip size="sm" variant="soft" className="ml-2">
+                            <Chip.Label>Por cargo</Chip.Label>
+                          </Chip>
+                        ) : null}
                         {member.enabled === false ? (
                           <Chip size="sm" variant="soft" color="warning" className="ml-2">
                             <Chip.Label>Conta desativada</Chip.Label>
@@ -445,7 +477,10 @@ function GroupDetailV1({
                           aria-label={`Remover ${member.name ?? member.email ?? ''} de ${group.name}`}
                           isPending={busy === member.id}
                           isDisabled={busy !== null}
-                          onPress={() => setRemoving(member)}
+                          onPress={() => {
+                            setRemoving(member);
+                            setRemoveOpen(true);
+                          }}
                         >
                           <Trash2 className="size-4" aria-hidden="true" />
                         </Button>
@@ -477,8 +512,8 @@ function GroupDetailV1({
       <DeleteGroupV1 group={group} isOpen={deleting} onClose={() => setDeleting(false)} />
 
       <AlertDialog.Backdrop
-        isOpen={removing !== null}
-        onOpenChange={(open) => (open ? undefined : setRemoving(null))}
+        isOpen={removeOpen}
+        onOpenChange={(open) => (open ? undefined : setRemoveOpen(false))}
       >
         <AlertDialog.Container size="sm" placement="center">
           <AlertDialog.Dialog>
@@ -489,17 +524,22 @@ function GroupDetailV1({
               <p>
                 {removing?.name ?? removing?.email} sai de {group.name}.
               </p>
+              {removing?.byRule ? (
+                <p className="mt-2">
+                  O cargo desta pessoa tem uma regra para este grupo: a automação vai adicioná-la de
+                  novo.
+                </p>
+              ) : null}
             </AlertDialog.Body>
             <AlertDialog.Footer>
-              <Button autoFocus variant="secondary" onPress={() => setRemoving(null)}>
+              <Button autoFocus variant="secondary" onPress={() => setRemoveOpen(false)}>
                 Cancelar
               </Button>
               <Button
                 variant="danger"
                 onPress={() => {
-                  const person = removing;
-                  setRemoving(null);
-                  if (person) void remove(person);
+                  setRemoveOpen(false);
+                  if (removing) void remove(removing);
                 }}
               >
                 Remover
@@ -520,10 +560,12 @@ function AddPersonV1({
 }: Readonly<{
   memberIds: ReadonlySet<string>;
   busy: string | null;
-  onAdd: (email: string) => void;
+  onAdd: (email: string) => Promise<boolean>;
 }>) {
   const [text, setText] = useState('');
   const [people, setPeople] = useState<GroupPersonV1[]>([]);
+  const [searched, setSearched] = useState<string | null>(null);
+  const [searchFailure, setSearchFailure] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -531,13 +573,24 @@ function AddPersonV1({
     if (timer.current) clearTimeout(timer.current);
     if (query.length < 2) {
       setPeople([]);
+      setSearched(null);
+      setSearchFailure(null);
       return;
     }
     const controller = new AbortController();
     timer.current = setTimeout(() => {
       requestGroupsV1({ operation: 'find-people', query }, controller.signal)
-        .then((answer) => setPeople(answer.people))
-        .catch(() => setPeople([]));
+        .then((answer) => {
+          setPeople(answer.people);
+          setSearched(query);
+          setSearchFailure(null);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === 'AbortError') return;
+          setPeople([]);
+          setSearched(null);
+          setSearchFailure(failureTextV1(error));
+        });
     }, 300);
     return () => {
       controller.abort();
@@ -547,6 +600,13 @@ function AddPersonV1({
 
   const typed = text.trim().toLowerCase();
   const typedIsListed = people.some((person) => person.email?.toLowerCase() === typed);
+  const addThen = (email: string) => {
+    void onAdd(email).then((added) => {
+      if (added) setText('');
+    });
+  };
+  const nobody =
+    searched !== null && searched === text.trim() && people.length === 0 && !EMAIL_V1.test(typed);
 
   return (
     <div className="grid gap-2">
@@ -555,6 +615,7 @@ function AddPersonV1({
         <Input
           value={text}
           placeholder="Nome ou e-mail"
+          maxLength={100}
           onChange={(event) => setText(event.currentTarget.value)}
           autoComplete="off"
           spellCheck={false}
@@ -585,10 +646,7 @@ function AddPersonV1({
                     aria-label={`Adicionar ${person.name ?? email}`}
                     isPending={busy === email}
                     isDisabled={busy !== null || !email}
-                    onPress={() => {
-                      onAdd(email);
-                      setText('');
-                    }}
+                    onPress={() => addThen(email)}
                   >
                     <UserPlus className="size-4" aria-hidden="true" />
                     Adicionar
@@ -606,10 +664,7 @@ function AddPersonV1({
                 aria-label={`Adicionar ${typed}`}
                 isPending={busy === typed}
                 isDisabled={busy !== null}
-                onPress={() => {
-                  onAdd(typed);
-                  setText('');
-                }}
+                onPress={() => addThen(typed)}
               >
                 <UserPlus className="size-4" aria-hidden="true" />
                 Adicionar
@@ -618,6 +673,8 @@ function AddPersonV1({
           ) : null}
         </ul>
       ) : null}
+      {nobody ? <p className="text-sm text-muted">Nenhuma pessoa encontrada.</p> : null}
+      {searchFailure ? <p className="text-sm text-danger">{searchFailure}</p> : null}
     </div>
   );
 }
@@ -679,6 +736,13 @@ function DeleteGroupV1({
     setNotice(null);
     onClose();
   };
+  useEffect(() => {
+    const onShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setSending(false);
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
   async function start() {
     setSending(true);
     setNotice(null);

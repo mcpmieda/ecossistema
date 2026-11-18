@@ -6,6 +6,8 @@ import { seal, unseal } from '../../auth/sealed';
 import { requireAuth } from '../../auth/session';
 import type { RuntimeEnv } from '../../env';
 import { GraphError } from '../../graph/client';
+import { sameIdV1 } from './group-rules-graph-v1';
+import { groupHasRulesV1 } from './group-rules-v1';
 import {
   groupsContextV1,
   GroupsRefusalV1,
@@ -36,12 +38,12 @@ type DeleteTransactionV1 = {
 };
 
 const isRoleGroupV1 = (env: RuntimeEnv, groupId: string) =>
-  roleGroupsV1(env).some(([roleGroupId]) => roleGroupId === groupId);
+  roleGroupsV1(env).some(([roleGroupId]) => sameIdV1(roleGroupId, groupId));
 
 /** The institutional account and the Global Administrators; any failure to tell means no. */
 export async function canDeleteGroupsV1(context: ContextV1): Promise<boolean> {
   const { env, session, graph } = context;
-  if (env.GROUPS_OWNER_ID && session.oid === env.GROUPS_OWNER_ID) return true;
+  if (sameIdV1(session.oid, env.GROUPS_OWNER_ID)) return true;
   if (!env.GLOBAL_ADMIN_ROLE_ID) return false;
   return graph.holdsDirectoryRole(session.oid, env.GLOBAL_ADMIN_ROLE_ID).catch(() => false);
 }
@@ -53,9 +55,14 @@ export async function startGroupDeleteV1(
 ): Promise<{ authorizeUrl: string; cookie: string }> {
   const { env, session, graph, store } = context;
   if (isRoleGroupV1(env, input.groupId)) throw new GroupsRefusalV1('delete-not-allowed', 403);
-  const managed = (await store?.managedGroups())?.find((group) => group.id === input.groupId);
+  const managed = (await store?.managedGroups())?.find((group) =>
+    sameIdV1(group.id, input.groupId),
+  );
   if (!managed) throw new GroupsRefusalV1('not-allowed', 403);
   if (!(await canDeleteGroupsV1(context))) throw new GroupsRefusalV1('delete-not-allowed', 403);
+  // The flow would keep trying to add people to a group that no longer exists.
+  if (await groupHasRulesV1(context, input.groupId))
+    throw new GroupsRefusalV1('group-has-rules', 409);
   const name = (await graph.group(input.groupId))?.name || managed.name;
   if (input.confirmName.trim() !== name.trim()) throw new GroupsRefusalV1('name-mismatch', 400);
 
@@ -112,7 +119,9 @@ export async function handleGroupDeleteCallbackV1(
 
   if (transaction.exp <= now) return finishV1('falhou', 'expired');
   const error = url.searchParams.get('error');
-  if (error) return finishV1(error === 'access_denied' ? 'cancelado' : 'recusado');
+  if (error === 'access_denied') return finishV1('cancelado');
+  // Only Microsoft's short code is logged (e.g. consent_required), never its description.
+  if (error) return finishV1('recusado', `ms:${/^[a-z_]{1,40}$/u.test(error) ? error : 'other'}`);
   const code = url.searchParams.get('code');
   if (!code) return finishV1('falhou', 'no-code');
 
@@ -120,7 +129,7 @@ export async function handleGroupDeleteCallbackV1(
   try {
     const session = await requireAuth(request, env);
     if (
-      session.oid !== transaction.oid ||
+      !sameIdV1(session.oid, transaction.oid) ||
       !capabilitiesForSession(session).includes('platform.groups.manage')
     )
       return finishV1('recusado', 'session');
@@ -131,22 +140,30 @@ export async function handleGroupDeleteCallbackV1(
   if (isRoleGroupV1(env, transaction.groupId)) return finishV1('recusado', 'role-group');
   const managed = await context.store
     ?.managedGroups()
-    .then((groups) => groups.some((group) => group.id === transaction.groupId))
+    .then((groups) => groups.some((group) => sameIdV1(group.id, transaction.groupId)))
     .catch(() => false);
   if (!managed) return finishV1('falhou', 'not-managed');
+  // A rule may have been saved for the group during the sign-in.
+  const hasRules = await groupHasRulesV1(context, transaction.groupId).catch(() => null);
+  if (hasRules === null) return finishV1('falhou', 'rules-read');
+  if (hasRules) return finishV1('com-regras', 'rules');
+
+  const change = { groupId: transaction.groupId, groupName: transaction.groupName, target: null };
 
   let accessToken: string;
   try {
     const tokens = await exchangeCode(env, code, transaction.verifier);
     const claims = await verifyIdToken(tokens.id_token, env, transaction.nonce);
     // The sign-in for the deletion is the person signed in to the Centro, not another account.
-    if (claims.oid !== transaction.oid) return finishV1('recusado', 'other-account');
+    if (!sameIdV1(claims.oid, transaction.oid)) {
+      await recordV1(context, { action: 'delete-group', ...change, outcome: 'failed' });
+      return finishV1('recusado', 'other-account');
+    }
     accessToken = tokens.access_token;
   } catch (cause) {
+    await recordV1(context, { action: 'delete-group', ...change, outcome: 'failed' });
     return finishV1('falhou', `token:${cause instanceof Error ? cause.name : 'unknown'}`);
   }
-
-  const change = { groupId: transaction.groupId, groupName: transaction.groupName, target: null };
   try {
     const result = await context.graph.deleteGroupAs(transaction.groupId, accessToken);
     await context.store?.removeManagedGroup(transaction.groupId).catch((cause: unknown) =>

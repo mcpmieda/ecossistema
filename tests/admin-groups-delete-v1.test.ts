@@ -17,6 +17,8 @@ import { GraphError } from '../server/graph/client';
 import { GROUP_DELETE_COOKIE_V1 } from '../server/platform/groups/groups-delete-v1';
 import type { GroupsGraphPortV1 } from '../server/platform/groups/groups-graph-v1';
 import { setGroupsGraphForTestsV1 } from '../server/platform/groups/groups-http-v1';
+import type { GroupRulesPortV1 } from '../server/platform/groups/group-rules-graph-v1';
+import { setGroupRulesForTestsV1 } from '../server/platform/groups/group-rules-v1';
 import {
   setGroupsStoreForTestsV1,
   type GroupChangeRecordV1,
@@ -60,6 +62,7 @@ beforeEach(() => {
   >);
 });
 afterEach(() => {
+  setGroupRulesForTestsV1(undefined);
   setGroupsGraphForTestsV1(undefined);
   setGroupsStoreForTestsV1(undefined);
   setSessionRevocationPortForTestsV1(undefined);
@@ -143,6 +146,36 @@ describe('#1513 deleting a group on the way back from Microsoft', () => {
       '/#/configuracoes?grupos=recusado',
     );
     expect(deleteGroupAs).not.toHaveBeenCalled();
+    // #1530 S10: the attempt is in the history.
+    expect(changes).toMatchObject([{ action: 'delete-group', outcome: 'failed' }]);
+  });
+
+  it('#1530 S2: a rule saved for the group during the sign-in stops the deletion', async () => {
+    const rules = vi.fn(async () => [
+      { active: true, action: 'ADICIONAR', groupId: groupId.toUpperCase() },
+    ]);
+    setGroupRulesForTestsV1({ rules } as unknown as GroupRulesPortV1);
+    expect((await callback('code=abc&state=state-1')).location).toBe(
+      '/#/configuracoes?grupos=com-regras',
+    );
+    rules.mockRejectedValueOnce(new Error('lists down'));
+    expect((await callback('code=abc&state=state-1')).location).toBe(
+      '/#/configuracoes?grupos=falhou',
+    );
+    expect(exchangeCode).not.toHaveBeenCalled();
+    expect(deleteGroupAs).not.toHaveBeenCalled();
+  });
+
+  it('#1530 S10: logs only the short code of a Microsoft refusal', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(
+      (await callback('error=consent_required&error_description=secret%20text&state=state-1'))
+        .location,
+    ).toBe('/#/configuracoes?grupos=recusado');
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    expect(lines.some((line) => line.includes('"stage":"ms:consent_required"'))).toBe(true);
+    expect(lines.some((line) => line.includes('secret'))).toBe(false);
+    log.mockRestore();
   });
 
   it('another session, a role group, a cancel or an expired request delete nothing', async () => {

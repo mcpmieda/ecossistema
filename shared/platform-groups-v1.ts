@@ -26,6 +26,9 @@ export type GroupPersonV1 = {
   email: string | null;
   jobTitle: string | null;
   enabled: boolean | null;
+  /** In a members list: the flow keeps the person in this group by a job-title rule, so removing
+   * them by hand lasts only until the flow's next check. */
+  byRule?: boolean;
 };
 
 export type GroupChangeActionV1 =
@@ -60,6 +63,8 @@ export type GroupRuleV1 = {
   note: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;
+  /** The version read, sent back on save so a change made meanwhile is not overwritten. */
+  etag: string | null;
 };
 export const GROUP_RULE_CARGO_MAX_V1 = 120;
 export const GROUP_RULE_NOTE_MAX_V1 = 300;
@@ -104,6 +109,8 @@ export type GroupsRequestV1 =
       operation: 'save-rule';
       /** Absent for a new rule. */
       ruleId?: string;
+      /** The version of the rule being edited. */
+      etag?: string;
       cargo: string;
       action: GroupRuleActionV1;
       /** Required to add; absent to ignore. */
@@ -167,7 +174,13 @@ export type GroupsResponseV1 =
   | { contractVersion: 1; state: 'ok'; operation: 'delete-rule' };
 
 /** How the deletion ended, in the address the browser comes back to (`#/configuracoes?grupos=`). */
-export const GROUP_DELETE_RESULTS_V1 = ['excluido', 'recusado', 'cancelado', 'falhou'] as const;
+export const GROUP_DELETE_RESULTS_V1 = [
+  'excluido',
+  'recusado',
+  'cancelado',
+  'falhou',
+  'com-regras',
+] as const;
 export type GroupDeleteResultV1 = (typeof GROUP_DELETE_RESULTS_V1)[number];
 
 /**
@@ -178,19 +191,29 @@ export type GroupDeleteResultV1 = (typeof GROUP_DELETE_RESULTS_V1)[number];
  * - `delete-not-allowed`: a role group, or a person who may not delete;
  * - `name-mismatch`: the name typed to confirm a deletion is not the group's;
  * - `rule-duplicate`: another active rule has the same job title;
- * - `rule-not-found`: the rule was removed meanwhile.
+ * - `rule-not-found`: the rule was removed meanwhile;
+ * - `rule-changed`: someone else saved the rule meanwhile;
+ * - `group-has-rules`: an active job-title rule still adds people to the group being deleted;
+ * - `group-not-found`: the group no longer exists in Entra;
+ * - `group-unrecorded`: the group was created in Entra but the Centro could not keep it.
  */
-export type GroupsFailureStateV1 =
-  | 'invalid-request'
-  | 'not-authorized'
-  | 'not-allowed'
-  | 'person-not-found'
-  | 'self-removal'
-  | 'name-taken'
-  | 'delete-not-allowed'
-  | 'name-mismatch'
-  | 'rule-duplicate'
-  | 'rule-not-found'
-  | 'unavailable';
+export const GROUPS_FAILURE_STATES_V1 = [
+  'invalid-request',
+  'not-authorized',
+  'not-allowed',
+  'person-not-found',
+  'self-removal',
+  'name-taken',
+  'delete-not-allowed',
+  'name-mismatch',
+  'rule-duplicate',
+  'rule-not-found',
+  'rule-changed',
+  'group-has-rules',
+  'group-not-found',
+  'group-unrecorded',
+  'unavailable',
+] as const;
+export type GroupsFailureStateV1 = (typeof GROUPS_FAILURE_STATES_V1)[number];
 
 export type GroupsFailureV1 = { contractVersion: 1; state: GroupsFailureStateV1 };

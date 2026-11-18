@@ -1,4 +1,5 @@
 import {
+  GROUPS_FAILURE_STATES_V1,
   GROUPS_PATH_V1,
   type GroupsFailureStateV1,
   type GroupsRequestV1,
@@ -12,11 +13,19 @@ type AnswerOf<O extends GroupsResponseV1['operation']> = Extract<
   { operation: O }
 >;
 
+/** `session-ended`: the Centro's sign-in ended (401), so only signing in again helps. */
+export type GroupsClientStateV1 = GroupsFailureStateV1 | 'session-ended';
+
 export class GroupsClientErrorV1 extends Error {
-  constructor(readonly state: GroupsFailureStateV1) {
+  constructor(readonly state: GroupsClientStateV1) {
     super(state);
   }
 }
+
+const knownStateV1 = (state: unknown): GroupsFailureStateV1 =>
+  (GROUPS_FAILURE_STATES_V1 as readonly unknown[]).includes(state)
+    ? (state as GroupsFailureStateV1)
+    : 'unavailable';
 
 /** Configurações › Grupos: one call to the groups API (#1513). */
 export async function requestGroupsV1<C extends GroupsCallV1>(
@@ -37,16 +46,15 @@ export async function requestGroupsV1<C extends GroupsCallV1>(
     if (error instanceof DOMException && error.name === 'AbortError') throw error;
     throw new GroupsClientErrorV1('unavailable');
   }
+  if (response.status === 401) throw new GroupsClientErrorV1('session-ended');
   const body = (await response.json().catch(() => null)) as
-    (GroupsResponseV1 & { state: string }) | { state?: GroupsFailureStateV1 } | null;
+    (GroupsResponseV1 & { state: string }) | { state?: unknown } | null;
   if (!response.ok || body?.state !== 'ok')
-    throw new GroupsClientErrorV1(
-      (body?.state as GroupsFailureStateV1 | undefined) ?? 'unavailable',
-    );
+    throw new GroupsClientErrorV1(knownStateV1(body?.state));
   return body as AnswerOf<C['operation']>;
 }
 
-export const GROUPS_FAILURE_TEXT_V1: Record<GroupsFailureStateV1, string> = {
+export const GROUPS_FAILURE_TEXT_V1: Record<GroupsClientStateV1, string> = {
   'invalid-request': 'Dados inválidos.',
   'not-authorized': 'Sem permissão para gerenciar grupos.',
   'not-allowed': 'Este grupo não é gerenciado pelo Centro.',
@@ -57,6 +65,11 @@ export const GROUPS_FAILURE_TEXT_V1: Record<GroupsFailureStateV1, string> = {
   'name-mismatch': 'O nome digitado não é o do grupo.',
   'rule-duplicate': 'Já existe uma regra ativa para esse cargo.',
   'rule-not-found': 'Esta regra não existe mais.',
+  'rule-changed': 'A regra foi alterada por outra pessoa. Abra de novo para editar.',
+  'group-has-rules': 'Remova ou desative as regras deste grupo antes de excluí-lo.',
+  'group-not-found': 'Este grupo não existe mais no Microsoft 365.',
+  'group-unrecorded': 'O grupo foi criado, mas não entrou na lista do Centro. Não o crie de novo.',
+  'session-ended': 'Sua sessão terminou. Entre novamente.',
   unavailable: 'Não foi possível concluir agora. Tente de novo.',
 };
 

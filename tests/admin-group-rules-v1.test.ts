@@ -41,7 +41,11 @@ const ruleOf = (id: string, fields: GroupRuleFieldsV1): GroupRuleV1 => ({
   note: fields.note,
   reviewedAt: fields.reviewedAt,
   reviewedBy: fields.reviewedBy,
+  etag: `"v,${++version}"`,
 });
+let version = 0;
+let ruleWrites: Array<{ id: string; etag?: string }>;
+let basePort: GroupRulesPortV1;
 
 beforeEach(() => {
   nextId = 10;
@@ -59,8 +63,10 @@ beforeEach(() => {
       note: null,
       reviewedAt: null,
       reviewedBy: null,
+      etag: '"v,0"',
     },
   ];
+  ruleWrites = [];
   const port: GroupRulesPortV1 = {
     rules: async () => [...rules],
     people: async () => [
@@ -74,15 +80,18 @@ beforeEach(() => {
       },
     ],
     log: async () => [],
+    keptByRule: async () => new Set<string>(),
     createRule: async (fields) => {
       written.push({ fields });
       const rule = ruleOf(String(nextId++), fields);
       rules.push(rule);
       return rule;
     },
-    updateRule: async (id, fields) => {
+    updateRule: async (id, fields, etag) => {
       const index = rules.findIndex((rule) => rule.id === id);
       if (index < 0) return null;
+      ruleWrites.push({ id, ...(etag ? { etag } : {}) });
+      if (etag && rules[index]!.etag !== etag) return 'changed';
       written.push({ id, fields });
       rules[index] = ruleOf(id, fields);
       return rules[index]!;
@@ -94,6 +103,7 @@ beforeEach(() => {
     },
   };
   setGroupRulesForTestsV1(port);
+  basePort = port;
   setGroupsGraphForTestsV1({
     group: vi.fn(async (id: string) =>
       id === otherTenantGroup
@@ -170,7 +180,7 @@ describe('#1513 Regras por cargo', () => {
     });
   });
 
-  it('a new rule keeps the title as written, compares it in lower case and takes the Entra name', async () => {
+  it('a new rule keeps the title as written, compares it as the flow does and takes the Entra name', async () => {
     const answer = await call({
       operation: 'save-rule',
       cargo: '  Bibliotecária  Escolar ',
@@ -179,16 +189,62 @@ describe('#1513 Regras por cargo', () => {
       active: true,
     });
     expect(answer.status).toBe(200);
+    // #1530 S3: the flow compares toLower(trim(jobTitle)), so the inner double space stays.
     expect(written[0]!.fields).toMatchObject({
-      cargo: 'Bibliotecária Escolar',
-      cargoKey: 'bibliotecária escolar',
+      cargo: 'Bibliotecária  Escolar',
+      cargoKey: 'bibliotecária  escolar',
       groupId: testEnv.GROUP_APOIO_ID,
       groupName: 'EQUIPE DE APOIO',
       reviewedBy: 'Secretaria Teste',
     });
     expect(changes).toMatchObject([
-      { action: 'save-rule', target: 'bibliotecária escolar', outcome: 'done' },
+      { action: 'save-rule', target: 'bibliotecária  escolar', outcome: 'done' },
     ]);
+  });
+
+  it('#1530 S1: of two saves at once for one title, the one that finds the other gives way', async () => {
+    // The other save lands between this one's check and its write.
+    const port = { ...basePort };
+    const createRule = port.createRule;
+    port.createRule = async (fields) => {
+      rules.push({ ...ruleOf('9', fields), etag: '"v,9"' });
+      return createRule(fields);
+    };
+    setGroupRulesForTestsV1(port);
+    expect(
+      await call({ operation: 'save-rule', cargo: 'zelador', action: 'IGNORAR', active: true }),
+    ).toMatchObject({ status: 409, body: { state: 'rule-duplicate' } });
+    expect(rules.filter((rule) => rule.cargoKey === 'zelador').map((rule) => rule.id)).toEqual([
+      '9',
+    ]);
+    expect(changes).toMatchObject([{ action: 'save-rule', outcome: 'failed' }]);
+  });
+
+  it('#1530 S9: an edit made meanwhile by someone else is not overwritten', async () => {
+    expect(
+      await call({
+        operation: 'save-rule',
+        ruleId: '3',
+        etag: '"v,old"',
+        cargo: 'professor',
+        action: 'IGNORAR',
+        active: true,
+      }),
+    ).toMatchObject({ status: 409, body: { state: 'rule-changed' } });
+    expect(rules[0]).toMatchObject({ action: 'ADICIONAR' });
+    expect(
+      (
+        await call({
+          operation: 'save-rule',
+          ruleId: '3',
+          etag: '"v,0"',
+          cargo: 'professor',
+          action: 'IGNORAR',
+          active: true,
+        })
+      ).status,
+    ).toBe(200);
+    expect(ruleWrites.at(-1)).toEqual({ id: '3', etag: '"v,0"' });
   });
 
   it('refuses a second active rule for the same title, a group outside the Centro and no group', async () => {
@@ -279,12 +335,24 @@ describe('#1513 Regras por cargo: the SharePoint columns', () => {
       GrupoNome: '',
       GrupoID: '',
     });
-    expect(ruleFromItemV1({ id: '8', fields: columns })).toMatchObject({
+    expect(ruleFromItemV1({ id: '8', fields: columns, '@odata.etag': '"x,4"' })).toMatchObject({
       id: '8',
       cargo: 'Coordenador pedagógico',
       cargoKey: 'coordenador pedagógico',
       groupName: 'GRUPO DA SECRETARIA',
       note: null,
+      active: true,
+      etag: '"x,4"',
     });
+  });
+
+  it('#1530 S4: reads a row typed by hand in SharePoint the way the flow reads it', () => {
+    // The flow compares toLower(trim(CargoNormalizado)) and only Ativo = true.
+    expect(
+      ruleFromItemV1({ id: '1', fields: { Title: 'Professor -> PROFESSORES', Ativo: true } }),
+    ).toMatchObject({ cargo: 'Professor', cargoKey: '', active: true });
+    expect(
+      ruleFromItemV1({ id: '2', fields: { CargoNormalizado: ' Professor ', Ativo: null } }),
+    ).toMatchObject({ cargo: 'professor', cargoKey: 'professor', active: false, etag: null });
   });
 });
