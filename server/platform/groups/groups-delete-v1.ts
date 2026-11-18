@@ -7,7 +7,7 @@ import { requireAuth } from '../../auth/session';
 import type { RuntimeEnv } from '../../env';
 import { GraphError } from '../../graph/client';
 import { sameIdV1 } from './group-rules-graph-v1';
-import { groupHasRulesV1 } from './group-rules-v1';
+import { groupHasRulesV1, withRulesLockV1 } from './group-rules-v1';
 import {
   groupsContextV1,
   GroupsRefusalV1,
@@ -143,11 +143,6 @@ export async function handleGroupDeleteCallbackV1(
     .then((groups) => groups.some((group) => sameIdV1(group.id, transaction.groupId)))
     .catch(() => false);
   if (!managed) return finishV1('falhou', 'not-managed');
-  // A rule may have been saved for the group during the sign-in.
-  const hasRules = await groupHasRulesV1(context, transaction.groupId).catch(() => null);
-  if (hasRules === null) return finishV1('falhou', 'rules-read');
-  if (hasRules) return finishV1('com-regras', 'rules');
-
   const change = { groupId: transaction.groupId, groupName: transaction.groupName, target: null };
 
   let accessToken: string;
@@ -164,6 +159,22 @@ export async function handleGroupDeleteCallbackV1(
     await recordV1(context, { action: 'delete-group', ...change, outcome: 'failed' });
     return finishV1('falhou', `token:${cause instanceof Error ? cause.name : 'unknown'}`);
   }
+  // Under the rules lock, so no rule is saved for the group between this check and the deletion.
+  return withRulesLockV1(context, () =>
+    deleteUnlessRulesV1(context, transaction, accessToken),
+  ).catch(() => finishV1('falhou', 'rules-lock'));
+}
+
+async function deleteUnlessRulesV1(
+  context: ContextV1,
+  transaction: DeleteTransactionV1,
+  accessToken: string,
+): Promise<Response> {
+  // A rule may have been saved for the group during the sign-in.
+  const hasRules = await groupHasRulesV1(context, transaction.groupId).catch(() => null);
+  if (hasRules === null) return finishV1('falhou', 'rules-read');
+  if (hasRules) return finishV1('com-regras', 'rules');
+  const change = { groupId: transaction.groupId, groupName: transaction.groupName, target: null };
   try {
     const result = await context.graph.deleteGroupAs(transaction.groupId, accessToken);
     await context.store?.removeManagedGroup(transaction.groupId).catch((cause: unknown) =>

@@ -21,7 +21,7 @@ A reverificação diária de cada pessoa continua acontecendo e atualizando a ES
 ## O que o Centro garante (#1530)
 
 - A chave de uma regra (`CargoNormalizado`) é o cargo como o flow compara: `toLower(trim(...))`, sem juntar espaços internos. Uma linha digitada à mão sem `CargoNormalizado`, ou com `Ativo` vazio, não vale para o flow e o Centro a mostra assim.
-- Dois salvamentos ao mesmo tempo para o mesmo cargo não deixam duas regras ativas: os salvamentos de regra passam um de cada vez por um bloqueio no banco (`pg_advisory_xact_lock`); o segundo vê a regra do primeiro e responde `rule-duplicate`. A edição manda a versão lida (`If-Match`); se outra pessoa salvou antes, a resposta é `rule-changed`.
+- Dois salvamentos ao mesmo tempo para o mesmo cargo não deixam duas regras ativas: os salvamentos de regra passam um de cada vez por um bloqueio no banco (`pg_advisory_xact_lock`); o segundo vê a regra do primeiro e responde `rule-duplicate`. A exclusão de um grupo confere as regras e exclui sob o mesmo bloqueio. Sem banco, o salvamento segue sozinho; com o bloqueio ocupado por mais de 15 s, responde "indisponível". Se a conexão do bloqueio cair durante um salvamento, outro pode passar ao mesmo tempo (caso raro, aceito). A edição manda a versão lida (`If-Match`); se outra pessoa salvou antes, a resposta é `rule-changed`.
 - Um grupo criado pelo Centro não é excluído enquanto uma regra ativa adiciona pessoas a ele (`group-has-rules`, conferido de novo na volta da Microsoft).
 - A lista de membros marca "Por cargo" quem tem conta ativa e um cargo com regra ativa para o grupo; remover essa pessoa dura só até a próxima verificação do flow.
 - O "Registro da automação" pede ao SharePoint só as 50 linhas mais novas (`DataHora` é indexada).

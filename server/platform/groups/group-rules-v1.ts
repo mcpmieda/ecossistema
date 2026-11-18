@@ -1,6 +1,7 @@
 import type { GroupRuleActionV1, GroupsResponseV1 } from '../../../shared/platform-groups-v1';
 import type { RuntimeEnv } from '../../env';
 import { GroupsRefusalV1, recordV1, roleGroupsV1, type ContextV1 } from './groups-context-v1';
+import { RuleLockUnreachableV1 } from './groups-store-v1';
 import {
   cargoKeyV1,
   groupRulesGraphPortV1,
@@ -57,10 +58,11 @@ async function ruleGroupV1(context: ContextV1, groupId: string): Promise<string>
 }
 
 /**
- * One rule save at a time (#1530 S1). Without the database the save still runs alone on this
- * request; a lock that cannot be taken does not block the Secretaria either (logged).
+ * One rule change at a time (#1530 S1): a rule save, or deleting a group rules may point at. Without
+ * the database, or when it cannot be reached at all, the change still runs (logged); a lock held too
+ * long by another change answers "unavailable".
  */
-async function oneSaveAtATimeV1<T>(context: ContextV1, run: () => Promise<T>): Promise<T> {
+export async function withRulesLockV1<T>(context: ContextV1, run: () => Promise<T>): Promise<T> {
   if (!context.store) return run();
   const state: { started: boolean; result?: { value: T } } = { started: false };
   try {
@@ -71,7 +73,7 @@ async function oneSaveAtATimeV1<T>(context: ContextV1, run: () => Promise<T>): P
   } catch (error) {
     // The save ran and only ending the lock failed: the save stands.
     if (state.result) return state.result.value;
-    if (state.started) throw error;
+    if (state.started || !(error instanceof RuleLockUnreachableV1)) throw error;
     console.error(
       JSON.stringify({
         event: 'group_rules_lock_failed',
@@ -107,7 +109,7 @@ export async function saveRuleV1(
     input.action === 'ADICIONAR' && input.groupId
       ? await ruleGroupV1(context, input.groupId)
       : null;
-  return oneSaveAtATimeV1(context, () =>
+  return withRulesLockV1(context, () =>
     writeRuleV1(context, port, input, { cargo, cargoKey, groupName }),
   );
 }

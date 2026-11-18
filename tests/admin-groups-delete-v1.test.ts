@@ -35,11 +35,13 @@ const now = () => Math.floor(Date.now() / 1000);
 let managed: string[];
 let changes: GroupChangeRecordV1[];
 let deleteGroupAs: ReturnType<typeof vi.fn>;
+let serializeRuleSaves: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   managed = [groupId];
   changes = [];
   deleteGroupAs = vi.fn(async () => 'deleted' as const);
+  serializeRuleSaves = vi.fn((run: () => Promise<unknown>) => run());
   setGroupsGraphForTestsV1({ deleteGroupAs } as unknown as GroupsGraphPortV1);
   setGroupsStoreForTestsV1({
     managedGroups: async () =>
@@ -50,6 +52,7 @@ beforeEach(() => {
     record: async (change: GroupChangeRecordV1) => {
       changes.push(change);
     },
+    serializeRuleSaves,
   } as unknown as GroupsStorePortV1);
   setSessionRevocationPortForTestsV1(null);
   vi.mocked(exchangeCode).mockResolvedValue({
@@ -162,7 +165,14 @@ describe('#1513 deleting a group on the way back from Microsoft', () => {
     expect((await callback('code=abc&state=state-1')).location).toBe(
       '/#/configuracoes?grupos=falhou',
     );
-    expect(exchangeCode).not.toHaveBeenCalled();
+    expect(deleteGroupAs).not.toHaveBeenCalled();
+  });
+
+  it('#1530 S1: a rules lock held too long stops the deletion', async () => {
+    serializeRuleSaves.mockRejectedValueOnce(new Error('statement timeout'));
+    expect((await callback('code=abc&state=state-1')).location).toBe(
+      '/#/configuracoes?grupos=falhou',
+    );
     expect(deleteGroupAs).not.toHaveBeenCalled();
   });
 

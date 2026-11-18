@@ -33,6 +33,13 @@ export type GroupsStorePortV1 = {
   serializeRuleSaves<T>(run: () => Promise<T>): Promise<T>;
 };
 
+/** The database could not even be reached for the lock: nothing ran under it. */
+export class RuleLockUnreachableV1 extends Error {
+  constructor() {
+    super('rule-lock-unreachable');
+  }
+}
+
 type HyperdriveBindingV1 = { readonly connectionString: string };
 
 const clip = (value: string | null, length: number) =>
@@ -105,18 +112,28 @@ function postgresGroupsStoreV1(connectionString: string): GroupsStorePortV1 {
           ],
         );
       }),
-    serializeRuleSaves: (run) =>
-      withDatabase((db) =>
-        db.transaction(async (transaction) => {
-          // Waiting for another save may take longer than one statement usually does.
-          await transaction.executeNative("SET LOCAL statement_timeout = '15s'", []);
-          await transaction.executeNative(
-            "SELECT pg_advisory_xact_lock(hashtext('admin_access.group-rules'))",
-            [],
-          );
-          return run();
-        }),
-      ),
+    serializeRuleSaves: async (run) => {
+      let reached = false;
+      try {
+        return await withDatabase((db) =>
+          db.transaction(async (transaction) => {
+            reached = true;
+            // Waiting for another save may take longer than one statement usually does.
+            await transaction.executeNative("SET LOCAL statement_timeout = '15s'", []);
+            await transaction.executeNative(
+              "SELECT pg_advisory_xact_lock(hashtext('admin_access.group-rules'))",
+              [],
+            );
+            return run();
+          }),
+        );
+      } catch (error) {
+        // Only a database that never answered lets the caller go on without the lock; a lock held
+        // too long by another save, or any later failure, is a failure.
+        if (!reached) throw new RuleLockUnreachableV1();
+        throw error;
+      }
+    },
     history: (groupId, limit) =>
       withDatabase(async (db) => {
         const rows = await db.query<{

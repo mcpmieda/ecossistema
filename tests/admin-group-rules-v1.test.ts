@@ -17,6 +17,7 @@ import { setGroupRulesForTestsV1 } from '../server/platform/groups/group-rules-v
 import type { GroupsGraphPortV1 } from '../server/platform/groups/groups-graph-v1';
 import { setGroupsGraphForTestsV1 } from '../server/platform/groups/groups-http-v1';
 import {
+  RuleLockUnreachableV1,
   setGroupsStoreForTestsV1,
   type GroupChangeRecordV1,
   type GroupsStorePortV1,
@@ -220,7 +221,7 @@ describe('#1513 Regras por cargo', () => {
     const store = {
       managedGroups: async () => [],
       record: async () => undefined,
-      serializeRuleSaves: () => Promise.reject(new Error('db down')),
+      serializeRuleSaves: () => Promise.reject(new RuleLockUnreachableV1()),
     } as unknown as GroupsStorePortV1;
     setGroupsStoreForTestsV1(store);
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -232,6 +233,16 @@ describe('#1513 Regras por cargo', () => {
       true,
     );
     log.mockRestore();
+    // A lock held too long by another save is not skipped.
+    setGroupsStoreForTestsV1({
+      ...store,
+      serializeRuleSaves: () => Promise.reject(new Error('statement timeout')),
+    } as unknown as GroupsStorePortV1);
+    expect(
+      (await call({ operation: 'save-rule', cargo: 'porteiro', action: 'IGNORAR', active: true }))
+        .status,
+    ).toBe(503);
+    expect(rules.some((rule) => rule.cargoKey === 'porteiro')).toBe(false);
   });
 
   it('#1530 S9: an edit made meanwhile by someone else is not overwritten', async () => {
