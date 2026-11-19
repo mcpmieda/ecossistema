@@ -23,6 +23,18 @@ import {
   type ProcessWorkbookInputV1,
 } from '../../server/gradebook/onedrive-sync/process-workbook-v1';
 import {
+  graphLinkItemByPathV1,
+  graphLinkItemV1,
+  graphProbeLockV1,
+  graphReplaceWorkbookV1,
+} from '../../server/gradebook/onedrive-sync/links/graph-links-v1';
+import {
+  runLinkRefreshV1,
+  type LinkRefreshInputV1,
+  type LinkRefreshResultV1,
+} from '../../server/gradebook/onedrive-sync/links/run-link-refresh-v1';
+import {
+  LINKS_PATH_V1,
   NotasSyncCoordinatorV1,
   READ_PATH_V1,
   type SyncCoordinatorEnvV1,
@@ -360,10 +372,52 @@ function readHereV1(env: NotasSyncEnvV1, input: ProcessWorkbookInputV1): Promise
   });
 }
 
-/** The read through `SELF`, when the public `/ler` is not available. */
+/** One workbook's links refreshed from its sources (#1541): Graph only, no database. */
+export function refreshLinksHereV1(
+  env: NotasSyncEnvV1,
+  input: LinkRefreshInputV1,
+): Promise<LinkRefreshResultV1> {
+  return runLinkRefreshV1(input, {
+    xlsx: XLSX as unknown as SheetJs,
+    now: () => performance.now(),
+    item: (driveId, itemId) => graphLinkItemV1(env, driveId, itemId),
+    itemByPath: (driveId, path) => graphLinkItemByPathV1(env, driveId, path),
+    download: (driveId, itemId, maxBytes) =>
+      graphDownloadWorkbookV1(env, driveId, itemId, maxBytes),
+    replace: (replacement) => graphReplaceWorkbookV1(env, replacement),
+    probeLock: (target) => graphProbeLockV1(env, target),
+  });
+}
+
+function linkRefreshInputV1(value: unknown): LinkRefreshInputV1 | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const input = value as Partial<Record<keyof LinkRefreshInputV1, unknown>>;
+  const onlySources = input.onlySources;
+  if (
+    typeof input.driveId !== 'string' ||
+    typeof input.driveWebUrl !== 'string' ||
+    typeof input.itemId !== 'string' ||
+    typeof input.maxBytes !== 'number' ||
+    typeof input.settleMs !== 'number' ||
+    (input.probeLockFirst !== undefined && typeof input.probeLockFirst !== 'boolean') ||
+    !(
+      onlySources === null ||
+      (Array.isArray(onlySources) && onlySources.every((id) => typeof id === 'string'))
+    )
+  )
+    return null;
+  return input as LinkRefreshInputV1;
+}
+
+/** The read through `SELF`, when the public `/ler` is not available; also the links refresh. */
 export class NotasSyncReaderV1 extends WorkerEntrypoint<NotasSyncEnvV1> {
   override async fetch(request: Request): Promise<Response> {
     if (request.method !== 'POST') return new Response(null, { status: 405 });
+    if (new URL(request.url).pathname === LINKS_PATH_V1) {
+      const input = linkRefreshInputV1(await request.json().catch(() => null));
+      if (!input) return new Response(null, { status: 400 });
+      return Response.json(await refreshLinksHereV1(this.env, input));
+    }
     return Response.json(
       await readHereV1(this.env, (await request.json()) as ProcessWorkbookInputV1),
     );

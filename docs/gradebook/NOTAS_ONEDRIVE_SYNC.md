@@ -88,3 +88,73 @@ A Relação do ano (por exemplo `ADMINISTRATIVO/LINHA DO TEMPO/2026/RELAÇÃO 20
 ## Coordenador sempre no código novo (14/11/2026)
 
 Uma publicação nem sempre reinicia o Durable Object coordenador: em 14/11 ele ficou na versão anterior até a publicação ser refeita. Agora o Worker tem a ligação `CF_VERSION_METADATA`, e o cron de cada minuto manda ao coordenador a versão do próprio código. Se o cron já roda uma publicação **mais nova** (pela data da versão) e nada está sendo lido ou gravado, o coordenador chama `ctx.abort()` e volta no código novo na chamada seguinte. Um cron mais antigo nunca reinicia um coordenador mais novo, então não há laço durante a troca de versão. O registro `notas-sync-coordinator-restart` mostra quando isso acontece.
+
+## Vínculos entre planilhas (19/11/2026, #1541)
+
+O Worker também mantém em dia os vínculos entre planilhas do OneDrive da secretaria: Relação e simulados → planilhas dos professores → Banco de Notas. Faz o mesmo que o "Atualizar vínculos" do Excel com as origens fechadas:
+
+- regrava só a cópia das células da origem que o Excel guarda em cada vínculo (`xl/externalLinks/externalLinkN.bin` ou `.xml`), com os valores salvos na origem;
+- marca "recalcular tudo ao abrir" (BrtCalcProp `recalcID=0` + `fFullCalcOnLoad`; no `.xlsx`, `calcPr fullCalcOnLoad="1"`).
+
+Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes do ZIP que não mudam são copiadas byte a byte.
+
+**Quando.**
+- Uma origem salva (conteúdo novo, não a própria gravação do Worker) agenda as planilhas que dependem dela para 1 min depois do último salvamento.
+- A planilha de destino só é gravada se estiver sem salvar há 1 min e se o cache realmente mudar.
+- Cada vez só os vínculos das origens que mudaram são relidos. Relêem todos: a conferência das 03:00 (marca própria, separada da conferência das notas), "Conferir tudo", ligar os vínculos e religar a leitura automática.
+- O Excel não guarda no cache uma célula usada que estava vazia na última atualização. Quando ela ganha valor na origem, o Worker a acrescenta, como o Excel faria. Quais células são usadas sai do próprio destino:
+  - das fórmulas e dos nomes definidos que apontam para a origem;
+  - dos nomes da origem usados pelo destino. As planilhas dos professores leem os simulados por nomes, um por turma, como `SEXTOA` = `RELAÇÃO!$J$3:$J$48`.
+- Uma área grande, como coluna inteira ou `PROCV`, é percorrida pelas células que a origem tem.
+- Uma aba sem nenhuma célula no cache ganha a sua tabela: no `.xlsb`, o par de registros de início e fim; no `.xlsx`, abre o `<sheetData/>`.
+- Se as fórmulas não explicam todas as células do cache, também se preenchem os buracos de cada coluna, entre a primeira e a última linha guardada. Isso acontece com fórmula não lida até o fim ou com célula guardada que nenhuma fórmula usa. Fora disso, o preenchimento não roda: entre os blocos de turmas dos simulados ele acrescentaria células que nenhuma fórmula usa e regravaria à toa as planilhas dos professores.
+- Mais de 50.000 células novas num vínculo é tratado como algo fora do esperado. Nenhuma célula nova entra, as já guardadas continuam atualizadas, e o vínculo aparece como sem origem acessível.
+- A origem é procurada pelos ids que o Excel guarda e, se tiver sido apagada e enviada de novo, pelo endereço.
+- No máximo 2 planilhas são atualizadas ao mesmo tempo, cada uma numa invocação própria (`SELF` → `/vinculos`, sem banco). Falha da Graph nos vínculos espera pelo menos 1 min sem atrasar a leitura de notas.
+
+**Gravação segura.**
+- A versão (eTag) é tirada antes do download e o envio é condicional: `createUploadSession` com `if-match`. Se alguém salvou no meio (412), nada é gravado e a planilha volta para a fila.
+- Arquivo aberto no Excel para a Web ou no Excel do PC, mesmo com salvamento automático desligado, recebe 423 do servidor. Testado em 19/11/2026. O Worker tenta de novo depois de 2, 4, 8 e a cada 15 min; nessas novas tentativas pergunta antes se o arquivo continua aberto (abre e descarta uma sessão de envio, sem gravar) e só então baixa. Nunca usa `bypass-shared-lock` nem check-out.
+- A versão de uma pessoa sempre vence; o Worker nunca apaga nem mescla. O histórico de versões do OneDrive guarda a versão anterior.
+- Não usar a rota REST `$value` do SharePoint para isso: no teste de 19/11 ela ignorou o `If-Match` e gravou por cima de uma edição.
+
+**Depois.**
+- Ao abrir, o Excel (PC ou Web) recalcula com os valores novos, sem pedir para atualizar vínculos.
+- O Excel para a Web salva o recálculo ao fechar, mesmo sem edição (testado em 19/11/2026).
+- Até alguém abrir, quem lê a planilha fechada (o Banco de Notas.xlsb e a leitura automática) vê os resultados do último salvamento.
+- Por isso a gravação do Worker não faz a leitura automática reler uma planilha de professor cujas notas já tinham sido lidas na versão sobrescrita; o salvamento do recálculo, ao abrir, é lido normalmente.
+
+**Painel.** Banco de notas › Importação › OneDrive › **Vínculos entre planilhas**:
+- ligar e desligar;
+- escolher pastas ou planilhas de destino;
+- "Conferir tudo";
+- por planilha: situação, hora da última conferência e da última atualização, e "Atualizar agora".
+
+A atualização só roda com a leitura automática ligada e não pausada.
+
+**Escritor único.** Planilhas atualizadas por aqui não devem estar também numa tarefa do Atualizador de Planilhas do PC: os dois desfariam um ao outro.
+
+**Permissão.** Papel `write` do app Graph Backend (`Sites.Selected`) no site do OneDrive da secretaria, concedido em 19/11/2026 com autorização do responsável.
+
+**Validação.**
+- Medido nas planilhas reais, só leitura: as 18 de professores estavam em dia, e o Banco tinha 4.998 células atrasadas, confirmadas uma a uma no Excel (88.082 células iguais).
+- O Excel abre os arquivos remontados sem reparo, com macros e vínculos.
+- Conferência de 19/11/2026 à tarde, feita em cópias e só com leitura:
+  - Nos 88 vínculos das 19 planilhas, toda célula do cache está entre as usadas pelas fórmulas e pelos nomes. As exceções são 2 células antigas de uma planilha, que nenhuma fórmula usa mais.
+  - Banco: o cache montado pelo Worker é igual ao gravado pelo próprio Excel ao atualizar os vínculos, em 88.082 de 88.082 células, com 6.402 mudanças.
+  - Banco: os valores recalculados das 10 abas são iguais em 139.382 células.
+  - Uma planilha de professor atualizada pelo Excel não muda, e o Worker também não a regrava.
+- Arquivos sintéticos feitos no Excel, em `.xlsb` e `.xlsx`, deram resultado idêntico ao do Excel nestes casos:
+  - célula nova num nome;
+  - nome de uma célula só;
+  - aba sem células no cache;
+  - `PROCV` em coluna inteira;
+  - célula vazia preenchida depois.
+- Ler as 18 origens do Banco leva cerca de 6 s de processamento. Só a última origem lida fica na memória, porque guardar todas ocuparia cerca de 40 MB.
+
+**Limites.**
+- Origem fora do OneDrive da secretaria ou maior que 8 MiB fica como está e aparece como "vínculo sem origem acessível".
+- Cópia de conflito numa pasta de fontes ainda seria lida como mais uma planilha (regra própria, fora desta entrega).
+- A escola não reorganiza a Relação; reordenar a lista desalinharia nomes e notas, como no próprio Excel.
+- No `.xlsb`, um nome da origem que passe da linha 65.536 é gravado pelo Excel como erro, sem a área. As células dele só são atualizadas se já estiverem no cache.
+- No `.xlsx`, uma referência a várias abas de outra pasta (`[1]A:C!B2`) não é lida. Então vale o preenchimento de buracos.

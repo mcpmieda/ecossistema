@@ -374,3 +374,19 @@ Não entram: recalcular o AM (a planilha já calcula) e nota que sumiu (pode ser
 **Tela.** A Auditoria vira só leitura, com uma aba por problema, contagem em cada aba e lista curta por planilha. O Centro ADM não corrige nem trata achados: o professor corrige a planilha e a próxima importação, automática ou manual, tira o problema da lista. Os botões Reconhecer e Adicionar anotação saem da tela; a rota e a tabela de tratamento (#674) ficam sem uso pela interface.
 
 Sem alteração de contrato HTTP, schema, migration ou publicação do Portal.
+
+## BN-DEC-047 - Atualização dos vínculos entre planilhas pelo Worker
+
+**Data:** 2026-11-19. **Origem:** pedido do responsável (#1541): "atualização automática de vínculos em planilhas na nuvem do OneDrive", sem PC ligado e sem custo extra, mantendo as fórmulas, o formato `.xlsb` e as macros. Autorizou, no mesmo dia, o papel de escrita do app no OneDrive da secretaria. Se der certo, o Atualizador de Planilhas do PC deixa de ser usado.
+
+**Decisão.** O Worker `notas-onedrive-sync` pode regravar nas planilhas do OneDrive somente:
+
+- o cache de vínculos externos (`xl/externalLinks/externalLinkN.bin|xml`), com os valores salvos nas origens;
+- a marca "recalcular ao abrir".
+
+Não altera células, fórmulas, macros nem proteção. Grava só se o cache mudar, condicionado à versão lida (`if-match`), nunca por cima de arquivo aberto (423), sem `bypass-shared-lock` e sem check-out. A versão de uma pessoa sempre vence.
+
+A importação continua sem alterar a planilha original (BN-DEC-022). Esta decisão não muda regra acadêmica, schema, migration nem publicação do Portal; acrescenta campos opcionais ao contrato `onedrive-sync`.
+
+**Validação real pendente.** Teste na pasta sintética e depois nas planilhas reais com o responsável.
+
