@@ -121,7 +121,8 @@ describe('Frequência page', () => {
     expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(
       /^Ano letivo 2026, 0 dias de aula contados/u,
     );
-    expect(screen.getByText('Aulas a confirmar · contam quando o professor marcar')).toBeTruthy();
+    // No note for FP lessons (owner request 19/11/2026): each tile already says "A confirmar".
+    expect(document.querySelector('.pa3-today-note')).toBeNull();
     expect(screen.getByText('2 faltas registradas até agora.')).toBeTruthy();
     // The marked lessons are final at once; only the FP ones are "A confirmar".
     const states = [...document.querySelectorAll('.pa3-lesson-state')].map((n) => n.textContent);
@@ -138,7 +139,7 @@ describe('Frequência page', () => {
     expect(button.className).toContain('pa3-day--pending');
     expect(button.getAttribute('aria-label')).toContain('aulas a confirmar');
     fireEvent.click(button);
-    expect(screen.getByText('Aula a confirmar · conta quando o professor marcar')).toBeTruthy();
+    expect(document.querySelector('.pa3-today-note')).toBeNull();
     const states = [...document.querySelectorAll('.pa3-lesson-state')].map((n) => n.textContent);
     expect(states).toEqual(['Sem falta', 'Sem falta', 'A confirmar', 'Sem falta', 'Sem falta']);
   });

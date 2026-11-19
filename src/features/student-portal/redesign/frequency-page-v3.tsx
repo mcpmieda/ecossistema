@@ -904,18 +904,14 @@ function MonthHeadV3({
   );
 }
 
-/** Why an open day does not count in full yet: a lesson still FP, or a reading not complete. */
-function OpenDayNoteV3({
-  incomplete,
-  pending,
-}: Readonly<{ incomplete: boolean; pending: number }>) {
-  let note = 'Aulas a confirmar · contam quando o professor marcar';
-  if (incomplete) note = 'Leitura incompleta · conta quando o diário for lido';
-  else if (pending === 1) note = 'Aula a confirmar · conta quando o professor marcar';
+/**
+ * Why a day does not count yet: a reading not complete. A lesson still FP needs no note (owner
+ * request 19/11/2026): its own tile already says "A confirmar".
+ */
+function IncompleteDayNoteV3() {
   return (
     <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
-      {/* The teacher marks presence and absence during the lesson; an FP is a lesson not marked yet. */}
-      {note}
+      Leitura incompleta · conta quando o diário for lido
     </Chip>
   );
 }
@@ -1389,13 +1385,8 @@ function FrequencyMonthV3({
       {selected && selectedDay ? (
         <Card className="pa3-card pa3-day-detail" aria-live="polite">
           <Card.Title className="pa3-day-detail-title">{dayTitle(selected, today)}</Card.Title>
-          {/* A day is open while a lesson is still FP or its reading is incomplete. */}
-          {isOpen ? (
-            <OpenDayNoteV3
-              incomplete={!selectedLessons.every((group) => group.complete)}
-              pending={selectedLessons.reduce((count, group) => count + group.pending.length, 0)}
-            />
-          ) : null}
+          {/* Only a reading not complete has a note; a lesson still FP says so in its tile. */}
+          {selectedLessons.every((group) => group.complete) ? null : <IncompleteDayNoteV3 />}
           <p className="pa3-day-detail-sub">{daySentence(selectedDay, isOpen)}</p>
           {selectedLessons.map((group) => {
             const label = shiftLabel(group.shift);
