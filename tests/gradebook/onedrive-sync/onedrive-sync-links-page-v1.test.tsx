@@ -30,23 +30,40 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it('shows the links of each workbook and switches the refresh off and on (#1541)', async () => {
+const card = (text: string) =>
+  screen.getByText(text, { exact: false }).closest('div.overflow-hidden') as HTMLElement;
+
+it('shows the links like the reading: header with the last update, then the workbooks, latest first (#1541)', async () => {
   render(<OneDriveSyncPageV1 />);
-  const title = await screen.findByText('Vínculos entre planilhas');
-  // The whole card of the links (its outer surface).
-  const section = title.closest('div.overflow-hidden') as HTMLElement;
-  expect(within(section).getByText('Ligada')).toBeTruthy();
+  await screen.findByText('Vínculos entre planilhas');
+  const header = card('Vínculos entre planilhas');
+  expect(within(header).getByText('Ligada')).toBeTruthy();
+  expect(within(header).getByText(/Última atualização:/u)).toBeTruthy();
+  expect(within(header).getByText('Planilha Sintética Professora A 2026')).toBeTruthy();
   expect(
-    within(section).getByText('PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026'),
+    within(header).getByText('PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026'),
   ).toBeTruthy();
-  expect(within(section).getByText('Aberto por alguém — nova tentativa automática')).toBeTruthy();
-  expect(within(section).getByText('Em dia')).toBeTruthy();
+
+  const list = card('Planilhas com vínculos');
+  expect(within(list).getByText('(4)')).toBeTruthy();
+  const rows = within(list)
+    .getAllByRole('listitem')
+    .map((row) => row.textContent ?? '');
+  expect(rows.map((row) => row.match(/Professor[a]? [A-E]/u)?.[0])).toEqual([
+    'Professora A',
+    'Professora C',
+    'Professor B',
+    'Professor D',
+  ]);
+  expect(rows[0]).toContain('Atualizado');
+  expect(within(list).getByText('Aberto por alguém — nova tentativa automática')).toBeTruthy();
+  expect(within(list).getByText('Em dia')).toBeTruthy();
 
   await act(async () => {
-    fireEvent.click(within(section).getByRole('button', { name: /Desligar/u }));
+    fireEvent.click(within(header).getByRole('button', { name: /Desligar/u }));
   });
   expect(vi.mocked(requestOneDriveSyncV1)).toHaveBeenCalledWith({ action: 'links-off' });
-  expect(await within(section).findByText('Desligada')).toBeTruthy();
+  expect(await within(card('Vínculos entre planilhas')).findByText('Desligada')).toBeTruthy();
 
   await act(async () => {
     fireEvent.click(

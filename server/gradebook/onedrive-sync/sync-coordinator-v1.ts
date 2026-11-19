@@ -29,6 +29,7 @@ import {
   finishLinkRefreshV1,
   LINK_DESTINATION_SETTLE_MS_V1,
   LINK_SOURCE_SETTLE_MS_V1,
+  linkFilesByRecentV1,
   linkFilesToStartV1,
   linkTargetOfV1,
   newLinkFileV1,
@@ -846,23 +847,23 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       targets: Object.values(settings.targets).sort((a, b) =>
         PT_BR_COLLATOR_V1.compare(a.path, b.path),
       ),
-      files: this.linkFiles()
-        .filter((file) => !file.removed)
-        .sort((a, b) => PT_BR_COLLATOR_V1.compare(a.name, b.name))
-        .map((file) => ({
-          id: file.id,
-          name: file.name,
-          state: file.state,
-          removed: file.removed,
-          dueAt: file.dueAt,
-          lastOutcome: file.lastOutcome,
-          lastCode: file.lastCode,
-          lastCheckedAt: file.lastCheckedAt,
-          lastWrittenAt: file.lastWrittenAt,
-          changedCells: file.changedCells,
-          unavailableLinks: file.unavailableLinks,
-          sources: file.sources.length,
-        })),
+      files: linkFilesByRecentV1(
+        this.linkFiles().filter((file) => !file.removed),
+        PT_BR_COLLATOR_V1.compare,
+      ).map((file) => ({
+        id: file.id,
+        name: file.name,
+        state: file.state,
+        removed: file.removed,
+        dueAt: file.dueAt,
+        lastOutcome: file.lastOutcome,
+        lastCode: file.lastCode,
+        lastCheckedAt: file.lastCheckedAt,
+        lastWrittenAt: file.lastWrittenAt,
+        changedCells: file.changedCells,
+        unavailableLinks: file.unavailableLinks,
+        sources: file.sources.length,
+      })),
     };
   }
 

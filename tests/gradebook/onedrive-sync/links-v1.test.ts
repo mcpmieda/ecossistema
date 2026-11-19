@@ -19,11 +19,13 @@ import { graphReplaceWorkbookV1 } from '../../../server/gradebook/onedrive-sync/
 import {
   changedSourcesV1,
   finishLinkRefreshV1,
+  linkFilesByRecentV1,
   linkFilesToStartV1,
   linkTargetOfV1,
   newLinkFileV1,
   requestLinkRefreshV1,
   startLinkRefreshV1,
+  LINK_MAX_DEFER_MS_V1,
   LINK_SOURCE_SETTLE_MS_V1,
   type LinkFileV1,
 } from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
@@ -748,6 +750,18 @@ describe('link rules', () => {
     expect(requestLinkRefreshV1(twice, null, NOW + 20, 0).changed).toBeNull();
   });
 
+  it('saves that keep coming (the Banco depends on every teacher) delay it at most 5 minutes', () => {
+    let current = requestLinkRefreshV1(file(), ['src-1'], NOW, LINK_SOURCE_SETTLE_MS_V1);
+    for (let minute = 1; minute <= 10; minute++)
+      current = requestLinkRefreshV1(
+        current,
+        ['src-2'],
+        NOW + minute * 60_000,
+        LINK_SOURCE_SETTLE_MS_V1,
+      );
+    expect(current.dueAt).toBe(NOW + LINK_MAX_DEFER_MS_V1);
+  });
+
   it('starts at most two at once, the oldest first', () => {
     const files = [
       file({ id: 'a', state: 'pending', dueAt: NOW - 5 }),
@@ -818,5 +832,18 @@ describe('link rules', () => {
     expect(linkTargetOfV1({ id: 'x', parentId: 'f' }, targets)?.itemId).toBe('f');
     expect(linkTargetOfV1({ id: 'w', parentId: 'other' }, targets)?.itemId).toBe('w');
     expect(linkTargetOfV1({ id: 'y', parentId: 'other' }, targets)).toBeNull();
+  });
+
+  it('lists the latest update (or check) first; never checked last, by name', () => {
+    const rows = [
+      { name: 'C', lastWrittenAt: null, lastCheckedAt: 50 },
+      { name: 'B', lastWrittenAt: null, lastCheckedAt: null },
+      { name: 'A', lastWrittenAt: 40, lastCheckedAt: 90 },
+      { name: 'D', lastWrittenAt: 70, lastCheckedAt: 70 },
+      { name: 'Á', lastWrittenAt: null, lastCheckedAt: null },
+    ];
+    expect(
+      linkFilesByRecentV1(rows, (a, b) => a.localeCompare(b, 'pt-BR')).map((row) => row.name),
+    ).toEqual(['D', 'C', 'A', 'Á', 'B']);
   });
 });

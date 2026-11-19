@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Chip, Spinner, Surface } from '@heroui/react';
 import {
   ChevronRight,
@@ -684,9 +684,12 @@ function LinkFileRow({
   onRefresh,
 }: Readonly<{ file: LinkFileV1; busy: boolean; onRefresh: () => void }>) {
   const [label, color] = linkChipV1(file);
+  // Like the Planilhas rows: the update when there was one, otherwise the last check.
+  let shown: string | null = null;
+  if (file.lastWrittenAt) shown = `Atualizado ${time(file.lastWrittenAt)}`;
+  else if (file.lastCheckedAt) shown = `Conferido ${time(file.lastCheckedAt)}`;
   const detail = [
-    file.lastCheckedAt ? `Conferido ${time(file.lastCheckedAt)}` : null,
-    file.lastWrittenAt ? `atualizado ${time(file.lastWrittenAt)}` : null,
+    shown,
     file.unavailableLinks ? `${file.unavailableLinks} vínculo(s) sem origem acessível` : null,
   ]
     .filter(Boolean)
@@ -735,119 +738,166 @@ function LinksSection({
   let chip: [string, ChipColor] = ['Desligada', 'default'];
   if (stopped) chip = ['Parada — leitura automática desligada ou pausada', 'warning'];
   else if (links.enabled) chip = ['Ligada', 'success'];
+  // Like the reading's header: the last update, otherwise the last check.
+  const last = lastLinkUpdateV1(links.files);
+  const lastCheck = Math.max(0, ...links.files.map((file) => file.lastCheckedAt ?? 0));
+  let subtitle: ReactNode = null;
+  if (last?.lastWrittenAt)
+    subtitle = (
+      <>
+        Última atualização:{' '}
+        <span className="text-foreground">
+          {last.name.replace(/\.(xlsb|xlsx|xlsm|xls)$/iu, '')}
+        </span>{' '}
+        · {time(last.lastWrittenAt)}
+      </>
+    );
+  else if (lastCheck > 0) subtitle = `Última conferência: ${time(lastCheck)}`;
   return (
-    <Surface className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
-            <Link2 className="size-5" aria-hidden="true" />
-          </span>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold">Vínculos entre planilhas</h3>
-            <Chip size="sm" variant="soft" color={chip[1]}>
-              <Chip.Label>{chip[0]}</Chip.Label>
-            </Chip>
+    <>
+      <Surface className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+              <Link2 className="size-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-semibold">Vínculos entre planilhas</h3>
+                <Chip size="sm" variant="soft" color={chip[1]}>
+                  <Chip.Label>{chip[0]}</Chip.Label>
+                </Chip>
+              </div>
+              {subtitle ? <p className="mt-0.5 text-sm text-muted">{subtitle}</p> : null}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={links.enabled ? 'secondary' : 'primary'}
+              isDisabled={busy}
+              onPress={() => void send({ action: links.enabled ? 'links-off' : 'links-on' })}
+            >
+              <Power className="size-4" aria-hidden="true" />
+              {links.enabled ? 'Desligar' : 'Ligar'}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={busy || !links.enabled}
+              onPress={() => void send({ action: 'links-check-all' })}
+            >
+              <RefreshCcw className="size-4" aria-hidden="true" />
+              Conferir tudo
+            </Button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant={links.enabled ? 'secondary' : 'primary'}
-            isDisabled={busy}
-            onPress={() => void send({ action: links.enabled ? 'links-off' : 'links-on' })}
+        <div className="grid min-w-0 grid-cols-1 gap-4 px-5 py-4">
+          <section
+            className="grid min-w-0 grid-cols-1 gap-2"
+            aria-labelledby="onedrive-links-title"
           >
-            <Power className="size-4" aria-hidden="true" />
-            {links.enabled ? 'Desligar' : 'Ligar'}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={busy || !links.enabled}
-            onPress={() => void send({ action: 'links-check-all' })}
-          >
-            <RefreshCcw className="size-4" aria-hidden="true" />
-            Conferir tudo
-          </Button>
-        </div>
-      </div>
-      <div className="grid min-w-0 grid-cols-1 gap-4 px-5 py-4">
-        <section className="grid min-w-0 grid-cols-1 gap-2" aria-labelledby="onedrive-links-title">
-          <div className="flex items-center justify-between gap-2">
-            <h4 id="onedrive-links-title" className="text-sm font-semibold">
-              Pastas e planilhas
-            </h4>
-            {picking ? null : (
-              <Button size="sm" variant="ghost" isDisabled={busy} onPress={() => setPicking(true)}>
-                <Plus className="size-4" aria-hidden="true" />
-                Adicionar
-              </Button>
-            )}
-          </div>
-          {links.targets.length === 0 ? (
-            <p className="text-sm text-muted">Nenhuma pasta escolhida.</p>
-          ) : (
-            <ul className="min-w-0 divide-y divide-border/60 rounded-xl border border-border/70">
-              {links.targets.map((target) => (
-                <li
-                  key={target.itemId}
-                  className="flex items-center gap-2 py-1 pl-3 pr-1 text-sm"
-                  title={`${target.setBy} em ${time(target.setAt)}`}
+            <div className="flex items-center justify-between gap-2">
+              <h4 id="onedrive-links-title" className="text-sm font-semibold">
+                Pastas e planilhas
+              </h4>
+              {picking ? null : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  isDisabled={busy}
+                  onPress={() => setPicking(true)}
                 >
-                  {target.kind === 'folder' ? (
-                    <FolderOpen className="size-4 shrink-0 text-muted" aria-hidden="true" />
-                  ) : (
-                    <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{target.path}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    isIconOnly
-                    isDisabled={busy}
-                    aria-label={`Remover ${target.path}`}
-                    onPress={() =>
-                      void send({ action: 'links-remove-target', itemId: target.itemId })
-                    }
+                  <Plus className="size-4" aria-hidden="true" />
+                  Adicionar
+                </Button>
+              )}
+            </div>
+            {links.targets.length === 0 ? (
+              <p className="text-sm text-muted">Nenhuma pasta escolhida.</p>
+            ) : (
+              <ul className="min-w-0 divide-y divide-border/60 rounded-xl border border-border/70">
+                {links.targets.map((target) => (
+                  <li
+                    key={target.itemId}
+                    className="flex items-center gap-2 py-1 pl-3 pr-1 text-sm"
+                    title={`${target.setBy} em ${time(target.setAt)}`}
                   >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {picking ? (
-            <SourcePicker
-              folderLabel="Usar esta pasta"
-              fileLabel="Usar só este arquivo"
-              previewRequired={false}
-              onCancel={() => setPicking(false)}
-              onChosen={async (target) => {
-                await send({
-                  action: 'links-add-target',
-                  itemId: target.itemId,
-                  kind: target.kind,
-                  path: target.path.slice(0, 400),
-                });
-                setPicking(false);
-              }}
-            />
-          ) : null}
-        </section>
-      </div>
-      {links.files.length > 0 ? (
-        <ul className="border-t border-border">
-          {links.files.map((file) => (
-            <LinkFileRow
-              key={file.id}
-              file={file}
-              busy={busy}
-              onRefresh={() => void send({ action: 'links-refresh-now', fileId: file.id })}
-            />
-          ))}
-        </ul>
-      ) : null}
-    </Surface>
+                    {target.kind === 'folder' ? (
+                      <FolderOpen className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                    ) : (
+                      <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{target.path}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      isIconOnly
+                      isDisabled={busy}
+                      aria-label={`Remover ${target.path}`}
+                      onPress={() =>
+                        void send({ action: 'links-remove-target', itemId: target.itemId })
+                      }
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {picking ? (
+              <SourcePicker
+                folderLabel="Usar esta pasta"
+                fileLabel="Usar só este arquivo"
+                previewRequired={false}
+                onCancel={() => setPicking(false)}
+                onChosen={async (target) => {
+                  await send({
+                    action: 'links-add-target',
+                    itemId: target.itemId,
+                    kind: target.kind,
+                    path: target.path.slice(0, 400),
+                  });
+                  setPicking(false);
+                }}
+              />
+            ) : null}
+          </section>
+        </div>
+      </Surface>
+
+      <Surface className="overflow-hidden rounded-2xl border border-border bg-surface">
+        <h4 className="border-b border-border px-4 py-3 text-sm font-semibold">
+          Planilhas com vínculos{' '}
+          <span className="text-muted tabular-nums">({links.files.length})</span>
+        </h4>
+        {links.files.length === 0 ? (
+          <p className="p-4 text-sm text-muted">Nenhuma planilha conferida ainda.</p>
+        ) : (
+          <ul>
+            {links.files.map((file) => (
+              <LinkFileRow
+                key={file.id}
+                file={file}
+                busy={busy}
+                onRefresh={() => void send({ action: 'links-refresh-now', fileId: file.id })}
+              />
+            ))}
+          </ul>
+        )}
+      </Surface>
+    </>
   );
+}
+
+/** The workbook whose links were updated last. */
+function lastLinkUpdateV1(files: readonly LinkFileV1[]): LinkFileV1 | null {
+  let last: LinkFileV1 | null = null;
+  for (const file of files) {
+    if (file.lastWrittenAt && (!last?.lastWrittenAt || file.lastWrittenAt > last.lastWrittenAt))
+      last = file;
+  }
+  return last;
 }
 
 /** A status with a file being read, or a workbook's links being refreshed. */

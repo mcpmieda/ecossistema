@@ -26,6 +26,8 @@ export type LinkFileV1 = {
   readonly targetId: string;
   readonly state: 'idle' | 'pending' | 'working';
   readonly dueAt: number | null;
+  /** When the wait started: saves that keep coming do not push the refresh past a limit. */
+  readonly pendingSince?: number | null;
   /** Sources that changed since the last refresh; null refreshes every link. */
   readonly changed: readonly string[] | null;
   /** Sources that changed while a refresh was running ('all': every link): the next refresh. */
@@ -50,6 +52,8 @@ export type LinkFileV1 = {
 
 /** A source saved: its dependants wait this long for more saves of the same burst. */
 export const LINK_SOURCE_SETTLE_MS_V1 = 60_000;
+/** Saves of many sources (the Banco depends on every teacher) delay a refresh at most this long. */
+export const LINK_MAX_DEFER_MS_V1 = 5 * 60_000;
 /** The workbook to write must be unchanged this long (Excel for the web saves in bursts). */
 export const LINK_DESTINATION_SETTLE_MS_V1 = 60_000;
 export const LINK_PARALLEL_V1 = 2;
@@ -118,8 +122,17 @@ export function requestLinkRefreshV1(
           : [...new Set([...(waiting ?? []), ...sourceIds])].sort(),
     };
   }
-  const changed = file.state === 'pending' ? mergeChangedV1(file.changed, sourceIds) : sourceIds;
-  return { ...file, state: 'pending', changed, dueAt: now + settleMs, attempts: 0 };
+  const pending = file.state === 'pending';
+  const changed = pending ? mergeChangedV1(file.changed, sourceIds) : sourceIds;
+  const since = pending ? (file.pendingSince ?? now) : now;
+  return {
+    ...file,
+    state: 'pending',
+    changed,
+    dueAt: Math.min(now + settleMs, since + LINK_MAX_DEFER_MS_V1),
+    pendingSince: since,
+    attempts: 0,
+  };
 }
 
 export function linkFilesToStartV1(
@@ -197,6 +210,7 @@ export function finishLinkRefreshV1(
     ...base,
     state: 'pending',
     dueAt: now + delay,
+    pendingSince: now,
     changed: waiting === undefined ? file.changed : mergeChangedV1(file.changed, waiting),
     changedWhileWorking: undefined,
     attempts,
@@ -216,6 +230,7 @@ export function finishLinkRefreshV1(
         ...base,
         state: 'idle',
         dueAt: null,
+        pendingSince: null,
         removed: true,
         changed: [],
         changedWhileWorking: undefined,
@@ -230,6 +245,7 @@ export function finishLinkRefreshV1(
       ...base,
       state: 'pending',
       dueAt: now + LINK_SOURCE_SETTLE_MS_V1,
+      pendingSince: now,
       changed: waiting,
       changedWhileWorking: undefined,
       attempts: 0,
@@ -238,6 +254,7 @@ export function finishLinkRefreshV1(
     ...base,
     state: 'idle',
     dueAt: null,
+    pendingSince: null,
     changed: [],
     changedWhileWorking: undefined,
     attempts: result.outcome === 'failed' ? file.attempts + 1 : 0,
@@ -257,6 +274,26 @@ export function expiredLinkResultV1(): LinkRefreshResultV1 {
     written: null,
     ms: 0,
   };
+}
+
+/**
+ * The list of workbooks with links, like the Planilhas list: the latest update first, by the date
+ * the row shows (updated, otherwise checked); one never checked goes last, by name.
+ */
+export function linkFilesByRecentV1<
+  T extends Pick<LinkFileV1, 'name' | 'lastWrittenAt' | 'lastCheckedAt'>,
+>(files: readonly T[], compareNames: (left: string, right: string) => number): T[] {
+  const shown = (file: T) => file.lastWrittenAt ?? file.lastCheckedAt ?? null;
+  return [...files].sort((left, right) => {
+    const a = shown(left);
+    const b = shown(right);
+    if (a !== b) {
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return b - a;
+    }
+    return compareNames(left.name, right.name);
+  });
 }
 
 /** The chosen folder or file a workbook belongs to: itself, or its folder (direct children only). */

@@ -82,9 +82,10 @@ const status: OneDriveSyncStatusV1 = {
       ? []
       : (
           [
+            // Already in the Worker's order: the latest update (or check) first.
             ['Planilha Sintética Professora A 2026.xlsb', 'idle', 'written', 2, 138],
-            ['Planilha Sintética Professor B 2026.xlsb', 'idle', 'unchanged', 9, null],
             ['Planilha Sintética Professora C 2026.xlsb', 'pending', 'locked', 4, null],
+            ['Planilha Sintética Professor B 2026.xlsb', 'idle', 'unchanged', 9, null],
             ['Planilha Sintética Professor D 2026.xlsb', 'idle', 'no-links', 30, null],
           ] as const
         ).map(([name, state, outcome, age, cells], index) => ({
