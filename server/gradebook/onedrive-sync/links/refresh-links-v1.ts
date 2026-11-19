@@ -96,13 +96,9 @@ function decodedV1(text: string): string | null {
 function pathFromAddressV1(raw: string, base: URL): string | null {
   if (/^https?:\/\//iu.test(raw)) {
     const url = URL.canParse(raw) ? new URL(raw) : null;
-    if (
-      !url ||
-      url.host.toLowerCase() !== base.host.toLowerCase() ||
-      !url.pathname.startsWith(base.pathname)
-    )
-      return null;
-    return decodedV1(url.pathname.slice(base.pathname.length));
+    const inside =
+      url?.host.toLowerCase() === base.host.toLowerCase() && url.pathname.startsWith(base.pathname);
+    return inside ? decodedV1(url.pathname.slice(base.pathname.length)) : null;
   }
   return raw.startsWith(base.pathname) ? decodedV1(raw.slice(base.pathname.length)) : null;
 }
