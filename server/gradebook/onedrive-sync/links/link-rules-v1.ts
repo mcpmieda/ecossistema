@@ -109,12 +109,17 @@ function mergeChangedV1(
   return unionIdsV1(current ?? [], more);
 }
 
-/** Every workbook whose links use `sourceIds` (or every one, for null) is refreshed after the settle. */
+/**
+ * Every workbook whose links use `sourceIds` (or every one, for null) is refreshed after the
+ * settle. A workbook waiting because it is open keeps its wait: another save of a source only adds
+ * to what it will refresh. `force` (asked in the panel, the nightly check) goes now regardless.
+ */
 export function requestLinkRefreshV1(
   file: LinkFileV1,
   sourceIds: readonly string[] | null,
   now: number,
   settleMs: number,
+  force = false,
 ): LinkFileV1 {
   if (file.removed) return file;
   if (file.state === 'working') {
@@ -127,6 +132,8 @@ export function requestLinkRefreshV1(
   }
   const pending = file.state === 'pending';
   const changed = pending ? mergeChangedV1(file.changed, sourceIds) : sourceIds;
+  if (!force && pending && file.lastOutcome === 'locked' && file.attempts > 0)
+    return { ...file, changed };
   const since = pending ? (file.pendingSince ?? now) : now;
   return {
     ...file,
@@ -302,8 +309,9 @@ export function linkFilesByRecentV1<
 }
 
 /**
- * A workbook OneDrive reports: a deleted one leaves the list, a new one of a chosen folder joins it
- * (its links are read at once), a renamed one keeps its record. Null when nothing changes.
+ * A workbook OneDrive reports: a deleted one, or one moved out of the chosen folders, leaves the
+ * list; a new one of a chosen folder joins it (its links are read at once); a renamed one keeps
+ * its record. Null when nothing changes.
  */
 export function observedLinkFileV1(
   current: LinkFileV1 | null,
@@ -317,7 +325,7 @@ export function observedLinkFileV1(
   target: LinkTargetV1 | null,
   now: number,
 ): LinkFileV1 | null {
-  if (item.deleted) {
+  if (item.deleted || !target) {
     if (!current || current.removed) return null;
     return {
       ...current,
@@ -326,7 +334,6 @@ export function observedLinkFileV1(
       dueAt: null,
     };
   }
-  if (!target) return null;
   if (!current || current.removed)
     return newLinkFileV1(
       {
@@ -341,17 +348,24 @@ export function observedLinkFileV1(
   return current.name === item.name ? null : { ...current, name: item.name };
 }
 
-/** When the coordinator must wake for links: a refresh due, or a running one whose lease ends. */
-export function nextLinkWakeV1(files: readonly LinkFileV1[]): number | null {
-  let next: number | null = null;
-  for (const file of files) {
-    if (file.removed) continue;
-    let at: number | null = null;
-    if (file.state === 'pending') at = file.dueAt;
-    else if (file.state === 'working') at = file.leaseUntil;
-    if (at !== null && (next === null || at < next)) next = at;
-  }
-  return next;
+/**
+ * When the coordinator must wake for links: a refresh due, or a running one whose lease ends. With
+ * every slot taken, a due one waits for a lease (it could not start before).
+ */
+export function nextLinkWakeV1(
+  files: readonly LinkFileV1[],
+  max = LINK_PARALLEL_V1,
+): number | null {
+  const live = files.filter((file) => !file.removed);
+  const leases = live
+    .filter((file) => file.state === 'working' && file.leaseUntil !== null)
+    .map((file) => file.leaseUntil!);
+  const due = live
+    .filter((file) => file.state === 'pending' && file.dueAt !== null)
+    .map((file) => file.dueAt!);
+  const working = live.filter((file) => file.state === 'working').length;
+  const candidates = working >= max ? leases : [...leases, ...due];
+  return candidates.length === 0 ? null : Math.min(...candidates);
 }
 
 /** The chosen folder or file a workbook belongs to: itself, or its folder (direct children only). */

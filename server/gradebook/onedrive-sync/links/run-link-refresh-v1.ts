@@ -3,7 +3,7 @@ import { WorkbookTooLargeError } from '../graph-drive-v1';
 import type { LinkItemV1, ReplaceOutcomeV1 } from './graph-links-v1';
 import {
   refreshDestinationLinksV1,
-  resolveLinkSourceV1,
+  resolveLinkSourcesV1,
   type LinkSourceRefV1,
 } from './refresh-links-v1';
 import { readSourceValuesV1, type SourceValuesV1 } from './source-values-v1';
@@ -19,6 +19,8 @@ export type LinkRefreshInputV1 = {
   readonly onlySources: readonly string[] | null;
   /** The workbook must be unchanged at least this long (a burst of saves still going waits). */
   readonly settleMs: number;
+  /** The last try found it open: ask whether it still is before downloading anything. */
+  readonly probeLockFirst?: boolean;
 };
 
 export type LinkRefreshOutcomeV1 =
@@ -68,13 +70,118 @@ export type LinkRefreshPortsV1 = {
     eTag: string;
     bytes: Uint8Array;
   }) => Promise<ReplaceOutcomeV1>;
+  /** Whether someone holds the file open, without writing (an upload session opened and dropped). */
+  readonly probeLock?: (input: {
+    driveId: string;
+    itemId: string;
+    eTag: string;
+  }) => Promise<'locked' | 'free'>;
 };
+
+function statusOfV1(cause: unknown): number | null {
+  return typeof cause === 'object' && cause !== null && 'status' in cause
+    ? Number(cause.status)
+    : null;
+}
 
 function codeOfV1(cause: unknown): string {
   if (cause instanceof WorkbookTooLargeError) return 'FILE-TOO-LARGE';
-  const status =
-    typeof cause === 'object' && cause !== null && 'status' in cause ? Number(cause.status) : null;
+  const status = statusOfV1(cause);
   return status ? `GRAPH-${status}` : 'LINKS-FAILED';
+}
+
+/** A source that can never be read as it is (too large, gone); anything else is tried again. */
+function permanentSourceErrorV1(cause: unknown): boolean {
+  return cause instanceof WorkbookTooLargeError || statusOfV1(cause) === 404;
+}
+
+/**
+ * The sources of one refresh: found by id or path, read once each, and counted. A source that
+ * cannot be read as it is gives null; a passing failure (throttling, a network error) throws, so
+ * the refresh fails and the changed sources are kept for the next try.
+ */
+class SourceLoaderV1 {
+  readonly sources = new Set<string>();
+  readonly hashes: Record<string, string | null> = {};
+  unavailable = 0;
+  private readonly loaded = new Map<string, Promise<SourceValuesV1 | null>>();
+
+  constructor(
+    private readonly input: LinkRefreshInputV1,
+    private readonly ports: LinkRefreshPortsV1,
+  ) {}
+
+  private async find(candidates: readonly LinkSourceRefV1[]): Promise<LinkItemV1 | null> {
+    for (const ref of candidates) {
+      const item =
+        ref.kind === 'item'
+          ? await this.ports.item(this.input.driveId, ref.itemId)
+          : await this.ports.itemByPath(this.input.driveId, ref.path);
+      if (item && item.id !== this.input.itemId) return item;
+    }
+    return null;
+  }
+
+  private async read(item: LinkItemV1, sheets: readonly string[]): Promise<SourceValuesV1 | null> {
+    let source: ArrayBuffer;
+    try {
+      source = await this.ports.download(this.input.driveId, item.id, this.input.maxBytes);
+    } catch (cause) {
+      if (permanentSourceErrorV1(cause)) return null;
+      throw cause;
+    }
+    try {
+      return readSourceValuesV1(this.ports.xlsx, source, sheets);
+    } catch {
+      return null;
+    }
+  }
+
+  readonly load = async (
+    candidates: readonly LinkSourceRefV1[],
+    sheets: readonly string[],
+  ): Promise<SourceValuesV1 | null | 'skip'> => {
+    const item = await this.find(candidates);
+    if (item) this.sources.add(item.id);
+    if (!item || item.size > this.input.maxBytes) {
+      this.unavailable++;
+      return null;
+    }
+    if (this.input.onlySources && !this.input.onlySources.includes(item.id)) return 'skip';
+    const key = `${item.id}|${[...sheets].sort((a, b) => a.localeCompare(b)).join('|')}`;
+    let values = this.loaded.get(key);
+    if (!values) {
+      values = this.read(item, sheets);
+      this.loaded.set(key, values);
+    }
+    const read = await values;
+    if (!read) {
+      this.unavailable++;
+      return null;
+    }
+    // Only a source actually read counts as seen: a later save of it is a change.
+    this.hashes[item.id] = item.quickXorHash;
+    return read;
+  };
+}
+
+/** Before downloading: gone, too large, still being saved, or still open since the last try. */
+async function blockedBeforeDownloadV1(
+  input: LinkRefreshInputV1,
+  ports: LinkRefreshPortsV1,
+  destination: LinkItemV1,
+): Promise<[LinkRefreshOutcomeV1, string | null] | null> {
+  if (destination.size > input.maxBytes) return ['too-large', 'FILE-TOO-LARGE'];
+  const savedAt = Date.parse(destination.lastModifiedDateTime);
+  const wallNow = (ports.wallClock ?? Date.now)();
+  if (Number.isFinite(savedAt) && wallNow - savedAt < input.settleMs) return ['settling', null];
+  if (!input.probeLockFirst || !ports.probeLock) return null;
+  const lock = await ports.probeLock({
+    driveId: input.driveId,
+    itemId: input.itemId,
+    eTag: destination.eTag,
+  });
+  return lock === 'locked' ? ['locked', 'FILE-OPEN'] : null;
 }
 
 /**
@@ -86,9 +193,7 @@ export async function runLinkRefreshV1(
   ports: LinkRefreshPortsV1,
 ): Promise<LinkRefreshResultV1> {
   const started = ports.now();
-  const sources = new Set<string>();
-  const sourceHashes: Record<string, string | null> = {};
-  let unavailableLinks = 0;
+  const loader = new SourceLoaderV1(input, ports);
   let seen: LinkRefreshResultV1['seen'] = null;
   const result = (
     outcome: LinkRefreshOutcomeV1,
@@ -97,9 +202,9 @@ export async function runLinkRefreshV1(
   ): LinkRefreshResultV1 => ({
     outcome,
     code,
-    sources: [...sources].sort((a, b) => a.localeCompare(b)),
-    sourceHashes,
-    unavailableLinks,
+    sources: [...loader.sources].sort((a, b) => a.localeCompare(b)),
+    sourceHashes: loader.hashes,
+    unavailableLinks: loader.unavailable,
     changedCells: extra.changedCells ?? 0,
     seen,
     written: extra.written ?? null,
@@ -115,52 +220,18 @@ export async function runLinkRefreshV1(
       hash: destination.quickXorHash,
       modifiedAt: destination.lastModifiedDateTime,
     };
-    if (destination.size > input.maxBytes) return result('too-large', 'FILE-TOO-LARGE');
-    const savedAt = Date.parse(destination.lastModifiedDateTime);
-    const wallNow = (ports.wallClock ?? Date.now)();
-    if (Number.isFinite(savedAt) && wallNow - savedAt < input.settleMs) return result('settling');
+    const blocked = await blockedBeforeDownloadV1(input, ports, destination);
+    if (blocked) return result(...blocked);
     const bytes = new Uint8Array(await ports.download(input.driveId, input.itemId, input.maxBytes));
-    const loaded = new Map<string, Promise<SourceValuesV1 | null | 'skip'>>();
-    const loadSource = async (
-      ref: LinkSourceRefV1,
-      sheets: readonly string[],
-    ): Promise<SourceValuesV1 | null | 'skip'> => {
-      const item =
-        ref.kind === 'item'
-          ? await ports.item(input.driveId, ref.itemId)
-          : await ports.itemByPath(input.driveId, ref.path);
-      if (!item || item.id === input.itemId) {
-        unavailableLinks++;
-        return null;
-      }
-      sources.add(item.id);
-      sourceHashes[item.id] = item.quickXorHash;
-      if (input.onlySources && !input.onlySources.includes(item.id)) return 'skip';
-      const key = `${item.id}|${[...sheets].sort((a, b) => a.localeCompare(b)).join('|')}`;
-      let values = loaded.get(key);
-      if (!values) {
-        values = (async () => {
-          if (item.size > input.maxBytes) return null;
-          const source = await ports.download(input.driveId, item.id, input.maxBytes);
-          return readSourceValuesV1(ports.xlsx, source, sheets);
-        })().catch(() => null);
-        loaded.set(key, values);
-      }
-      const read = await values;
-      if (!read) unavailableLinks++;
-      return read;
-    };
+    const drive = { driveId: input.driveId, webUrl: input.driveWebUrl };
     const refreshed = await refreshDestinationLinksV1({
       bytes,
-      resolve: (link) =>
-        resolveLinkSourceV1(
-          link,
-          { driveId: input.driveId, webUrl: input.driveWebUrl },
-          destination.folderPath ?? '',
-        ),
-      loadSource,
+      resolve: (link) => resolveLinkSourcesV1(link, drive, destination.folderPath ?? ''),
+      loadSource: loader.load,
     });
-    for (const part of refreshed.parts) if (part.source === null) unavailableLinks++;
+    loader.unavailable += refreshed.parts.filter(
+      (part) => part.source === null || part.status === 'sheet-missing',
+    ).length;
     if (refreshed.outcome === 'no-links') return result('no-links');
     if (refreshed.outcome === 'unchanged' || !refreshed.bytes) return result('unchanged');
     const replaced = await ports.replace({

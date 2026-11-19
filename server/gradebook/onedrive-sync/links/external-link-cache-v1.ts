@@ -268,9 +268,10 @@ export function readXlsbLinkCacheV1(bytes: Uint8Array): ExternalLinkCacheV1 {
 export function rewriteXlsbLinkCacheV1(
   bytes: Uint8Array,
   lookup: LinkValueLookupV1,
+  additions: LinkAdditionsV1 = NO_ADDITIONS_V1,
 ): { bytes: Uint8Array; changed: number } {
   let changed = 0;
-  const { out } = walkXlsbV1(bytes, (record, cell) => {
+  const { out, sheetNames } = walkXlsbV1(bytes, (record, cell) => {
     if (!cell) return record;
     const current: LinkCellV1 = { ...cell, value: xlsbValueV1(record.type, record.data) };
     const wanted = lookup(current);
@@ -278,7 +279,90 @@ export function rewriteXlsbLinkCacheV1(
     changed++;
     return xlsbCellRecordV1(cell.col, wanted);
   });
-  return { bytes: changed ? writeBiff12RecordsV1(out) : bytes, changed };
+  const inserted = insertXlsbCellsV1(out, sheetNames, additions);
+  changed += inserted.added;
+  return { bytes: changed ? writeBiff12RecordsV1(inserted.records) : bytes, changed };
+}
+
+/**
+ * Cells to put in a sheet's table that the cache does not hold yet. Excel leaves out a referenced
+ * cell that was empty when it last updated; once the source cell gets a value it must come in.
+ */
+export type LinkAdditionsV1 = ReadonlyMap<
+  string,
+  ReadonlyArray<{ readonly row: number; readonly col: number; readonly value: LinkValueV1 }>
+>;
+const NO_ADDITIONS_V1: LinkAdditionsV1 = new Map();
+
+const TABLE_END_V1 = 0x16c;
+
+function rowHeaderRecordV1(row: number): Biff12RecordV1 {
+  const data = new Uint8Array(4);
+  new DataView(data.buffer).setUint32(0, row, true);
+  return { type: ROW_HEADER_V1, data };
+}
+
+/** A sheet table (row headers and cells only) with new cells, rows and columns in order; null otherwise. */
+function rebuildXlsbTableV1(
+  body: readonly Biff12RecordV1[],
+  additions: NonNullable<ReturnType<LinkAdditionsV1['get']>>,
+): { records: Biff12RecordV1[]; added: number } | null {
+  const rows = new Map<number, { header: Biff12RecordV1; cells: Map<number, Biff12RecordV1> }>();
+  let row: { header: Biff12RecordV1; cells: Map<number, Biff12RecordV1> } | undefined;
+  for (const record of body) {
+    if (record.type === ROW_HEADER_V1) {
+      row = { header: record, cells: new Map() };
+      rows.set(u32(record.data, 0), row);
+    } else if (CELL_TYPES_V1.has(record.type) && row) row.cells.set(u32(record.data, 0), record);
+    else return null;
+  }
+  let added = 0;
+  for (const cell of additions) {
+    let target = rows.get(cell.row);
+    if (!target) {
+      target = { header: rowHeaderRecordV1(cell.row), cells: new Map() };
+      rows.set(cell.row, target);
+    }
+    if (target.cells.has(cell.col)) continue;
+    target.cells.set(cell.col, xlsbCellRecordV1(cell.col, cell.value));
+    added++;
+  }
+  const records = [...rows.entries()]
+    .sort(([a], [b]) => a - b)
+    .flatMap(([, item]) => [
+      item.header,
+      ...[...item.cells.entries()].sort(([a], [b]) => a - b).map(([, record]) => record),
+    ]);
+  return { records, added };
+}
+
+function insertXlsbCellsV1(
+  records: readonly Biff12RecordV1[],
+  sheetNames: readonly string[],
+  additions: LinkAdditionsV1,
+): { records: readonly Biff12RecordV1[]; added: number } {
+  if (additions.size === 0) return { records, added: 0 };
+  const out: Biff12RecordV1[] = [];
+  let added = 0;
+  let index = 0;
+  while (index < records.length) {
+    const record = records[index]!;
+    out.push(record);
+    index++;
+    if (record.type !== TABLE_START_V1) continue;
+    const start = index;
+    const end = records.findIndex((item, at) => at >= start && item.type === TABLE_END_V1);
+    const sheet = sheetNames[u32(record.data, 0)];
+    const wanted = sheet === undefined ? undefined : additions.get(sheet);
+    if (end < 0 || !wanted?.length) continue;
+    const rebuilt = rebuildXlsbTableV1(records.slice(start, end), wanted);
+    if (!rebuilt) continue;
+    out.push(...rebuilt.records);
+    added += rebuilt.added;
+    // The table end is pushed by the next turn of the loop.
+    index = end;
+  }
+  return { records: out, added };
 }
 
 /* ---------------------------------------------------------------- .xlsx/.xlsm (XML) */
@@ -306,6 +390,29 @@ const XML_ESCAPES_V1: Readonly<Record<string, string>> = {
 
 function encodeXmlV1(text: string): string {
   return text.replace(/[&<>"]/gu, (char) => XML_ESCAPES_V1[char] ?? char);
+}
+
+/** Excel writes control characters in XML text as _xHHHH_ (and a literal "_x" escape as _x005F_). */
+function unescapeExcelTextV1(text: string): string {
+  return text.replace(/_x([0-9A-Fa-f]{4})_/gu, (_whole, hex: string) =>
+    String.fromCodePoint(Number.parseInt(hex, 16)),
+  );
+}
+
+/** Characters XML text cannot carry as they are (a carriage return would come back as a line feed). */
+function needsExcelEscapeV1(code: number): boolean {
+  return (code < 0x20 && code !== 0x09 && code !== 0x0a) || code === 0xfffe || code === 0xffff;
+}
+
+function escapeExcelTextV1(text: string): string {
+  let out = '';
+  for (const char of text.replaceAll(/_x(?=[0-9A-Fa-f]{4}_)/gu, '_x005F_x')) {
+    const code = char.codePointAt(0)!;
+    out += needsExcelEscapeV1(code)
+      ? `_x${code.toString(16).toUpperCase().padStart(4, '0')}_`
+      : char;
+  }
+  return out;
 }
 
 function attributeV1(tag: string, name: string): string | null {
@@ -344,7 +451,7 @@ function xlsxValueV1(attributes: string, inner: string | undefined): LinkValueV1
       return { kind: 'error', code };
     }
     case 'str':
-      return { kind: 'string', value: text };
+      return { kind: 'string', value: unescapeExcelTextV1(text) };
     default:
       throw new UnsupportedLinkValueError(`cell type ${type}`);
   }
@@ -365,8 +472,62 @@ function xlsxCellV1(ref: string, value: LinkValueV1): string {
       return `<cell r="${ref}" t="e"><v>${text}</v></cell>`;
     }
     case 'string':
-      return `<cell r="${ref}" t="str"><v>${encodeXmlV1(value.value)}</v></cell>`;
+      return `<cell r="${ref}" t="str"><v>${encodeXmlV1(escapeExcelTextV1(value.value))}</v></cell>`;
   }
+}
+
+/** "AB12" from zero-based row 11 and column 27. */
+function a1V1(row: number, col: number): string {
+  let letters = '';
+  for (let n = col + 1; n > 0; n = Math.floor((n - 1) / 26))
+    letters = String.fromCodePoint(65 + ((n - 1) % 26)) + letters;
+  return `${letters}${row + 1}`;
+}
+
+const ROW_ELEMENT_V1 = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/gu;
+
+/** A sheetData body (rows and cells only) with new cells, rows and columns in order; null otherwise. */
+function rebuildXlsxSheetV1(
+  body: string,
+  additions: NonNullable<ReturnType<LinkAdditionsV1['get']>>,
+): { xml: string; added: number } | null {
+  const rows = new Map<number, { attrs: string; cells: Map<number, string> }>();
+  if (body.replace(ROW_ELEMENT_V1, '').trim() !== '') return null;
+  for (const match of body.matchAll(ROW_ELEMENT_V1)) {
+    const index = Number(attributeV1(match[1]!, 'r')) - 1;
+    const inner = match[2] ?? '';
+    if (!Number.isInteger(index) || index < 0 || inner.replace(CELL_ELEMENT_V1, '').trim() !== '')
+      return null;
+    const cells = new Map<number, string>();
+    for (const cell of inner.matchAll(CELL_ELEMENT_V1)) {
+      const ref = attributeV1(cell[1]!, 'r');
+      if (!ref) return null;
+      cells.set(parseA1V1(ref).col, cell[0]);
+    }
+    rows.set(index, { attrs: match[1]!, cells });
+  }
+  let added = 0;
+  for (const cell of additions) {
+    let row = rows.get(cell.row);
+    if (!row) {
+      row = { attrs: ` r="${cell.row + 1}"`, cells: new Map() };
+      rows.set(cell.row, row);
+    }
+    if (row.cells.has(cell.col)) continue;
+    row.cells.set(cell.col, xlsxCellV1(a1V1(cell.row, cell.col), cell.value));
+    added++;
+  }
+  const xml = [...rows.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(
+      ([, row]) =>
+        `<row${row.attrs}>${[...row.cells.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, cell]) => cell)
+          .join('')}</row>`,
+    )
+    .join('');
+  return { xml, added };
 }
 
 type XmlSheetRangeV1 = { sheet: string; start: number; end: number };
@@ -420,6 +581,7 @@ export function readXlsxLinkCacheV1(xml: string): ExternalLinkCacheV1 {
 export function rewriteXlsxLinkCacheV1(
   xml: string,
   lookup: LinkValueLookupV1,
+  additions: LinkAdditionsV1 = NO_ADDITIONS_V1,
 ): { xml: string; changed: number } {
   const header = xlsxHeaderV1(xml);
   let changed = 0;
@@ -427,7 +589,7 @@ export function rewriteXlsxLinkCacheV1(
   let at = 0;
   for (const range of xlsxSheetRangesV1(xml, header.sheetNames)) {
     out += xml.slice(at, range.start);
-    out += xml
+    let body = xml
       .slice(range.start, range.end)
       .replace(CELL_ELEMENT_V1, (element, attrs: string, inner?: string) => {
         const ref = attributeV1(attrs, 'r');
@@ -442,6 +604,13 @@ export function rewriteXlsxLinkCacheV1(
         changed++;
         return xlsxCellV1(ref, wanted);
       });
+    const wanted = additions.get(range.sheet);
+    const rebuilt = wanted?.length ? rebuildXlsxSheetV1(body, wanted) : null;
+    if (rebuilt?.added) {
+      body = rebuilt.xml;
+      changed += rebuilt.added;
+    }
+    out += body;
     at = range.end;
   }
   out += xml.slice(at);

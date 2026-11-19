@@ -26,15 +26,25 @@ function readHeaderV1(
   return { type, size, start: next };
 }
 
-export function readBiff12RecordsV1(bytes: Uint8Array): Biff12RecordV1[] {
-  const records: Biff12RecordV1[] = [];
+/** Each record's type and data bounds, in order, without keeping them (large sheets). */
+export function scanBiff12RecordsV1(
+  bytes: Uint8Array,
+  visit: (type: number, start: number, end: number) => void,
+): void {
   let at = 0;
   while (at < bytes.length) {
     const { type, size, start } = readHeaderV1(bytes, at);
     if (start + size > bytes.length) throw new Error('BIFF12 record data is truncated');
-    records.push({ type, data: bytes.subarray(start, start + size) });
+    visit(type, start, start + size);
     at = start + size;
   }
+}
+
+export function readBiff12RecordsV1(bytes: Uint8Array): Biff12RecordV1[] {
+  const records: Biff12RecordV1[] = [];
+  scanBiff12RecordsV1(bytes, (type, start, end) => {
+    records.push({ type, data: bytes.subarray(start, end) });
+  });
   return records;
 }
 

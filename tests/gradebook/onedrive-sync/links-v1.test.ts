@@ -15,7 +15,10 @@ import {
   UnsupportedLinkValueError,
   type LinkValueV1,
 } from '../../../server/gradebook/onedrive-sync/links/external-link-cache-v1';
-import { graphReplaceWorkbookV1 } from '../../../server/gradebook/onedrive-sync/links/graph-links-v1';
+import {
+  graphProbeLockV1,
+  graphReplaceWorkbookV1,
+} from '../../../server/gradebook/onedrive-sync/links/graph-links-v1';
 import {
   changedSourcesV1,
   finishLinkRefreshV1,
@@ -23,6 +26,8 @@ import {
   linkFilesToStartV1,
   linkTargetOfV1,
   newLinkFileV1,
+  nextLinkWakeV1,
+  observedLinkFileV1,
   requestLinkRefreshV1,
   startLinkRefreshV1,
   LINK_MAX_DEFER_MS_V1,
@@ -30,9 +35,10 @@ import {
   type LinkFileV1,
 } from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
 import {
+  missingLinkCellsV1,
   readDestinationLinksV1,
   refreshDestinationLinksV1,
-  resolveLinkSourceV1,
+  resolveLinkSourcesV1,
   type LinkPartV1,
 } from '../../../server/gradebook/onedrive-sync/links/refresh-links-v1';
 import {
@@ -192,6 +198,8 @@ function sourceValues(values: Record<string, LinkValueV1>, sheets = ['Dados', 'O
   };
 }
 
+const num = (value: number): LinkValueV1 => ({ kind: 'number', value });
+
 const CURRENT: Record<string, LinkValueV1> = {
   'Dados!0,0': { kind: 'string', value: 'Aluno A' },
   'Dados!0,1': { kind: 'number', value: 5 },
@@ -265,6 +273,39 @@ describe('external link cache (.xlsb)', () => {
       UnsupportedLinkValueError,
     );
   });
+
+  it('brings in a value typed where the source was empty at the last update', () => {
+    const holey = writeBiff12RecordsV1([
+      record(0x167, u32(1), wide('Dados')),
+      record(0x16b, u32(0), Uint8Array.of(0)),
+      record(0x16e, u32(0)),
+      record(0x170, u32(1), real(5)),
+      record(0x16e, u32(2)),
+      record(0x170, u32(1), real(7)),
+      record(0x16c),
+    ]);
+    const cells = readXlsbLinkCacheV1(holey).cells;
+    const stillEmpty = sourceValues({ 'Dados!0,1': num(5), 'Dados!2,1': num(7) }, ['Dados']);
+    expect(missingLinkCellsV1(cells, stillEmpty).size).toBe(0);
+    const typed = sourceValues({ 'Dados!0,1': num(5), 'Dados!1,1': num(6), 'Dados!2,1': num(7) }, [
+      'Dados',
+    ]);
+    const additions = missingLinkCellsV1(cells, typed);
+    expect(additions.get('Dados')).toEqual([{ row: 1, col: 1, value: num(6) }]);
+    const result = rewriteXlsbLinkCacheV1(
+      holey,
+      (cell) => typed.valueAt(cell.sheet, cell.row, cell.col),
+      additions,
+    );
+    expect(result.changed).toBe(1);
+    expect(
+      readXlsbLinkCacheV1(result.bytes).cells.map((cell) => [cell.row, cell.col, cell.value]),
+    ).toEqual([
+      [0, 1, num(5)],
+      [1, 1, num(6)],
+      [2, 1, num(7)],
+    ]);
+  });
 });
 
 describe('external link cache (.xlsx)', () => {
@@ -311,6 +352,44 @@ describe('external link cache (.xlsx)', () => {
       kind: 'string',
       value: 'A < B & C',
     });
+  });
+
+  it('reads and writes the _xHHHH_ escapes Excel uses in XML text', () => {
+    const escaped = xml.replace('<v>Aluno A</v>', '<v>linha_x000D_fim</v>');
+    expect(readXlsxLinkCacheV1(escaped).cells[0]!.value).toEqual({
+      kind: 'string',
+      value: 'linha\rfim',
+    });
+    const tricky = 'a_x0041_b\u0001';
+    const rewritten = rewriteXlsxLinkCacheV1(escaped, (cell) =>
+      cell.row === 0 && cell.col === 0 ? { kind: 'string', value: tricky } : undefined,
+    );
+    expect(rewritten.xml).toContain('<v>a_x005F_x0041_b_x0001_</v>');
+    expect(readXlsxLinkCacheV1(rewritten.xml).cells[0]!.value).toEqual({
+      kind: 'string',
+      value: tricky,
+    });
+  });
+
+  it('brings in a value typed where the source was empty (XML)', () => {
+    const holey =
+      '<externalLink><externalBook r:id="rId1"><sheetNames><sheetName val="Dados"/></sheetNames>' +
+      '<sheetDataSet><sheetData sheetId="0"><row r="1"><cell r="B1"><v>5</v></cell></row>' +
+      '<row r="3"><cell r="B3"><v>7</v></cell></row></sheetData></sheetDataSet></externalBook></externalLink>';
+    const typed = sourceValues({ 'Dados!0,1': num(5), 'Dados!1,1': num(6), 'Dados!2,1': num(7) }, [
+      'Dados',
+    ]);
+    const additions = missingLinkCellsV1(readXlsxLinkCacheV1(holey).cells, typed);
+    const result = rewriteXlsxLinkCacheV1(
+      holey,
+      (cell) => typed.valueAt(cell.sheet, cell.row, cell.col),
+      additions,
+    );
+    expect(result.changed).toBe(1);
+    expect(result.xml).toContain(
+      '<row r="1"><cell r="B1"><v>5</v></cell></row><row r="2"><cell r="B2"><v>6</v></cell></row>' +
+        '<row r="3"><cell r="B3"><v>7</v></cell></row>',
+    );
   });
 });
 
@@ -377,6 +456,8 @@ describe('workbook package', () => {
     const values = readSourceValuesV1(xlsx, out.slice().buffer, ['Dados']);
     expect(values.valueAt('Dados', 0, 0)).toEqual({ kind: 'string', value: 'Aluno A' });
     expect(values.valueAt('Dados', 0, 1)).toEqual({ kind: 'number', value: 7 });
+    // Excel matches sheet names regardless of case.
+    expect(values.valueAt('DADOS', 0, 1)).toEqual({ kind: 'number', value: 7 });
     expect(values.valueAt('Dados', 5, 5)).toEqual({ kind: 'blank' });
     expect(values.valueAt('Sumiu', 0, 0)).toBeUndefined();
   });
@@ -396,30 +477,28 @@ describe('refresh of one workbook', () => {
     targets,
   });
 
-  it('finds the source by the ids Excel stores, then by address inside the drive', () => {
-    expect(resolveLinkSourceV1(link([]), DRIVE, 'X')).toEqual({
-      kind: 'item',
-      driveId: DRIVE_ID,
-      itemId: SOURCE_ID,
-    });
+  it('tries the ids Excel stores first, then the address inside the drive', () => {
+    expect(resolveLinkSourcesV1(link([]), DRIVE, 'X')).toEqual([
+      { kind: 'item', driveId: DRIVE_ID, itemId: SOURCE_ID },
+    ]);
     expect(
-      resolveLinkSourceV1(
-        link(
-          ['https://synthetic-my.sharepoint.com/personal/escola/Documents/PASTA%20A/ORIGEM.xlsb'],
-          false,
-        ),
+      resolveLinkSourcesV1(
+        link([
+          'https://synthetic-my.sharepoint.com/personal/escola/Documents/PASTA%20A/ORIGEM.xlsb',
+          '../PASTA%20A/ORIGEM.xlsb',
+        ]),
         DRIVE,
-        'X',
+        'PASTA B',
       ),
-    ).toEqual({ kind: 'path', path: 'PASTA A/ORIGEM.xlsb' });
+    ).toEqual([
+      { kind: 'item', driveId: DRIVE_ID, itemId: SOURCE_ID },
+      { kind: 'path', path: 'PASTA A/ORIGEM.xlsb' },
+    ]);
     expect(
-      resolveLinkSourceV1(link(['../../PASTA%20A/ORIGEM.xlsb'], false), DRIVE, 'B/C/D'),
-    ).toEqual({
-      kind: 'path',
-      path: 'B/PASTA A/ORIGEM.xlsb',
-    });
+      resolveLinkSourcesV1(link(['../../PASTA%20A/ORIGEM.xlsb'], false), DRIVE, 'B/C/D'),
+    ).toEqual([{ kind: 'path', path: 'B/PASTA A/ORIGEM.xlsb' }]);
     expect(
-      resolveLinkSourceV1(
+      resolveLinkSourcesV1(
         link(
           ['https://outra-my.sharepoint.com/personal/x/Documents/a.xlsb', 'file:///C:/a.xlsb'],
           false,
@@ -427,20 +506,20 @@ describe('refresh of one workbook', () => {
         DRIVE,
         'X',
       ),
-    ).toBeNull();
+    ).toEqual([]);
   });
 
   it('refreshes the cache from the source and asks for recalculation; nothing when equal', async () => {
     const destination = syntheticDestination();
     const same = await refreshDestinationLinksV1({
       bytes: destination,
-      resolve: (item) => resolveLinkSourceV1(item, DRIVE, ''),
+      resolve: (item) => resolveLinkSourcesV1(item, DRIVE, ''),
       loadSource: async () => sourceValues(CURRENT),
     });
     expect(same).toMatchObject({ outcome: 'unchanged', bytes: null, changedCells: 0 });
     const changed = await refreshDestinationLinksV1({
       bytes: destination,
-      resolve: (item) => resolveLinkSourceV1(item, DRIVE, ''),
+      resolve: (item) => resolveLinkSourcesV1(item, DRIVE, ''),
       loadSource: async () =>
         sourceValues({ ...CURRENT, 'Dados!0,1': { kind: 'number', value: 8 } }),
     });
@@ -462,7 +541,7 @@ describe('refresh of one workbook', () => {
     for (const answer of ['skip', null] as const) {
       const result = await refreshDestinationLinksV1({
         bytes: syntheticDestination(),
-        resolve: (item) => resolveLinkSourceV1(item, DRIVE, ''),
+        resolve: (item) => resolveLinkSourcesV1(item, DRIVE, ''),
         loadSource: async () => answer,
       });
       expect(result.outcome).toBe('unchanged');
@@ -586,7 +665,65 @@ describe('links refresh run', () => {
     const result = await runLinkRefreshV1({ ...INPUT, onlySources: ['another-source'] }, p);
     expect(result.outcome).toBe('unchanged');
     expect(result.sources).toEqual([SOURCE_ID]);
+    // Not read, so not seen: a later save of it still counts as a change.
+    expect(result.sourceHashes).toEqual({});
     expect(download).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks first whether a file left open is still open, without downloading', async () => {
+    const probeLock = vi.fn<NonNullable<LinkRefreshPortsV1['probeLock']>>(async () => 'locked');
+    const open = ports({ ...withValues(CURRENT), probeLock });
+    expect(await runLinkRefreshV1({ ...INPUT, probeLockFirst: true }, open.ports)).toMatchObject({
+      outcome: 'locked',
+      code: 'FILE-OPEN',
+    });
+    expect(probeLock).toHaveBeenCalledWith({ driveId: DRIVE_ID, itemId: ITEM.id, eTag: ITEM.eTag });
+    expect(open.download).not.toHaveBeenCalled();
+    const closed = ports({ ...withValues(CURRENT), probeLock: async () => 'free' });
+    const result = await runLinkRefreshV1({ ...INPUT, probeLockFirst: true }, closed.ports);
+    expect(result.outcome).toBe('unchanged');
+  });
+
+  it('finds a source uploaded again (a new id) by its path', async () => {
+    const again = { ...SOURCE, id: 'source-again', quickXorHash: 'hash-again' };
+    const itemByPath = vi.fn<LinkRefreshPortsV1['itemByPath']>(async (_drive, path) =>
+      path === 'PASTA A/ORIGEM.xlsb' ? again : null,
+    );
+    const { ports: p } = ports({
+      ...withValues({ ...CURRENT, 'Dados!0,1': num(9) }),
+      item: async (_drive, itemId) => (itemId === ITEM.id ? ITEM : null),
+      itemByPath,
+    });
+    expect(await runLinkRefreshV1(INPUT, p)).toMatchObject({
+      outcome: 'written',
+      sources: ['source-again'],
+      sourceHashes: { 'source-again': 'hash-again' },
+    });
+  });
+
+  it('a passing failure of a source fails the refresh; a source gone leaves its link alone', async () => {
+    const changed = withValues({ ...CURRENT, 'Dados!0,1': num(9) });
+    const failingSource = (status: number) => {
+      const run = ports(changed);
+      run.download.mockImplementation(async (_drive, itemId) => {
+        if (itemId === ITEM.id) return syntheticDestination().slice().buffer;
+        throw Object.assign(new Error('source'), { status });
+      });
+      return run;
+    };
+    const throttled = failingSource(503);
+    expect(await runLinkRefreshV1(INPUT, throttled.ports)).toMatchObject({
+      outcome: 'failed',
+      code: 'GRAPH-503',
+      sourceHashes: {},
+    });
+    const gone = failingSource(404);
+    expect(await runLinkRefreshV1(INPUT, gone.ports)).toMatchObject({
+      outcome: 'unchanged',
+      unavailableLinks: 1,
+      sourceHashes: {},
+    });
+    expect(gone.replace).not.toHaveBeenCalled();
   });
 
   it('turns an open file and a save in between into a later retry', async () => {
@@ -707,6 +844,20 @@ describe('graphReplaceWorkbookV1', () => {
     await expect(graphReplaceWorkbookV1(await env(), input, mock.dependencies)).rejects.toThrow();
     expect(mock.calls.some((call) => call.method === 'PUT')).toBe(false);
   });
+
+  it('asks whether the file is open by opening a session and dropping it, sending nothing', async () => {
+    const free = graph(
+      () => Response.json({ uploadUrl: UPLOAD }),
+      () => new Response(null),
+    );
+    expect(await graphProbeLockV1(await env(), input, free.dependencies)).toBe('free');
+    expect(free.calls.map((call) => call.method)).toEqual(['POST', 'DELETE']);
+    const open = graph(
+      () => new Response(null, { status: 423 }),
+      () => new Response(null),
+    );
+    expect(await graphProbeLockV1(await env(), input, open.dependencies)).toBe('locked');
+  });
 });
 
 /* ------------------------------------------------------------------ coordinator rules */
@@ -760,6 +911,60 @@ describe('link rules', () => {
         LINK_SOURCE_SETTLE_MS_V1,
       );
     expect(current.dueAt).toBe(NOW + LINK_MAX_DEFER_MS_V1);
+  });
+
+  it('an open file keeps its wait when a source is saved again; asked in the panel, it goes now', () => {
+    const waiting = file({
+      state: 'pending',
+      lastOutcome: 'locked',
+      attempts: 2,
+      dueAt: NOW + 8 * 60_000,
+      changed: ['src-1'],
+    });
+    expect(requestLinkRefreshV1(waiting, ['src-2'], NOW, LINK_SOURCE_SETTLE_MS_V1)).toMatchObject({
+      dueAt: NOW + 8 * 60_000,
+      changed: ['src-1', 'src-2'],
+      attempts: 2,
+    });
+    expect(requestLinkRefreshV1(waiting, null, NOW, 0, true)).toMatchObject({
+      dueAt: NOW,
+      changed: null,
+      attempts: 0,
+    });
+  });
+
+  it('with every slot taken, a refresh due waits for a lease to end', () => {
+    const due = file({ id: 'c', state: 'pending', dueAt: NOW - 5 });
+    const working = (id: string, leaseUntil: number) =>
+      file({ id, state: 'working', lease: id, leaseUntil });
+    expect(nextLinkWakeV1([working('a', NOW + 100), working('b', NOW + 200), due])).toBe(NOW + 100);
+    expect(nextLinkWakeV1([working('a', NOW + 100), due])).toBe(NOW - 5);
+    expect(nextLinkWakeV1([file({ removed: true, state: 'pending', dueAt: NOW })])).toBeNull();
+  });
+
+  it('a workbook deleted or moved out of the chosen folders leaves the list; a new one joins', () => {
+    const target = { itemId: 'folder-1', kind: 'folder' as const, path: 'A', setBy: 'x', setAt: 0 };
+    const item = {
+      id: 'dest-1',
+      name: 'DESTINO.xlsb',
+      quickXorHash: 'h1',
+      lastModifiedDateTime: 't1',
+      deleted: false,
+    };
+    expect(observedLinkFileV1(file(), { ...item, deleted: true }, target, NOW)).toMatchObject({
+      removed: true,
+    });
+    expect(observedLinkFileV1(file(), item, null, NOW)).toMatchObject({ removed: true });
+    expect(observedLinkFileV1(null, item, target, NOW)).toMatchObject({
+      state: 'pending',
+      changed: null,
+      dueAt: NOW,
+    });
+    expect(observedLinkFileV1(file(), { ...item, name: 'NOVO.xlsb' }, target, NOW)?.name).toBe(
+      'NOVO.xlsb',
+    );
+    expect(observedLinkFileV1(file(), item, target, NOW)).toBeNull();
+    expect(observedLinkFileV1(null, item, null, NOW)).toBeNull();
   });
 
   it('starts at most two at once, the oldest first', () => {

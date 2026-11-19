@@ -1,5 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
+import type { LinkRefreshResultV1 } from '../../../server/gradebook/onedrive-sync/links/run-link-refresh-v1';
+import {
+  newSyncFileV1,
+  observeFileV1,
+  type SyncFileV1,
+} from '../../../server/gradebook/onedrive-sync/sync-rules-v1';
 
 vi.mock('cloudflare:workers', () => ({
   WorkerEntrypoint: class {
@@ -462,5 +468,72 @@ describe('database write line of the coordinator (issue #1426, 30)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('a teacher workbook written by the links refresh (#1541)', () => {
+  type Ack = { acknowledgeLinkWrite(id: string, result: LinkRefreshResultV1): void };
+  const coordinator = (file: SyncFileV1 | null) => {
+    const saved: SyncFileV1[] = [];
+    const proto = NotasSyncCoordinatorV1.prototype as unknown as Record<string, unknown>;
+    const self: Record<string, unknown> = {
+      file: () => file,
+      saveFile: (next: SyncFileV1) => saved.push(next),
+    };
+    self.acknowledgeLinkWrite = (
+      proto.acknowledgeLinkWrite as (...args: unknown[]) => unknown
+    ).bind(self);
+    return { ack: self as unknown as Ack, saved };
+  };
+  const written = (writtenHash: string | null): LinkRefreshResultV1 => ({
+    outcome: 'written',
+    code: null,
+    sources: [],
+    sourceHashes: {},
+    unavailableLinks: 0,
+    changedCells: 2,
+    seen: { name: 'NOTAS SINTETICAS.xlsb', hash: 'h1', modifiedAt: 't1' },
+    written: { hash: writtenHash, modifiedAt: 't2' },
+    ms: 1,
+  });
+  const observed = {
+    id: 'w1',
+    name: 'NOTAS SINTETICAS.xlsb',
+    size: 10,
+    modifiedAt: 't1',
+    hash: 'h1',
+    deleted: false,
+  };
+  const read = (extra: Partial<SyncFileV1> = {}): SyncFileV1 => ({
+    ...newSyncFileV1(observed),
+    processedHash: 'h1',
+    ...extra,
+  });
+
+  it('is not read again when its grades were already read at the version written over', () => {
+    const { ack, saved } = coordinator(read());
+    ack.acknowledgeLinkWrite('w1', written('h2'));
+    expect(saved).toEqual([
+      expect.objectContaining({ hash: 'h2', processedHash: 'h2', modifiedAt: 't2', state: 'idle' }),
+    ]);
+    // The save OneDrive then reports is the one already accounted for.
+    const after = { ...observed, modifiedAt: 't2', hash: 'h2' };
+    expect(observeFileV1(saved[0]!, after, 0)).toMatchObject({ state: 'idle' });
+  });
+
+  it('is read as usual in any other case', () => {
+    for (const file of [
+      read({ processedHash: 'h0' }),
+      read({ state: 'pending' }),
+      read({ removed: true }),
+      null,
+    ]) {
+      const { ack, saved } = coordinator(file);
+      ack.acknowledgeLinkWrite('w1', written('h2'));
+      expect(saved).toEqual([]);
+    }
+    const { ack, saved } = coordinator(read());
+    ack.acknowledgeLinkWrite('w1', written(null));
+    expect(saved).toEqual([]);
   });
 });

@@ -412,11 +412,17 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       this.meta<string | null>('nightlyOn', null) !== today
     ) {
       this.setMeta('nightlyRequested', true);
+      // Its own mark: a check of the grades asked in the panel does not refresh every link.
+      this.setMeta('linksNightly', true);
       this.setMeta('nightlyOn', today);
     }
     await this.ensureSubscription(now);
     // Only something due wakes the alarm now; otherwise the next one stays as scheduled.
-    if (this.meta('deltaRequested', false) || this.meta('nightlyRequested', false))
+    if (
+      this.meta('deltaRequested', false) ||
+      this.meta('nightlyRequested', false) ||
+      this.meta('linksNightly', false)
+    )
       await this.wakeAt(now);
     else await this.scheduleNext();
   }
@@ -452,6 +458,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         this.setMeta('settings', { ...settings, enabled: true });
         this.setMeta('deltaLink', null);
         this.setMeta('deltaRequested', true);
+        // Saves made while it was off were not followed.
+        this.refreshAllLinks(Date.now());
         break;
       case 'disable':
         this.setMeta('settings', { ...settings, enabled: false });
@@ -511,7 +519,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     switch (command.action) {
       case 'links-on':
         this.setMeta('linkSettings', { ...settings, enabled: true });
-        this.setMeta('linksResync', true);
+        // Saves made while it was off were not followed.
+        this.refreshAllLinks(now);
         break;
       case 'links-off':
         this.setMeta('linkSettings', { ...settings, enabled: false });
@@ -544,35 +553,45 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         break;
       }
       case 'links-check-all':
-        for (const file of this.linkFiles())
-          this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0));
-        this.setMeta('linksResync', true);
+        this.refreshAllLinks(now);
         break;
       case 'links-refresh-now': {
         const file = this.linkFile(command.fileId);
-        if (file) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0));
+        if (file) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0, true));
         break;
       }
     }
   }
 
+  /** Every workbook with links refreshed whole, now, after its folders are listed again. */
+  private refreshAllLinks(now: number): void {
+    for (const file of this.linkFiles())
+      this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0, true));
+    this.setMeta('linksResync', true);
+  }
+
   /**
    * The workbooks of the chosen folders (and the chosen workbooks) join the list; those that left
-   * are marked removed. `everything` asks every one for a whole refresh (nightly, "check all").
+   * are marked removed. The nightly check also asks every one for a whole refresh. A Graph error
+   * keeps the request and waits; the reading of grades does not wait for it.
    */
-  private async resyncLinks(now: number, everything: boolean): Promise<void> {
+  private async resyncLinks(now: number): Promise<void> {
     // Taken now: a request made while this listing awaits Graph stays for the next one.
+    const everything = this.meta('linksNightly', false);
     this.setMeta('linksResync', false);
+    this.setMeta('linksNightly', false);
     const settings = this.linkSettings();
     if (!settings.enabled) return;
     const listed: DriveWorkbookV1[] = [];
     try {
-      const driveId = await this.driveId();
+      const driveId = await this.siteDriveId();
       for (const target of Object.values(settings.targets))
         listed.push(...(await this.listSource(driveId, target)));
     } catch (cause) {
       this.setMeta('linksResync', true);
-      throw cause;
+      if (everything) this.setMeta('linksNightly', true);
+      this.backOffLinks(now, cause);
+      return;
     }
     const present = new Set(listed.map((item) => item.id));
     this.observeLinks(listed, now);
@@ -587,9 +606,15 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           });
         continue;
       }
-      if (everything) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0));
+      if (everything) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0, true));
     }
     this.event('links-listing', { files: present.size, everything });
+  }
+
+  /** Graph refused or failed: the links wait (Retry-After honoured), the grades go on. */
+  private backOffLinks(now: number, cause: unknown): void {
+    this.event('graph-error', { status: graphStatusV1(cause), links: true });
+    this.setMeta('linksBackoffUntil', now + Math.max(60, graphRetryAfterSecondsV1(cause)) * 1000);
   }
 
   /**
@@ -637,7 +662,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private async startLinkRefreshes(now: number): Promise<void> {
     const sync = this.settings();
     if (!sync.enabled || sync.paused || !this.linkSettings().enabled) return;
-    const driveId = this.meta<string | null>('driveId', null);
+    if (now < this.meta('linksBackoffUntil', 0)) return;
+    const driveId = this.knownDriveId();
     if (!driveId) return;
     const due = linkFilesToStartV1(this.linkFiles(), now, true);
     if (due.length === 0) return;
@@ -646,7 +672,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       try {
         webUrl = await graphDriveWebUrlV1(this.env, driveId);
         this.setMeta('driveWebUrl', webUrl);
-      } catch {
+      } catch (cause) {
+        this.backOffLinks(now, cause);
         return;
       }
     }
@@ -661,6 +688,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         maxBytes,
         onlySources: file.changed,
         settleMs: LINK_DESTINATION_SETTLE_MS_V1,
+        // Still open since the last try: asked first, before any download.
+        probeLockFirst: file.lastOutcome === 'locked',
       })
         .catch((cause: unknown): LinkRefreshResultV1 => {
           console.error(
@@ -698,8 +727,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         ...this.meta<Record<string, string | null>>('linkSourceHashes', {}),
         ...result.sourceHashes,
       });
-    if (result.outcome === 'written')
-      this.event('links-written', { file: next.name, cells: result.changedCells });
+    // Only giving up goes to the Histórico; each update shows in the workbook's row.
+    if (result.outcome === 'written') this.acknowledgeLinkWrite(id, result);
     else if (result.outcome === 'failed' && next.state === 'idle')
       this.event('links-failed', { file: next.name, code: result.code });
     console.log(
@@ -712,6 +741,25 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         unavailable: result.unavailableLinks,
       }),
     );
+  }
+
+  /**
+   * The refresh's own save changed only what the links keep, not the cells the grades are read
+   * from: a workbook of the grades already read at the version written over is not read again.
+   */
+  private acknowledgeLinkWrite(id: string, result: LinkRefreshResultV1): void {
+    const before = result.seen?.hash ?? null;
+    const after = result.written?.hash ?? null;
+    if (!before || !after) return;
+    const file = this.file(id);
+    if (!file || file.removed || file.state !== 'idle') return;
+    if (file.hash !== before || file.processedHash !== before) return;
+    this.saveFile({
+      ...file,
+      hash: after,
+      processedHash: after,
+      modifiedAt: result.written?.modifiedAt ?? file.modifiedAt,
+    });
   }
 
   /** Its files leave the list (a read in progress ends as removed); grades already written stay. */
@@ -934,7 +982,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         });
       } else if (this.meta('deltaRequested', false) || this.pollDue(now))
         await this.deltaCheck(now);
-      if (this.meta('linksResync', false)) await this.resyncLinks(now, false);
+      if (this.linksResyncDue(now)) await this.resyncLinks(now);
     } catch (cause) {
       if (cause instanceof NoFolderConfiguredError) {
         this.setMeta('deltaRequested', false);
@@ -961,14 +1009,32 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /** The secretaria's drive (every source lives in it); nothing to look at without a source. */
   private async driveId(): Promise<string> {
     if (Object.keys(this.sources()).length === 0) throw new NoFolderConfiguredError();
-    const known =
+    return this.siteDriveId();
+  }
+
+  /** The drive as already known (the first panel kept it in `location`). */
+  private knownDriveId(): string | null {
+    return (
       this.meta<string | null>('driveId', null) ??
       this.meta<{ driveId: string } | null>('location', null)?.driveId ??
-      null;
+      null
+    );
+  }
+
+  private async siteDriveId(): Promise<string> {
+    const known = this.knownDriveId();
     if (known) return known;
     const driveId = await graphDriveIdV1(this.env, this.env.NOTAS_SITE_ID);
     this.setMeta('driveId', driveId);
     return driveId;
+  }
+
+  /** The links' folders to list again (a change in the panel, the nightly check), unless waiting. */
+  private linksResyncDue(now: number): boolean {
+    return (
+      (this.meta('linksResync', false) || this.meta('linksNightly', false)) &&
+      now >= this.meta('linksBackoffUntil', 0)
+    );
   }
 
   /**
@@ -1043,8 +1109,6 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.setMeta('nightlyRequested', false);
     const driveId = await this.driveId();
     await this.resyncSources(now, driveId, true);
-    // Every workbook with links gets a whole refresh too: anything a notice missed is caught here.
-    await this.resyncLinks(now, true);
   }
 
   /**
@@ -1059,6 +1123,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       listed.push(...(await this.listSource(driveId, source)));
     const present = new Set(listed.map((item) => item.id));
     this.observe(listed, now);
+    // Without the cursor, saves of link sources among them are seen here.
+    this.observeLinks(listed, now);
     for (const file of this.files()) {
       if (!present.has(file.id) && !file.removed)
         this.saveFile({
@@ -1093,10 +1159,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
 
   /** Starts every read that may start now; the alarm loop awaits them. */
   private startReads(now: number): void {
-    const driveId =
-      this.meta<string | null>('driveId', null) ??
-      this.meta<{ driveId: string } | null>('location', null)?.driveId ??
-      null;
+    const driveId = this.knownDriveId();
     if (!driveId) return;
     const breakerUntil = this.meta<number | null>('breakerUntil', null);
     const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
@@ -1300,12 +1363,14 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         : null;
     // A link refresh due (or a refresh whose lease may run out) wakes it too, while switched on.
     const linkAt = active && this.linkSettings().enabled ? nextLinkWakeV1(this.linkFiles()) : null;
+    const linksReadyAt = Math.max(now + 1_000, this.meta('linksBackoffUntil', 0));
+    const linksResync = this.meta('linksResync', false) || this.meta('linksNightly', false);
     const candidates = [
       next,
       pendingWork && this.settings().enabled ? graphReadyAt : null,
       pollAt,
-      linkAt === null ? null : Math.max(now + 1_000, linkAt),
-      this.meta('linksResync', false) && active ? graphReadyAt : null,
+      linkAt === null ? null : Math.max(linksReadyAt, linkAt),
+      linksResync && active ? Math.max(graphReadyAt, linksReadyAt) : null,
     ].filter((value): value is number => value !== null);
     if (candidates.length > 0) await this.wakeAt(Math.min(...candidates));
   }

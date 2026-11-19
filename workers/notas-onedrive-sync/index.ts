@@ -25,6 +25,7 @@ import {
 import {
   graphLinkItemByPathV1,
   graphLinkItemV1,
+  graphProbeLockV1,
   graphReplaceWorkbookV1,
 } from '../../server/gradebook/onedrive-sync/links/graph-links-v1';
 import {
@@ -384,6 +385,7 @@ export function refreshLinksHereV1(
     download: (driveId, itemId, maxBytes) =>
       graphDownloadWorkbookV1(env, driveId, itemId, maxBytes),
     replace: (replacement) => graphReplaceWorkbookV1(env, replacement),
+    probeLock: (target) => graphProbeLockV1(env, target),
   });
 }
 
@@ -397,6 +399,7 @@ function linkRefreshInputV1(value: unknown): LinkRefreshInputV1 | null {
     typeof input.itemId !== 'string' ||
     typeof input.maxBytes !== 'number' ||
     typeof input.settleMs !== 'number' ||
+    (input.probeLockFirst !== undefined && typeof input.probeLockFirst !== 'boolean') ||
     !(
       onlySources === null ||
       (Array.isArray(onlySources) && onlySources.every((id) => typeof id === 'string'))

@@ -69,10 +69,16 @@ export function readSourceValuesV1(
     cellDates: false,
     bookVBA: false,
   });
+  // Excel matches sheet names regardless of case ("1º tri" and "1º TRI" are the same sheet).
+  const byLowerName = new Map(
+    Object.keys(workbook.Sheets).map((name) => [name.toLocaleLowerCase('pt-BR'), name]),
+  );
   return {
     sheetNames: workbook.SheetNames,
     valueAt: (sheet, row, col) => {
-      const worksheet = workbook.Sheets[sheet];
+      const name =
+        sheet in workbook.Sheets ? sheet : byLowerName.get(sheet.toLocaleLowerCase('pt-BR'));
+      const worksheet = name === undefined ? undefined : workbook.Sheets[name];
       return worksheet ? cellValueV1(worksheet, row, col) : undefined;
     },
   };

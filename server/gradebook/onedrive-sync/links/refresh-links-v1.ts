@@ -6,6 +6,9 @@ import {
   rewriteXlsbLinkCacheV1,
   rewriteXlsxLinkCacheV1,
   type ExternalLinkCacheV1,
+  type LinkAdditionsV1,
+  type LinkCellV1,
+  type LinkValueV1,
 } from './external-link-cache-v1';
 import type { SourceValuesV1 } from './source-values-v1';
 import {
@@ -117,31 +120,73 @@ function pathFromRelativeV1(raw: string, folder: string): string | null {
 }
 
 /**
- * Which file a link uses. The Graph ids Excel stores with the link win; otherwise the OneDrive
- * address or the path relative to the destination is turned into a path in the same drive.
- * Anything outside the drive (another person's OneDrive, a local disk) is not followed.
+ * Which file a link uses, in the order to try: the Graph ids Excel stores with the link, then the
+ * OneDrive address, then the path relative to the destination (a source deleted and uploaded again
+ * keeps its path but gets a new id). Anything outside the drive is not followed.
  */
-export function resolveLinkSourceV1(
+export function resolveLinkSourcesV1(
   link: LinkPartV1,
   drive: { readonly driveId: string; readonly webUrl: string },
   destinationFolder: string,
-): LinkSourceRefV1 | null {
+): LinkSourceRefV1[] {
+  const candidates: LinkSourceRefV1[] = [];
   if (link.cache.itemId && link.cache.driveId === drive.driveId)
-    return { kind: 'item', driveId: drive.driveId, itemId: link.cache.itemId };
+    candidates.push({ kind: 'item', driveId: drive.driveId, itemId: link.cache.itemId });
   const base = new URL(drive.webUrl.endsWith('/') ? drive.webUrl : `${drive.webUrl}/`);
-  for (const raw of link.targets) {
-    const path = pathFromAddressV1(raw, base);
-    if (path) return { kind: 'path', path };
-  }
-  for (const raw of link.targets) {
-    const path = pathFromRelativeV1(raw, destinationFolder);
-    if (path) return { kind: 'path', path };
-  }
-  return null;
+  const paths = [
+    ...link.targets.map((raw) => pathFromAddressV1(raw, base)),
+    ...link.targets.map((raw) => pathFromRelativeV1(raw, destinationFolder)),
+  ].filter((path): path is string => path !== null);
+  for (const path of new Set(paths)) candidates.push({ kind: 'path', path });
+  return candidates;
 }
 
-export function sourceKeyV1(ref: LinkSourceRefV1): string {
-  return ref.kind === 'item' ? `item:${ref.itemId}` : `path:${ref.path.toLowerCase()}`;
+/** Holes larger than this in one column are left for Excel (a cache spread over the whole sheet). */
+const MAX_FILLED_ROWS_V1 = 20_000;
+
+/**
+ * Cells inside the area a link already caches (per column, from its first to its last cached row)
+ * that the cache does not hold and the source now has: Excel leaves out a referenced cell that was
+ * empty when it last updated, so a grade typed there later comes in through these.
+ */
+export function missingLinkCellsV1(
+  cells: readonly LinkCellV1[],
+  values: SourceValuesV1,
+): LinkAdditionsV1 {
+  const columns = new Map<
+    string,
+    { sheet: string; col: number; rows: Set<number>; first: number; last: number }
+  >();
+  for (const cell of cells) {
+    const key = `${cell.sheet}\u0000${cell.col}`;
+    let column = columns.get(key);
+    if (!column) {
+      column = {
+        sheet: cell.sheet,
+        col: cell.col,
+        rows: new Set(),
+        first: cell.row,
+        last: cell.row,
+      };
+      columns.set(key, column);
+    }
+    column.rows.add(cell.row);
+    column.first = Math.min(column.first, cell.row);
+    column.last = Math.max(column.last, cell.row);
+  }
+  const additions = new Map<string, Array<{ row: number; col: number; value: LinkValueV1 }>>();
+  for (const { sheet, col, rows, first, last } of columns.values()) {
+    if (last - first > MAX_FILLED_ROWS_V1) continue;
+    for (let row = first; row <= last; row++) {
+      if (rows.has(row)) continue;
+      const value = values.valueAt(sheet, row, col);
+      if (!value || value.kind === 'blank') continue;
+      const list = additions.get(sheet) ?? [];
+      list.push({ row, col, value });
+      additions.set(sheet, list);
+    }
+  }
+  return additions;
 }
 
 /**
@@ -152,10 +197,11 @@ export function sourceKeyV1(ref: LinkSourceRefV1): string {
  */
 export async function refreshDestinationLinksV1(input: {
   readonly bytes: Uint8Array;
-  readonly resolve: (link: LinkPartV1) => LinkSourceRefV1 | null;
+  /** The places a link may point to, in the order to try (empty: nothing in reach). */
+  readonly resolve: (link: LinkPartV1) => readonly LinkSourceRefV1[];
   /** null: the source cannot be read; 'skip': it did not change, the cache is kept as it is. */
   readonly loadSource: (
-    ref: LinkSourceRefV1,
+    candidates: readonly LinkSourceRefV1[],
     sheets: readonly string[],
   ) => Promise<SourceValuesV1 | null | 'skip'>;
 }): Promise<RefreshOutcomeV1> {
@@ -166,15 +212,16 @@ export async function refreshDestinationLinksV1(input: {
   const parts: RefreshOutcomeV1['parts'][number][] = [];
   let changedCells = 0;
   for (const link of links) {
-    const source = input.resolve(link);
+    const candidates = input.resolve(link);
+    const source = candidates[0] ?? null;
     const sheets = [...new Set(link.cache.cells.map((cell) => cell.sheet))];
-    const values = source && sheets.length > 0 ? await input.loadSource(source, sheets) : null;
+    const values = source && sheets.length > 0 ? await input.loadSource(candidates, sheets) : null;
     if (!source || sheets.length === 0 || values === 'skip' || values === null) {
       const status = unreadStatusV1(source, sheets.length, values);
       parts.push({ part: link.part, source, status, changed: 0 });
       continue;
     }
-    const refreshed = await refreshLinkPartV1(pkg, format, link.part, values);
+    const refreshed = await refreshLinkPartV1(pkg, format, link, values);
     if (refreshed.bytes) replacements.set(link.part, refreshed.bytes);
     changedCells += refreshed.changed;
     parts.push({ part: link.part, source, status: refreshed.status, changed: refreshed.changed });
@@ -205,7 +252,7 @@ function unreadStatusV1(
 async function refreshLinkPartV1(
   pkg: ZipPackageV1,
   format: 'xlsb' | 'xlsx',
-  part: string,
+  link: LinkPartV1,
   values: SourceValuesV1,
 ): Promise<{ status: LinkPartStatusV1; changed: number; bytes: Uint8Array | null }> {
   let missingSheet = false;
@@ -214,13 +261,14 @@ async function refreshLinkPartV1(
     if (value === undefined) missingSheet = true;
     return value;
   };
-  const content = await readZipEntryV1(pkg, part);
+  const content = await readZipEntryV1(pkg, link.part);
   if (!content) return { status: 'same', changed: 0, bytes: null };
+  const additions = missingLinkCellsV1(link.cache.cells, values);
   let rewritten: { bytes: Uint8Array; changed: number };
-  if (format === 'xlsb' && part.endsWith('.bin'))
-    rewritten = rewriteXlsbLinkCacheV1(content, lookup);
+  if (format === 'xlsb' && link.part.endsWith('.bin'))
+    rewritten = rewriteXlsbLinkCacheV1(content, lookup, additions);
   else {
-    const xml = rewriteXlsxLinkCacheV1(new TextDecoder().decode(content), lookup);
+    const xml = rewriteXlsxLinkCacheV1(new TextDecoder().decode(content), lookup, additions);
     rewritten = { bytes: new TextEncoder().encode(xml.xml), changed: xml.changed };
   }
   let status: LinkPartStatusV1 = rewritten.changed ? 'updated' : 'same';

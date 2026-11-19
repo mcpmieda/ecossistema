@@ -135,8 +135,6 @@ function eventText(event: OneDriveSyncStatusV1['events'][number]): string {
     return `leituras ao mesmo tempo: ${String(detail.from)} → ${String(detail.to)}`;
   if (event.kind === 'relation-changed')
     return `Relação mudou: ${String(detail.reread)} planilha(s) lidas de novo`;
-  if (event.kind === 'links-written')
-    return `vínculos atualizados em ${String(detail.file)} (${String(detail.cells)} célula(s))`;
   if (event.kind === 'links-failed')
     return `não foi possível atualizar os vínculos de ${String(detail.file)}`;
   if (event.kind === 'links-listing')

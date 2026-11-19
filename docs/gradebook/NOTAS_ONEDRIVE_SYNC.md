@@ -101,12 +101,14 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 **Quando.**
 - Uma origem salva (conteúdo novo, não a própria gravação do Worker) agenda as planilhas que dependem dela para 1 min depois do último salvamento.
 - A planilha de destino só é gravada se estiver sem salvar há 1 min e se o cache realmente mudar.
-- Cada vez só os vínculos das origens que mudaram são relidos; a conferência das 03:00 relê todos.
-- No máximo 2 planilhas são atualizadas ao mesmo tempo, cada uma numa invocação própria (`SELF` → `/vinculos`, sem banco).
+- Cada vez só os vínculos das origens que mudaram são relidos. Relêem todos: a conferência das 03:00 (marca própria, separada da conferência das notas), "Conferir tudo", ligar os vínculos e religar a leitura automática.
+- Uma célula da origem que estava vazia na última atualização não fica no cache do Excel; quando ganha valor, entra no cache (só entre a primeira e a última linha que o vínculo já guarda em cada coluna).
+- A origem é procurada pelos ids que o Excel guarda e, se tiver sido apagada e enviada de novo, pelo endereço.
+- No máximo 2 planilhas são atualizadas ao mesmo tempo, cada uma numa invocação própria (`SELF` → `/vinculos`, sem banco). Falha da Graph nos vínculos espera pelo menos 1 min sem atrasar a leitura de notas.
 
 **Gravação segura.**
 - A versão (eTag) é tirada antes do download e o envio é condicional: `createUploadSession` com `if-match`. Se alguém salvou no meio (412), nada é gravado e a planilha volta para a fila.
-- Arquivo aberto no Excel para a Web ou no Excel do PC, mesmo com salvamento automático desligado, recebe 423 do servidor. Testado em 19/11/2026. O Worker tenta de novo depois de 2, 4, 8 e a cada 15 min. Nunca usa `bypass-shared-lock` nem check-out.
+- Arquivo aberto no Excel para a Web ou no Excel do PC, mesmo com salvamento automático desligado, recebe 423 do servidor. Testado em 19/11/2026. O Worker tenta de novo depois de 2, 4, 8 e a cada 15 min; nessas novas tentativas pergunta antes se o arquivo continua aberto (abre e descarta uma sessão de envio, sem gravar) e só então baixa. Nunca usa `bypass-shared-lock` nem check-out.
 - A versão de uma pessoa sempre vence; o Worker nunca apaga nem mescla. O histórico de versões do OneDrive guarda a versão anterior.
 - Não usar a rota REST `$value` do SharePoint para isso: no teste de 19/11 ela ignorou o `If-Match` e gravou por cima de uma edição.
 
@@ -114,6 +116,7 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 - Ao abrir, o Excel (PC ou Web) recalcula com os valores novos, sem pedir para atualizar vínculos.
 - O Excel para a Web salva o recálculo ao fechar, mesmo sem edição (testado em 19/11/2026).
 - Até alguém abrir, quem lê a planilha fechada (o Banco de Notas.xlsb e a leitura automática) vê os resultados do último salvamento.
+- Por isso a gravação do Worker não faz a leitura automática reler uma planilha de professor cujas notas já tinham sido lidas na versão sobrescrita; o salvamento do recálculo, ao abrir, é lido normalmente.
 
 **Painel.** Banco de notas › Importação › OneDrive › **Vínculos entre planilhas**:
 - ligar e desligar;

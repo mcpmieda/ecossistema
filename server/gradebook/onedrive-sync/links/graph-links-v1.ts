@@ -226,6 +226,27 @@ export async function graphReplaceWorkbookV1(
   throw new GraphError(response.status, crypto.randomUUID());
 }
 
+/**
+ * Whether someone holds the file open, without writing anything: an upload session is opened (it
+ * is refused with 423 while the file is locked) and dropped at once.
+ */
+export async function graphProbeLockV1(
+  env: GraphAppEnvV1,
+  input: { readonly driveId: string; readonly itemId: string; readonly eTag: string },
+  dependencies: GraphDependencies = graphDefaultsV1,
+): Promise<'locked' | 'free'> {
+  const session = await createUploadSessionV1(
+    env,
+    { ...input, bytes: new Uint8Array(0) },
+    dependencies,
+  );
+  if (session instanceof URL) {
+    await cancelSessionV1(session, dependencies);
+    return 'free';
+  }
+  return session.outcome === 'locked' ? 'locked' : 'free';
+}
+
 async function cancelSessionV1(url: URL, dependencies: GraphDependencies): Promise<void> {
   await dependencies
     .fetch(url.href, { method: 'DELETE', redirect: 'manual', signal: AbortSignal.timeout(10_000) })
