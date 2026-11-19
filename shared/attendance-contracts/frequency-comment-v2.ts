@@ -52,8 +52,8 @@ const dateLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 
 /** Each day already over: its lessons (every shift's positions) and its absences without
  * justification, most recent first; days without lessons are left out. `open`: some shift of the day
- * was not read in full (or had a mark in conflict) in the last 30 days, as the ring and the calendar
- * show it. */
+ * was not read in full (or had a mark in conflict, or a lesson still FP) in the last 30 days, as
+ * the ring and the calendar show it. */
 function pastSchoolDaysV2(
   months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[],
   today: string,
@@ -65,9 +65,12 @@ function pastSchoolDaysV2(
     .slice(0, 10);
   for (const day of months.flatMap((month) => month.days ?? []) as FrequencyDayV2[]) {
     if (day.date >= today) continue;
-    if (day.complete === false && day.date >= openSince) open.add(day.date);
+    // A lesson still FP ("a confirmar") may yet be an absence: like a reading not complete, it
+    // holds back the green sentences, and it is no lesson until the teacher marks it.
+    const pending = new Set(day.pending ?? []);
+    if ((day.complete === false || pending.size > 0) && day.date >= openSince) open.add(day.date);
     const set = lessons.get(day.date) ?? new Set<string>();
-    for (const slot of day.slots) set.add(`${day.shift}:${slot}`);
+    for (const slot of day.slots) if (!pending.has(slot)) set.add(`${day.shift}:${slot}`);
     lessons.set(day.date, set);
   }
   const absent = new Map<string, number>();

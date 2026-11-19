@@ -285,6 +285,63 @@ describe('frequency V2 private PostgreSQL service', () => {
       days: [{ date: '2026-01-05', shift: 'MATUTINO', slots: [1, 2, 3, 4, 5, 6], complete: true }],
     });
   });
+  it('an FP lesson (Smecel, 18/11/2026) is "a confirmar": stored, out of the totals, month still reliable', async () => {
+    // Six lessons, an X in the first, the last two still FP: 1 absence in 4 lessons = 75%.
+    await service.execute(
+      collection({
+        coverage: [
+          {
+            recordKey: 'r1',
+            date: '2026-01-05',
+            slots: [1, 2, 3, 4, 5, 6],
+            complete: true,
+            pending: [5, 6],
+          },
+        ],
+      }),
+      actor,
+    );
+    expect(await summary()).toMatchObject({
+      coverage: 'reliable',
+      absences: 1,
+      justified: 0,
+      denominator: 4,
+      percentage: 75,
+      days: [
+        {
+          date: '2026-01-05',
+          shift: 'MATUTINO',
+          slots: [1, 2, 3, 4, 5, 6],
+          complete: true,
+          pending: [5, 6],
+        },
+      ],
+    });
+    // The teacher marks them (same positions, nothing pending): the day is stored again and counts.
+    await service.execute(
+      collection({ sourceVersion: `sha256:${'b'.repeat(64)}`, expectedRevision: 1 }),
+      actor,
+    );
+    const marked = await summary();
+    expect(marked).toMatchObject({ coverage: 'reliable', denominator: 6, percentage: 83.3 });
+    expect(marked.days?.[0]).not.toHaveProperty('pending');
+  });
+  it("rejects an FP outside the day's lessons and a mark on an FP lesson", async () => {
+    for (const input of [
+      collection({
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2], complete: true, pending: [3] },
+        ],
+        marks: [],
+      }),
+      collection({
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3], complete: true, pending: [1] },
+        ],
+      }),
+    ])
+      await expect(service.execute(input, actor)).rejects.toMatchObject({ code: 'source-invalid' });
+  });
   it('keeps sparse marks partial; a partial day never becomes presence or consolidated totals', async () => {
     const r = await service.execute(
       collection({

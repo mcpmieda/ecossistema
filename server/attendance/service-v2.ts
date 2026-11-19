@@ -12,6 +12,7 @@ import {
   type FrequencyRequestV2,
   type FrequencyActorV2,
   type FrequencyCollectionV2,
+  type FrequencyDayV2,
   type FrequencyScheduleCollectionV2,
   type FrequencyIncidentCollectionV2,
   type FrequencyReportScheduleV2,
@@ -314,7 +315,7 @@ async function summaryInTx(
  * collector sent (each collection stores only the days that changed). Parameters: year, student
  * uid, first day of the month. The caller still checks each row's identity evidence.
  */
-const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c.date::text,b.shift,c.slots_json,c.complete,
+const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c.date::text,b.shift,c.slots_json,c.complete,c.pending_json,
     b.academic_year,b.class_id,s.student_uid::text,s.source_ids_json,s.observation_ids_json
     FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id
     JOIN attendance.source_row_v2 s ON s.batch_id=c.batch_id AND s.record_key=c.record_key
@@ -323,11 +324,11 @@ const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c
 /**
  * Adds the Smecel lesson days to a month's summary. The counts follow the Smecel: lessons are the
  * positions of the days, absences are X, justified are J (the yellow icon and the blue X) and do
- * not lower the attendance: 100 × (lessons − absences) / lessons. TODAY never counts (its roll
- * call may still be under way), so neither its lessons nor its marks enter the totals, and its
- * unfinished reading never makes the month incomplete (frequencyCountV2). The totals are given
- * only when every day already over was read
- * completely and nothing is in review; the marks and days are always given.
+ * not lower the attendance: 100 × (lessons − absences) / lessons. A lesson still FP ("a
+ * confirmar") is left out until the teacher marks it. Today counts once read in full (its lessons
+ * not marked yet are FP); its unfinished reading never makes the month incomplete
+ * (frequencyCountV2). The totals are given only when every day already over was read completely
+ * and nothing is in review; the marks and days are always given.
  */
 export function withLessonDaysV2(
   summary: FrequencySummaryV2,
@@ -336,7 +337,7 @@ export function withLessonDaysV2(
 ): FrequencySummaryV2 {
   const byDay = new Map<
     string,
-    { date: string; shift: string; slots: Set<number>; complete: boolean }
+    { date: string; shift: string; slots: Set<number>; complete: boolean; pending: Set<number> }
   >();
   for (const row of rows) {
     // A tombstone (no slots) only says the record has no lesson that day.
@@ -348,31 +349,38 @@ export function withLessonDaysV2(
       shift,
       slots: new Set<number>(),
       complete: true,
+      pending: new Set<number>(),
     };
     for (const slot of json<number[]>(row.slots_json)) day.slots.add(Number(slot));
+    // A reader before attendance 0029 has no pending_json: nothing is pending.
+    for (const slot of json<number[]>(row.pending_json ?? [])) day.pending.add(Number(slot));
     day.complete &&= truth(row.complete);
     byDay.set(`${date}:${shift}`, day);
   }
   const days = [...byDay.values()]
     .filter((day) => day.slots.size > 0)
     .sort((a, b) => a.date.localeCompare(b.date) || a.shift.localeCompare(b.shift))
-    .map((day) => ({
-      date: day.date,
-      shift: day.shift,
-      slots: [...day.slots].sort((a, b) => a - b),
-      complete: day.complete,
-    }));
+    .map((day) => {
+      const lesson: FrequencyDayV2 = {
+        date: day.date,
+        shift: day.shift,
+        slots: [...day.slots].sort((a, b) => a - b),
+        complete: day.complete,
+      };
+      // Only when there is one: a day without FP stays as before (and as an older Portal reads it).
+      if (day.pending.size) lesson.pending = [...day.pending].sort((a, b) => a - b);
+      return lesson;
+    });
   if (!days.length) return summary;
   const count = frequencyCountV2(
     { marks: summary.marks, conflicts: summary.conflicts, days },
     today,
   );
-  const justified = summary.marks.filter((mark) => mark.mark === 'J' && mark.date < today).length;
   return {
     ...summary,
     days,
     absences: count.reliable ? count.absences : null,
-    justified: count.reliable ? justified : null,
+    justified: count.reliable ? count.justified : null,
     denominator: count.reliable ? count.lessons : null,
     percentage:
       count.reliable && count.lessons
@@ -411,7 +419,7 @@ export type PortalFrequencyYearReadV2 = {
   /** The database's clock at the read (0012), for the countdown. */
   now?: string;
 };
-/** One month of the year's read (today never counts). */
+/** One month of the year's read (frequencyCountV2 says when today counts). */
 function monthOfReadV2(read: PortalFrequencyYearReadV2, key: string): FrequencySummaryV2 {
   const origins = read.origins.filter((row) => text(row.date).startsWith(`${key}-`));
   // A mark under an open conflict is not shown: its day is "leitura incompleta", never "sem falta".
@@ -441,8 +449,8 @@ function monthsSoFarV2(today: string): string[] {
   ).filter((key) => key <= current);
 }
 /**
- * The year so far: every month from January to the current one by the same rule (today
- * excluded); a month with nothing adds nothing, one month not known in full leaves the year
+ * The year so far: every month from January to the current one by the same rule
+ * (frequencyCountV2); a month with nothing adds nothing, one month not known in full leaves the year
  * unknown (null), as does a year with no lesson yet.
  */
 function yearOfMonthsV2(months: readonly FrequencySummaryV2[], today: string) {
@@ -759,6 +767,10 @@ function validateCoverage(input: FrequencyCollectionV2, keys: Set<string>, cutof
     rejectSource(!c.date.startsWith('2026-'), 'coverage-other-year');
     rejectSource(c.date > cutoff, 'coverage-after-capture');
     rejectSource(coverage.has(key), 'coverage-duplicate');
+    rejectSource(
+      (c.pending ?? []).some((slot) => !c.slots.includes(slot)),
+      'coverage-pending-outside-slots',
+    );
     coverage.set(key, c);
   }
   return coverage;
@@ -774,10 +786,10 @@ function validateMarks(
     const key = `${m.recordKey}:${m.date}:${m.slot}`;
     rejectSource(!keys.has(m.recordKey), 'mark-unknown-record');
     rejectSource(marks.has(key), 'mark-duplicate');
-    rejectSource(
-      !coverage.get(`${m.recordKey}:${m.date}`)?.slots.includes(m.slot),
-      'mark-without-coverage',
-    );
+    const day = coverage.get(`${m.recordKey}:${m.date}`);
+    rejectSource(!day?.slots.includes(m.slot), 'mark-without-coverage');
+    // An FP position has no mark yet: an X or a J there is a bad reading.
+    rejectSource(!!day?.pending?.includes(m.slot), 'mark-on-pending');
     rejectSource(!m.date.startsWith('2026-'), 'mark-other-year');
     rejectSource(m.date > cutoff, 'mark-after-capture');
     marks.add(key);
@@ -1041,20 +1053,29 @@ async function coverageDelta(
     // From the class's batches to each one's coverage by its key: the plain join read the whole
     // coverage table (1.6 s on the largest class, inside the school's lock);
     // OFFSET 0 keeps the planner from folding it back into that join. Same rows.
-    `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete FROM attendance.batch_v2 b CROSS JOIN LATERAL (SELECT c.record_key,c.date,c.slots_json,c.complete FROM attendance.coverage_v2 c WHERE c.batch_id=b.id OFFSET 0) c WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
+    `SELECT DISTINCT ON(c.record_key,c.date) c.record_key,c.date::text,c.slots_json,c.complete,c.pending_json FROM attendance.batch_v2 b CROSS JOIN LATERAL (SELECT c.record_key,c.date,c.slots_json,c.complete,c.pending_json FROM attendance.coverage_v2 c WHERE c.batch_id=b.id OFFSET 0) c WHERE b.academic_year=$1 AND b.class_id=$2 ORDER BY c.record_key,c.date,b.received_at DESC,b.id DESC`,
     [input.academicYear, input.classId],
   );
   const previous = new Map(prior.map((c) => [`${text(c.record_key)}:${text(c.date)}`, c]));
-  const delta: { recordKey: string; date: string; slots: number[]; complete: boolean }[] =
-    input.coverage.filter((c) => {
-      const p = previous.get(`${c.recordKey}:${c.date}`);
-      return (
-        changed.has(c.recordKey) ||
-        !p ||
-        truth(p.complete) !== c.complete ||
-        canonicalFrequencyJsonV2(json<number[]>(p.slots_json)) !== canonicalFrequencyJsonV2(c.slots)
-      );
-    });
+  const delta: {
+    recordKey: string;
+    date: string;
+    slots: number[];
+    complete: boolean;
+    pending?: number[];
+  }[] = input.coverage.filter((c) => {
+    const p = previous.get(`${c.recordKey}:${c.date}`);
+    return (
+      changed.has(c.recordKey) ||
+      !p ||
+      truth(p.complete) !== c.complete ||
+      canonicalFrequencyJsonV2(json<number[]>(p.slots_json)) !==
+        canonicalFrequencyJsonV2(c.slots) ||
+      // An FP the teacher marked (or a new FP) changes the day even with the same positions.
+      canonicalFrequencyJsonV2(json<number[]>(p.pending_json ?? [])) !==
+        canonicalFrequencyJsonV2(c.pending ?? [])
+    );
+  });
   const records = new Set(input.records.map((r) => r.recordKey));
   const current = new Set(input.coverage.map((c) => `${c.recordKey}:${c.date}`));
   for (const p of prior) {
@@ -1220,7 +1241,7 @@ async function insertBatchRows(
     [input.requestId, JSON.stringify(rows.sources)],
   );
   await tx.executeNative(
-    `INSERT INTO attendance.coverage_v2 SELECT $1::uuid,x."recordKey",x.date,to_jsonb(x.slots),x.complete FROM jsonb_to_recordset($2::text::jsonb) AS x("recordKey" text,date date,slots smallint[],complete boolean)`,
+    `INSERT INTO attendance.coverage_v2(batch_id,record_key,date,slots_json,complete,pending_json) SELECT $1::uuid,x."recordKey",x.date,to_jsonb(x.slots),x.complete,to_jsonb(coalesce(x.pending,'{}'::smallint[])) FROM jsonb_to_recordset($2::text::jsonb) AS x("recordKey" text,date date,slots smallint[],complete boolean,pending smallint[])`,
     [input.requestId, JSON.stringify(rows.coverage)],
   );
   await tx.executeNative(

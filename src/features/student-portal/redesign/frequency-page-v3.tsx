@@ -63,8 +63,8 @@ import { useDragSwipeV1 } from '../workspace/student-workspace-v1';
  * Data: GET /api/student/frequency?year=2026 (createStudentFrequencyClientV2), the whole year so
  * far in one answer, read with the sign-in and kept (useCachedReadV3), so changing months never
  * waits. The server works out the month's and the year's counts by the same rule (frequencyCountV2:
- * today never counts) and sends the school's today and the class's last reading; the page only
- * draws them. Shown only when the self response says `showFrequency === true`.
+ * today counts once read in full, a lesson still FP in the Smecel is "a confirmar") and sends the
+ * school's today and the class's last reading; the page only draws them. Shown only when the self response says `showFrequency === true`.
  */
 const MONTHS = [
   'Janeiro',
@@ -113,7 +113,21 @@ type DayKindV3 = 'clear' | 'missed';
 /** The calendar's state of a date: a day kind, or a date with nothing to judge yet. */
 type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'holiday' | 'unknown' | 'future';
 type MarkV3 = FrequencySummaryV2['marks'][number];
-type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean };
+/** `pending`: the positions still FP in the Smecel (the teacher has not marked them yet). */
+type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean; pending: number[] };
+/**
+ * A day whose shifts were read in full and have no lesson still FP: nothing more will come. Since
+ * the Smecel's FP (18/11/2026) the teacher marks presence and absence during the lesson, so such a
+ * day is final at once, today included.
+ */
+const settledV3 = (lessons: readonly ShiftLessonsV3[]) =>
+  lessons.every((item) => item.complete && item.pending.length === 0);
+/** The same shift of a day read twice (two records): every position and every FP of both. */
+function mergeShiftV3(same: ShiftLessonsV3, day: NonNullable<FrequencySummaryV2['days']>[number]) {
+  same.slots = [...new Set([...same.slots, ...day.slots])].sort((a, b) => a - b);
+  same.pending = [...new Set([...same.pending, ...(day.pending ?? [])])].sort((a, b) => a - b);
+  same.complete &&= day.complete;
+}
 /** `share`: lessons with an absence ÷ lessons of the day, drawn as the tile's tone. */
 type DayV3 = {
   kind: DayKindV3;
@@ -283,8 +297,8 @@ type RingTotalsV3 = {
   justified: number;
 };
 /**
- * The school days already over and read in full, by kind (today never counts), over the lesson
- * days and marks given: the whole year so far for the ring, so it matches the ruler.
+ * The school days already settled (read in full, no lesson still FP; today once it is), by kind,
+ * over the lesson days and marks given: the whole year so far for the ring, so it matches the ruler.
  */
 function ringTotalsOf(
   days: readonly NonNullable<FrequencySummaryV2['days']>[number][],
@@ -295,16 +309,20 @@ function ringTotalsOf(
   for (const day of days) {
     const list = lessonsByDay.get(day.date) ?? [];
     const same = list.find((item) => item.shift === day.shift);
-    if (same) {
-      same.slots = [...new Set([...same.slots, ...day.slots])];
-      same.complete &&= day.complete;
-    } else list.push({ shift: day.shift, slots: [...day.slots], complete: day.complete });
+    if (same) mergeShiftV3(same, day);
+    else
+      list.push({
+        shift: day.shift,
+        slots: [...day.slots],
+        complete: day.complete,
+        pending: [...(day.pending ?? [])],
+      });
     lessonsByDay.set(day.date, list);
   }
   const marksByDay = new Map<string, MarkV3[]>();
   for (const mark of marks) marksByDay.set(mark.date, [...(marksByDay.get(mark.date) ?? []), mark]);
   const counted = [...lessonsByDay.entries()]
-    .filter(([date, lessons]) => date < today && lessons.every((item) => item.complete))
+    .filter(([date, lessons]) => date <= today && settledV3(lessons))
     .map(([date, lessons]) => dayOf(lessons, marksByDay.get(date) ?? []));
   return {
     days: counted.length,
@@ -885,19 +903,19 @@ function MonthHeadV3({
   );
 }
 
-/** Why an open day does not count yet: today, or a reading not complete. */
-function OpenDayNoteV3({ isToday }: Readonly<{ isToday: boolean }>) {
+/** Why an open day does not count in full yet: a lesson still FP, or a reading not complete. */
+function OpenDayNoteV3({ incomplete }: Readonly<{ incomplete: boolean }>) {
   return (
     <Chip size="sm" variant="soft" color="warning" className="pa3-today-note">
-      {/* The teacher marks an absence during the lesson; a presence is only confirmed the next day. */}
-      {isToday
-        ? 'Falta aparece na hora · presença confirma amanhã'
-        : 'Leitura incompleta · conta quando o diário for lido'}
+      {/* The teacher marks presence and absence during the lesson; an FP is a lesson not marked yet. */}
+      {incomplete
+        ? 'Leitura incompleta · conta quando o diário for lido'
+        : 'Aula a confirmar · conta quando o professor marcar'}
     </Chip>
   );
 }
 
-/** Today, or in a reading not complete, a lesson without a mark is still to be confirmed. */
+/** A lesson still FP, or in a reading not complete, without a mark is still to be confirmed. */
 function lessonStateV3(mark: string | undefined, open: boolean): LessonStateV3 {
   if (mark === 'X') return 'absent';
   if (mark === 'J') return 'justified';
@@ -917,14 +935,13 @@ function useMonthDaysV3(
     for (const day of data.days ?? []) {
       const list = map.get(day.date) ?? [];
       const same = list.find((item) => item.shift === day.shift);
-      if (same) {
-        same.slots = [...new Set([...same.slots, ...day.slots])].sort((a, b) => a - b);
-        same.complete &&= day.complete;
-      } else
+      if (same) mergeShiftV3(same, day);
+      else
         list.push({
           shift: day.shift,
           slots: [...day.slots].sort((a, b) => a - b),
           complete: day.complete,
+          pending: [...(day.pending ?? [])].sort((a, b) => a - b),
         });
       map.set(day.date, list);
     }
@@ -955,6 +972,7 @@ function useMonthDaysV3(
         .map((mark) => mark.slot)
         .sort((a, b) => a - b),
       complete: false,
+      pending: [],
     }));
   };
   const dayAt = (date: string) => {
@@ -977,9 +995,10 @@ function useMonthDaysV3(
     // colour would be worked out on part of its lessons, and the ring does not count it yet.
     if (date < today && !lessons.every((item) => item.complete)) return 'pending';
     const day = dayOf(lessons, marksByDay.get(date) ?? []);
-    // Today with an absence keeps its colour; without, it is still open.
+    // A day with an absence keeps its colour, even with lessons still to be marked.
     if (day.kind !== 'clear') return day.kind;
-    return date < today ? 'clear' : 'pending';
+    // Without one, a lesson still FP (or today not read in full yet) keeps the day open.
+    return settledV3(lessons) ? 'clear' : 'pending';
   };
   return { lessonsAt, marksByDay, dayAt, stateOf };
 }
@@ -1018,18 +1037,19 @@ function MonthPageV3({
   onPick: (date: string) => void;
   calendar?: Ref<HTMLFieldSetElement>;
 }>) {
-  const { dayAt, stateOf } = days;
+  const { dayAt, lessonsAt, stateOf } = days;
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const firstWeekday = new Date(Date.UTC(year, monthNumber - 1, 1)).getUTCDay();
   const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const ariaOf = (date: string, state: DayStateV3) => {
     const day = dayAt(date);
     const isDay = date === today;
-    const todayNote = isDay ? ' (hoje: falta aparece na hora, presença confirma amanhã)' : '';
+    const lessons = lessonsAt(date) ?? [];
+    const todayNote = isDay ? ' (hoje)' : '';
     const text: Record<DayStateV3, string> = {
       clear: 'nenhuma falta registrada',
-      missed: day ? daySentence(day, isDay) : '',
-      pending: isDay ? 'aulas a confirmar' : 'leitura incompleta',
+      missed: day ? daySentence(day, !settledV3(lessons)) : '',
+      pending: lessons.every((item) => item.complete) ? 'aulas a confirmar' : 'leitura incompleta',
       off: 'sem aula',
       holiday: offByDate.has(date)
         ? `sem aula, ${schoolDayOffLabelV1(offByDate.get(date)!)}`
@@ -1291,9 +1311,8 @@ function FrequencyMonthV3({
     offByDate,
     selected,
   );
-  const isToday = selected === today;
-  // Today, or a past day not read in full: more marks may still come, so nothing is final yet.
-  const isOpen = isToday || !selectedLessons.every((group) => group.complete);
+  // A lesson still FP, or a day not read in full: more marks may still come, so nothing is final.
+  const isOpen = !settledV3(selectedLessons);
 
   return (
     <>
@@ -1365,8 +1384,10 @@ function FrequencyMonthV3({
       {selected && selectedDay ? (
         <Card className="pa3-card pa3-day-detail" aria-live="polite">
           <Card.Title className="pa3-day-detail-title">{dayTitle(selected, today)}</Card.Title>
-          {/* Today is always open; a past day is open while its reading is incomplete. */}
-          {isOpen ? <OpenDayNoteV3 isToday={isToday} /> : null}
+          {/* A day is open while a lesson is still FP or its reading is incomplete. */}
+          {isOpen ? (
+            <OpenDayNoteV3 incomplete={!selectedLessons.every((group) => group.complete)} />
+          ) : null}
           <p className="pa3-day-detail-sub">{daySentence(selectedDay, isOpen)}</p>
           {selectedLessons.map((group) => {
             const label = shiftLabel(group.shift);
@@ -1378,7 +1399,10 @@ function FrequencyMonthV3({
                 <ol className="pa3-lessons" data-count={group.slots.length}>
                   {group.slots.map((slot) => {
                     const mark = markAt.get(lessonKey(group.shift, slot));
-                    const state = lessonStateV3(mark?.mark, isToday || !group.complete);
+                    const state = lessonStateV3(
+                      mark?.mark,
+                      !group.complete || group.pending.includes(slot),
+                    );
                     // Its time and subject inside the tile, when known.
                     const info = lessonInfo(selected, group.shift, slot);
                     return (
