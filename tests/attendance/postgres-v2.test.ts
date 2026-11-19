@@ -285,6 +285,68 @@ describe('frequency V2 private PostgreSQL service', () => {
       days: [{ date: '2026-01-05', shift: 'MATUTINO', slots: [1, 2, 3, 4, 5, 6], complete: true }],
     });
   });
+  it('an FP (Smecel, 18/11/2026) is stored; once its day is over it is a lesson without absence', async () => {
+    // Six lessons, an X in the first, the last two still FP (dismissed after the 4th lesson).
+    await service.execute(
+      collection({
+        coverage: [
+          {
+            recordKey: 'r1',
+            date: '2026-01-05',
+            slots: [1, 2, 3, 4, 5, 6],
+            complete: true,
+            pending: [5, 6],
+          },
+        ],
+      }),
+      actor,
+    );
+    const stored = async () =>
+      (
+        await pg.query<{ pending_json: number[] }>(
+          `SELECT c.pending_json FROM attendance.coverage_v2 c JOIN attendance.batch_v2 b ON b.id=c.batch_id ORDER BY b.received_at DESC,b.id DESC LIMIT 1`,
+        )
+      ).rows[0]?.pending_json;
+    expect(await stored()).toEqual([5, 6]);
+    // 05/01 is over (owner decision 19/11/2026): 1 absence in 6 lessons, as before the FP.
+    const summarized = await summary();
+    expect(summarized).toMatchObject({
+      coverage: 'reliable',
+      absences: 1,
+      justified: 0,
+      denominator: 6,
+      percentage: 83.3,
+      days: [{ date: '2026-01-05', shift: 'MATUTINO', slots: [1, 2, 3, 4, 5, 6], complete: true }],
+    });
+    expect(summarized.days?.[0]).not.toHaveProperty('pending');
+    // The teacher marks them later (same positions, nothing pending): the day is stored again.
+    await service.execute(
+      collection({ sourceVersion: `sha256:${'b'.repeat(64)}`, expectedRevision: 1 }),
+      actor,
+    );
+    expect(await stored()).toEqual([]);
+    expect(await summary()).toMatchObject({
+      coverage: 'reliable',
+      denominator: 6,
+      percentage: 83.3,
+    });
+  });
+  it("rejects an FP outside the day's lessons and a mark on an FP lesson", async () => {
+    for (const input of [
+      collection({
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2], complete: true, pending: [3] },
+        ],
+        marks: [],
+      }),
+      collection({
+        coverage: [
+          { recordKey: 'r1', date: '2026-01-05', slots: [1, 2, 3], complete: true, pending: [1] },
+        ],
+      }),
+    ])
+      await expect(service.execute(input, actor)).rejects.toMatchObject({ code: 'source-invalid' });
+  });
   it('keeps sparse marks partial; a partial day never becomes presence or consolidated totals', async () => {
     const r = await service.execute(
       collection({

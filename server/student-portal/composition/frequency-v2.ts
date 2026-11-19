@@ -74,6 +74,8 @@ const daysSchema = z
         shift: z.string().max(80),
         slots_json: z.array(z.number().int().min(1).max(6)).max(6),
         complete: z.boolean(),
+        // The FP positions (attendance 0030); a reader before it does not send them.
+        pending_json: z.array(z.number().int().min(1).max(6)).max(6).optional(),
       })
       .strict(),
   )
