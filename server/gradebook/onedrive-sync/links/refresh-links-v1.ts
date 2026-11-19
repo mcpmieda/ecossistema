@@ -10,6 +10,7 @@ import {
   type LinkCellV1,
   type LinkValueV1,
 } from './external-link-cache-v1';
+import { cellKeyV1, MAX_COLUMNS_V1, readLinkUseV1, type SheetUseV1 } from './formula-references-v1';
 import type { SourceValuesV1 } from './source-values-v1';
 import {
   readZipEntryV1,
@@ -189,6 +190,54 @@ export function missingLinkCellsV1(
   return additions;
 }
 
+/** Areas larger than this are left to the column holes (a whole column is not walked). */
+const MAX_AREA_CELLS_V1 = 20_000;
+
+/**
+ * Cells the destination's formulas use that the cache does not hold and the source now has: Excel
+ * leaves out a used cell that was empty at its last update (a student added at the end of a list,
+ * a column of a term not started).
+ */
+export function usedLinkCellsV1(
+  cells: readonly LinkCellV1[],
+  use: ReadonlyMap<string, SheetUseV1> | undefined,
+  values: SourceValuesV1,
+): LinkAdditionsV1 {
+  const additions = new Map<string, Array<{ row: number; col: number; value: LinkValueV1 }>>();
+  if (!use) return additions;
+  const cached = new Map<string, Set<number>>();
+  for (const cell of cells) {
+    const keys = cached.get(cell.sheet) ?? new Set<number>();
+    keys.add(cellKeyV1(cell.row, cell.col));
+    cached.set(cell.sheet, keys);
+  }
+  for (const [sheet, used] of use) {
+    const have = cached.get(sheet) ?? new Set<number>();
+    const list: Array<{ row: number; col: number; value: LinkValueV1 }> = [];
+    const take = (row: number, col: number) => {
+      const key = cellKeyV1(row, col);
+      if (have.has(key)) return;
+      have.add(key);
+      const value = values.valueAt(sheet, row, col);
+      if (value && value.kind !== 'blank') list.push({ row, col, value });
+    };
+    for (const key of used.cells) take(Math.floor(key / MAX_COLUMNS_V1), key % MAX_COLUMNS_V1);
+    for (const area of used.areas.values())
+      if ((area.r2 - area.r1 + 1) * (area.c2 - area.c1 + 1) <= MAX_AREA_CELLS_V1)
+        for (let row = area.r1; row <= area.r2; row++)
+          for (let col = area.c1; col <= area.c2; col++) take(row, col);
+    if (list.length > 0) additions.set(sheet, list);
+  }
+  return additions;
+}
+
+/** Both kinds of new cells; a cell found twice is put in once by the rewrite. */
+function mergeAdditionsV1(first: LinkAdditionsV1, second: LinkAdditionsV1): LinkAdditionsV1 {
+  const merged = new Map(first);
+  for (const [sheet, list] of second) merged.set(sheet, [...(merged.get(sheet) ?? []), ...list]);
+  return merged;
+}
+
 /**
  * One destination: refresh every link cache it holds from the sources' saved values, exactly as
  * Excel's "update links" with the sources closed, and ask Excel to recalculate when the file is
@@ -208,20 +257,33 @@ export async function refreshDestinationLinksV1(input: {
   const { pkg, format, links } = await readDestinationLinksV1(input.bytes);
   if (!format || links.length === 0)
     return { outcome: 'no-links', bytes: null, changedCells: 0, parts: [] };
+  // What the formulas use: a used cell empty at the last update is not in the cache.
+  const use = await readLinkUseV1(
+    pkg,
+    format,
+    new Map(links.map((link) => [link.part, link.cache.sheetNames])),
+  ).catch(() => null);
   const replacements = new Map<string, Uint8Array>();
   const parts: RefreshOutcomeV1['parts'][number][] = [];
   let changedCells = 0;
   for (const link of links) {
     const candidates = input.resolve(link);
     const source = candidates[0] ?? null;
-    const sheets = [...new Set(link.cache.cells.map((cell) => cell.sheet))];
+    const partUse = use?.byPart.get(link.part);
+    const sheets = [
+      ...new Set([...link.cache.cells.map((cell) => cell.sheet), ...(partUse?.keys() ?? [])]),
+    ];
     const values = source && sheets.length > 0 ? await input.loadSource(candidates, sheets) : null;
     if (!source || sheets.length === 0 || values === 'skip' || values === null) {
       const status = unreadStatusV1(source, sheets.length, values);
       parts.push({ part: link.part, source, status, changed: 0 });
       continue;
     }
-    const refreshed = await refreshLinkPartV1(pkg, format, link, values);
+    const additions = mergeAdditionsV1(
+      usedLinkCellsV1(link.cache.cells, partUse, values),
+      missingLinkCellsV1(link.cache.cells, values),
+    );
+    const refreshed = await refreshLinkPartV1(pkg, format, link, values, additions);
     if (refreshed.bytes) replacements.set(link.part, refreshed.bytes);
     changedCells += refreshed.changed;
     parts.push({ part: link.part, source, status: refreshed.status, changed: refreshed.changed });
@@ -254,6 +316,7 @@ async function refreshLinkPartV1(
   format: 'xlsb' | 'xlsx',
   link: LinkPartV1,
   values: SourceValuesV1,
+  additions: LinkAdditionsV1,
 ): Promise<{ status: LinkPartStatusV1; changed: number; bytes: Uint8Array | null }> {
   let missingSheet = false;
   const lookup = (cell: { sheet: string; row: number; col: number }) => {
@@ -263,7 +326,6 @@ async function refreshLinkPartV1(
   };
   const content = await readZipEntryV1(pkg, link.part);
   if (!content) return { status: 'same', changed: 0, bytes: null };
-  const additions = missingLinkCellsV1(link.cache.cells, values);
   let rewritten: { bytes: Uint8Array; changed: number };
   if (format === 'xlsb' && link.part.endsWith('.bin'))
     rewritten = rewriteXlsbLinkCacheV1(content, lookup, additions);
