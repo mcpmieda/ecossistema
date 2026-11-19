@@ -25,6 +25,27 @@ function addressV1(key: string): { row: number; col: number } | null {
   return { row: Number(match[2]) - 1, col: col - 1 };
 }
 
+function cellPositionsV1(sheet: Worksheet): { row: number; col: number }[] {
+  const cells: { row: number; col: number }[] = [];
+  for (const key of Object.keys(sheet)) {
+    const at = addressV1(key);
+    if (at) cells.push(at);
+  }
+  return cells.sort((a, b) => a.row - b.row || a.col - b.col);
+}
+
+/** The first cell at or after `row` (binary search on cells sorted by row). */
+function firstRowAtV1(cells: readonly { row: number }[], row: number): number {
+  let low = 0;
+  let high = cells.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (cells[middle]!.row < row) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
 export function columnLettersV1(col: number): string {
   let letters = '';
   for (let n = col + 1; n > 0; n = Math.floor((n - 1) / 26))
@@ -84,6 +105,8 @@ export function readSourceValuesV1(
   const byLowerName = new Map(
     Object.keys(workbook.Sheets).map((name) => [name.toLocaleLowerCase('pt-BR'), name]),
   );
+  /** The cells each sheet holds, by row, read once (a large area is walked through these). */
+  const positions = new Map<Worksheet, { row: number; col: number }[]>();
   const worksheetOf = (sheet: string) => {
     const name =
       sheet in workbook.Sheets ? sheet : byLowerName.get(sheet.toLocaleLowerCase('pt-BR'));
@@ -96,13 +119,20 @@ export function readSourceValuesV1(
       return worksheet ? cellValueV1(worksheet, row, col) : undefined;
     },
     cellsIn: (sheet, area) => {
-      const cells: { row: number; col: number }[] = [];
-      for (const key of Object.keys(worksheetOf(sheet) ?? {})) {
-        const at = addressV1(key);
-        if (at && at.row >= area.r1 && at.row <= area.r2 && at.col >= area.c1 && at.col <= area.c2)
-          cells.push(at);
+      const worksheet = worksheetOf(sheet);
+      if (!worksheet) return [];
+      let cells = positions.get(worksheet);
+      if (!cells) {
+        cells = cellPositionsV1(worksheet);
+        positions.set(worksheet, cells);
       }
-      return cells;
+      const out: { row: number; col: number }[] = [];
+      for (let at = firstRowAtV1(cells, area.r1); at < cells.length; at++) {
+        const cell = cells[at]!;
+        if (cell.row > area.r2) break;
+        if (cell.col >= area.c1 && cell.col <= area.c2) out.push(cell);
+      }
+      return out;
     },
   };
 }

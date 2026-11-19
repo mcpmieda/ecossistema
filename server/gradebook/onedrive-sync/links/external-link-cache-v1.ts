@@ -660,7 +660,39 @@ function sheetOfReferenceV1(text: string): string {
     : text;
 }
 
-const A1_CELL_V1 = /^\$?([A-Z]{1,3})\$?(\d+)$/u;
+/** One side of a reference: "$J$3", "$J" (a whole column) or "$3" (a whole row). */
+const A1_SIDE_V1 = /^\$?([A-Z]{1,3})?\$?(\d+)?$/u;
+const LAST_ROW_V1 = 1_048_575;
+const LAST_COLUMN_V1 = 16_383;
+
+function a1SideV1(text: string | undefined): { row: number | null; col: number | null } | null {
+  const match = A1_SIDE_V1.exec(text ?? '');
+  if (!match || (!match[1] && !match[2])) return null;
+  return {
+    col: match[1] ? parseA1V1(`${match[1]}1`).col : null,
+    row: match[2] ? Number(match[2]) - 1 : null,
+  };
+}
+
+/** "B2", "B2:C9", "J:J" or "3:5" → the area; null for anything else. */
+function a1AreaV1(text: string): LinkAreaV1 | null {
+  const [first, last, ...rest] = text.split(':');
+  const start = a1SideV1(first);
+  const end = last === undefined ? start : a1SideV1(last);
+  if (!start || !end || rest.length > 0) return null;
+  // A single cell needs both parts; whole rows or columns leave the same part out on both sides.
+  if (last === undefined && (start.row === null || start.col === null)) return null;
+  if ((start.row === null) !== (end.row === null) || (start.col === null) !== (end.col === null))
+    return null;
+  const rows = [start.row ?? 0, end.row ?? LAST_ROW_V1];
+  const cols = [start.col ?? 0, end.col ?? LAST_COLUMN_V1];
+  return {
+    r1: Math.min(...rows),
+    r2: Math.max(...rows),
+    c1: Math.min(...cols),
+    c2: Math.max(...cols),
+  };
+}
 
 function xlsxNameTargetV1(
   refersTo: string | null,
@@ -671,21 +703,8 @@ function xlsxNameTargetV1(
   if (bang <= 0) return null;
   const wanted = sheetOfReferenceV1(text.slice(0, bang)).toLocaleLowerCase('pt-BR');
   const sheet = sheetNames.find((name) => name.toLocaleLowerCase('pt-BR') === wanted);
-  const [first, last, ...rest] = text.slice(bang + 1).split(':');
-  const a = A1_CELL_V1.exec(first ?? '');
-  const b = last === undefined ? a : A1_CELL_V1.exec(last);
-  if (sheet === undefined || !a || !b || rest.length > 0) return null;
-  const start = parseA1V1(`${a[1]}${a[2]}`);
-  const end = parseA1V1(`${b[1]}${b[2]}`);
-  return {
-    sheet,
-    area: {
-      r1: Math.min(start.row, end.row),
-      r2: Math.max(start.row, end.row),
-      c1: Math.min(start.col, end.col),
-      c2: Math.max(start.col, end.col),
-    },
-  };
+  const area = a1AreaV1(text.slice(bang + 1));
+  return sheet === undefined || !area ? null : { sheet, area };
 }
 
 function xlsxHeaderV1(xml: string) {

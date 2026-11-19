@@ -409,7 +409,8 @@ function collectXlsxV1(
   }
 }
 
-const CELL_V1 = /<c\b([^>]*)>([\s\S]*?)<\/c>/gu;
+/** A cell, with its content; an empty one written as `<c r="A2" s="1"/>` has none. */
+const CELL_V1 = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/gu;
 const FORMULA_V1 = /<f\b([^>]*?)(?:\/>|>([\s\S]*?)<\/f>)/u;
 
 function cellPositionV1(ref: string | null): { row: number; col: number } | null {
@@ -424,7 +425,7 @@ function collectXlsxSheetV1(
 ): void {
   const shared: SharedFormulasV1 = new Map();
   for (const cell of xml.matchAll(CELL_V1)) {
-    const formula = FORMULA_V1.exec(cell[2]!);
+    const formula = cell[2] === undefined ? null : FORMULA_V1.exec(cell[2]);
     if (!formula) continue;
     const text = formula[2] === undefined ? '' : decodeXmlTextV1(formula[2]);
     const moved = sharedFormulaV1(shared, formula[1]!, cell[1]!, text);

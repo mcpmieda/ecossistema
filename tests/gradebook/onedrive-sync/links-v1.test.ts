@@ -35,8 +35,10 @@ import {
   type LinkFileV1,
 } from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
 import {
+  joinedAreasV1,
   linkUseWithNamesV1,
   MAX_NEW_CELLS_PER_LINK_V1,
+  mergeAdditionsV1,
   missingLinkCellsV1,
   readDestinationLinksV1,
   refreshDestinationLinksV1,
@@ -60,6 +62,7 @@ import {
   readZipPackageV1,
   rewriteZipPackageV1,
 } from '../../../server/gradebook/onedrive-sync/links/zip-package-v1';
+import { readLinkUseV1 } from '../../../server/gradebook/onedrive-sync/links/formula-references-v1';
 import { loadRealSheetJsV1 } from '../fixtures/sheetjs-real-v1';
 
 /* ------------------------------------------------------------------ synthetic packages */
@@ -815,6 +818,100 @@ describe('used cells the cache lacks (#1541)', () => {
       ['A', 0, 0],
       ['B', 1, 1],
       ['C', 0, 2],
+    ]);
+  });
+
+  it('.xlsx names: a whole column or whole rows; a half reference is unknown', () => {
+    const xml =
+      '<externalLink><externalBook r:id="rId1"><sheetNames><sheetName val="RELAÇÃO"/>' +
+      '</sheetNames><definedNames>' +
+      '<definedName name="COLUNA" refersTo="=RELAÇÃO!$J:$J"/>' +
+      '<definedName name="LINHAS" refersTo="=RELAÇÃO!$3:$5"/>' +
+      '<definedName name="METADE" refersTo="=RELAÇÃO!$J"/>' +
+      '</definedNames></externalBook></externalLink>';
+    expect(readXlsxLinkCacheV1(xml).names).toEqual([
+      { name: 'COLUNA', sheet: 'RELAÇÃO', area: { r1: 0, r2: 1_048_575, c1: 9, c2: 9 } },
+      { name: 'LINHAS', sheet: 'RELAÇÃO', area: { r1: 2, r2: 4, c1: 0, c2: 16_383 } },
+      { name: 'METADE', sheet: null, area: null },
+    ]);
+  });
+
+  it('a PROCV filled down (one area per row) is walked once, not once per row', () => {
+    const areas = new Map<string, { r1: number; r2: number; c1: number; c2: number }>();
+    for (let row = 1; row <= 2000; row++)
+      areas.set(String(row), { r1: row, r2: row + 999, c1: 0, c2: 25 });
+    expect(joinedAreasV1(areas.values())).toEqual([{ r1: 1, r2: 2999, c1: 0, c2: 25 }]);
+    // Other columns, or rows apart, stay as they are.
+    expect(
+      joinedAreasV1([
+        { r1: 0, r2: 4, c1: 0, c2: 0 },
+        { r1: 5, r2: 9, c1: 0, c2: 0 },
+        { r1: 20, r2: 29, c1: 0, c2: 0 },
+        { r1: 0, r2: 9, c1: 1, c2: 1 },
+      ]),
+    ).toEqual([
+      { r1: 0, r2: 9, c1: 0, c2: 0 },
+      { r1: 20, r2: 29, c1: 0, c2: 0 },
+      { r1: 0, r2: 9, c1: 1, c2: 1 },
+    ]);
+    const base = sourceValues({ 'Dados!3001,0': num(1), 'Dados!2999,25': num(2) }, ['Dados']);
+    const cellsIn = vi.fn(base.cellsIn);
+    const added = usedLinkCellsV1([], new Map([['Dados', { cells: new Set<number>(), areas }]]), {
+      ...base,
+      cellsIn,
+    });
+    expect(cellsIn).toHaveBeenCalledTimes(1);
+    expect(added.get('Dados')).toEqual([{ row: 2999, col: 25, value: num(2) }]);
+  });
+
+  it('a cell found as used and as a hole counts once', () => {
+    const one = new Map([['Dados', [{ row: 1, col: 0, value: num(6) }]]]);
+    const both = mergeAdditionsV1(
+      one,
+      new Map([
+        [
+          'Dados',
+          [
+            { row: 1, col: 0, value: num(6) },
+            { row: 2, col: 0, value: num(7) },
+          ],
+        ],
+      ]),
+    );
+    expect(both.get('Dados')).toEqual([
+      { row: 1, col: 0, value: num(6) },
+      { row: 2, col: 0, value: num(7) },
+    ]);
+  });
+
+  it('.xlsx formulas: an empty cell written as <c/> does not move the next shared formula', async () => {
+    const encoder = new TextEncoder();
+    const zip = storedZip({
+      'xl/workbook.xml': encoder.encode(
+        '<workbook><sheets><sheet name="Notas" r:id="rId1"/></sheets>' +
+          '<externalReferences><externalReference r:id="rId3"/></externalReferences></workbook>',
+      ),
+      'xl/_rels/workbook.xml.rels': encoder.encode(
+        '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/>' +
+          '<Relationship Id="rId3" Target="externalLinks/externalLink1.xml"/></Relationships>',
+      ),
+      'xl/worksheets/sheet1.xml': encoder.encode(
+        '<worksheet><sheetData><row r="2"><c r="A2" s="1"/>' +
+          '<c r="B2"><f t="shared" ref="B2:B4" si="0">[1]Dados!C2</f><v>1</v></c></row>' +
+          '<row r="3"><c r="A3" s="1"/><c r="B3"><f t="shared" si="0"/><v>2</v></c></row>' +
+          '<row r="4"><c r="B4"><f t="shared" si="0"/><v>3</v></c></row></sheetData></worksheet>',
+      ),
+    });
+    const use = await readLinkUseV1(
+      readZipPackageV1(zip),
+      'xlsx',
+      new Map([['xl/externalLinks/externalLink1.xml', ['Dados']]]),
+    );
+    const cells = [...use.byPart.get('xl/externalLinks/externalLink1.xml')!.get('Dados')!.cells];
+    expect(cells.map((key) => [Math.floor(key / 16_384), key % 16_384])).toEqual([
+      [1, 2],
+      [2, 2],
+      [3, 2],
     ]);
   });
 

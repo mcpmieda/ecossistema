@@ -15,6 +15,7 @@ import {
   cellKeyV1,
   MAX_COLUMNS_V1,
   readLinkUseV1,
+  type CellAreaV1,
   type LinkUseV1,
   type SheetUseV1,
 } from './formula-references-v1';
@@ -268,7 +269,11 @@ function cachedKeysV1(cells: readonly LinkCellV1[]): Map<string, Set<number>> {
   return cached;
 }
 
-/** Every cell one sheet's use points to; a large area only through the cells the source has. */
+/**
+ * Every cell one sheet's use points to. Areas with the same columns are joined first (a PROCV
+ * filled down gives one area per row, all overlapping), so each cell is visited once; a large one
+ * only through the cells the source has.
+ */
 function* usedPositionsV1(
   sheet: string,
   used: SheetUseV1,
@@ -276,7 +281,7 @@ function* usedPositionsV1(
 ): Generator<{ row: number; col: number }> {
   for (const key of used.cells)
     yield { row: Math.floor(key / MAX_COLUMNS_V1), col: key % MAX_COLUMNS_V1 };
-  for (const area of used.areas.values()) {
+  for (const area of joinedAreasV1(used.areas.values())) {
     if ((area.r2 - area.r1 + 1) * (area.c2 - area.c1 + 1) > MAX_AREA_CELLS_V1) {
       yield* values.cellsIn(sheet, area);
       continue;
@@ -284,6 +289,31 @@ function* usedPositionsV1(
     for (let row = area.r1; row <= area.r2; row++)
       for (let col = area.c1; col <= area.c2; col++) yield { row, col };
   }
+}
+
+/** Areas of the same columns whose rows overlap or touch, joined into one (nothing else changes). */
+export function joinedAreasV1(areas: Iterable<CellAreaV1>): CellAreaV1[] {
+  const byColumns = new Map<string, CellAreaV1[]>();
+  for (const area of areas) {
+    const key = `${area.c1}:${area.c2}`;
+    const list = byColumns.get(key) ?? [];
+    list.push(area);
+    byColumns.set(key, list);
+  }
+  const joined: CellAreaV1[] = [];
+  for (const list of byColumns.values()) {
+    list.sort((a, b) => a.r1 - b.r1);
+    let current = { ...list[0]! };
+    for (const area of list.slice(1)) {
+      if (area.r1 <= current.r2 + 1) current.r2 = Math.max(current.r2, area.r2);
+      else {
+        joined.push(current);
+        current = { ...area };
+      }
+    }
+    joined.push(current);
+  }
+  return joined;
 }
 
 /**
@@ -314,10 +344,15 @@ function additionCountV1(additions: LinkAdditionsV1): number {
   return count;
 }
 
-/** Both kinds of new cells; a cell found twice is put in once by the rewrite. */
-function mergeAdditionsV1(first: LinkAdditionsV1, second: LinkAdditionsV1): LinkAdditionsV1 {
+/** Both kinds of new cells, each cell once (so the limit counts real cells). */
+export function mergeAdditionsV1(first: LinkAdditionsV1, second: LinkAdditionsV1): LinkAdditionsV1 {
   const merged = new Map(first);
-  for (const [sheet, list] of second) merged.set(sheet, [...(merged.get(sheet) ?? []), ...list]);
+  for (const [sheet, list] of second) {
+    const current = merged.get(sheet) ?? [];
+    const have = new Set(current.map((cell) => cellKeyV1(cell.row, cell.col)));
+    const extra = list.filter((cell) => !have.has(cellKeyV1(cell.row, cell.col)));
+    if (extra.length > 0) merged.set(sheet, [...current, ...extra]);
+  }
   return merged;
 }
 
