@@ -64,7 +64,8 @@ import { useDragSwipeV1 } from '../workspace/student-workspace-v1';
  * far in one answer, read with the sign-in and kept (useCachedReadV3), so changing months never
  * waits. The server works out the month's and the year's counts by the same rule (frequencyCountV2:
  * today counts once read in full, a lesson still FP in the Smecel is "a confirmar") and sends the
- * school's today and the class's last reading; the page only draws them. Shown only when the self response says `showFrequency === true`.
+ * school's today and the class's last reading; the page only draws them. Shown only when the self
+ * response says `showFrequency === true`.
  */
 const MONTHS = [
   'Janeiro',
