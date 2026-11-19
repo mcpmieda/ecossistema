@@ -15,6 +15,7 @@ const slots = z
   .min(1)
   .max(6)
   .refine((v) => new Set(v).size === v.length);
+const optionalSlots = slots.optional();
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
 const profileText = z.string().min(1).max(300).nullable();
 const profileDigits = (shape: RegExp) => z.string().regex(shape).nullable();
@@ -334,8 +335,24 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
       observedAt,
       rosterComplete: z.boolean(),
       records,
+      /**
+       * `pending`: the day's positions the Smecel shows as FP ("frequência pendente", since
+       * 18/11/2026: the teacher has not marked presence or absence yet), a part of `slots`. Sent
+       * only when there is one. On the day itself they are "a confirmar"; once it is over, a
+       * lesson without absence (pendingTodayV2).
+       */
       coverage: z
-        .array(z.object({ recordKey, date: civilDate, slots, complete: z.boolean() }).strict())
+        .array(
+          z
+            .object({
+              recordKey,
+              date: civilDate,
+              slots,
+              complete: z.boolean(),
+              pending: optionalSlots,
+            })
+            .strict(),
+        )
         .max(24_000),
       marks: z
         .array(z.object({ recordKey, date: civilDate, slot, mark: z.enum(['X', 'J']) }).strict())
@@ -611,9 +628,16 @@ export type FrequencyFailureEntryV2 = {
  * One school day of the student in the Smecel diary: the lesson positions that existed that day
  * (a point, an X or a justified mark), so 5- or 6-lesson days, weekends,
  * holidays and days outside the enrolment need no configuration. `complete`: the collector read
- * every position of the day.
+ * every position of the day. `pending`: positions still FP in the Smecel (the teacher has not marked
+ * them yet), "a confirmar" on the day itself (pendingTodayV2); absent when there is none.
  */
-export type FrequencyDayV2 = { date: string; shift: string; slots: number[]; complete: boolean };
+export type FrequencyDayV2 = {
+  date: string;
+  shift: string;
+  slots: number[];
+  complete: boolean;
+  pending?: number[];
+};
 export type FrequencySummaryV2 = {
   contractVersion: 2;
   state: 'ready';
@@ -629,9 +653,9 @@ export type FrequencySummaryV2 = {
   conflicts: number;
   /** Lesson days of the month; absent from a server before the Smecel lesson days. */
   days?: FrequencyDayV2[];
-  /** The school's date (attendance 0012): today never counts and the page marks it "HOJE". */
+  /** The school's date (attendance 0012): the page marks it "HOJE" (frequencyCountV2 says when it counts). */
   today?: string;
-  /** Lessons and absences of the year so far, today excluded; null while any month is unknown. */
+  /** Lessons and absences of the year so far (frequencyCountV2); null while any month is unknown. */
   year?: { lessons: number; absences: number } | null;
   /** The last reading of the diary of the student's class(es), for "Atualizado em". */
   lastReadAt?: string | null;
@@ -685,31 +709,59 @@ export type FrequencyYearSummaryV2 = {
   }[];
 };
 
-/** Lessons and absences (X) of the days already over; `reliable`: nothing of them is still unknown. */
-type FrequencyCountV2 = { lessons: number; absences: number; reliable: boolean };
 /**
- * A month's counts: lessons are the positions of the days
- * already over (TODAY never counts: its roll call may still be under way), absences their X marks,
- * a J is not taken off. Reliable when every one of those days was read in full, no conflict is
- * open and every mark of them has its lesson day. The server's totals and the Portal agree on it.
+ * Lessons and absences (X) and justified absences (J) of the days that count; `reliable`: nothing
+ * of them is still unknown.
+ */
+type FrequencyCountV2 = { lessons: number; absences: number; justified: number; reliable: boolean };
+/**
+ * Whether a lesson day counts: a day already over, or today once it was read in full. Since the
+ * Smecel's FP (18/11/2026) the teacher marks presence as well as absence during the lesson, and a
+ * lesson not marked yet is FP (`pending`), so today's marked lessons are final at once.
+ */
+export const countedDayV2 = (day: Pick<FrequencyDayV2, 'date' | 'complete'>, today: string) =>
+  day.date < today || (day.date === today && day.complete);
+/**
+ * The day's FP positions that are still "a confirmar": only today's (owner decision 19/11/2026).
+ * During the day an FP may be a lesson still to come or one the teacher is about to mark. Once the
+ * day is over it is a lesson without absence, as the Smecel showed it before its FP: the students
+ * were dismissed, the whole day had no roll call, or the teacher did not mark it (an X marked later
+ * still arrives with the next reading).
+ */
+export const pendingTodayV2 = (day: Pick<FrequencyDayV2, 'date' | 'pending'>, today: string) =>
+  day.date >= today ? (day.pending ?? []) : [];
+/**
+ * A month's counts: lessons are the positions of the days that count (countedDayV2) except the
+ * ones still "a confirmar" (pendingTodayV2: today's FP, neither a presence nor an absence until
+ * the teacher marks them), absences their X marks, a J is not taken off. Reliable when every day
+ * already over was read in full, no conflict is open and every mark counted has its lesson. A
+ * pending lesson never makes the month unknown. The server's totals and the Portal agree on it.
  */
 export function frequencyCountV2(
   summary: Pick<FrequencySummaryV2, 'marks' | 'conflicts' | 'days'>,
   today: string,
 ): FrequencyCountV2 {
-  const lessonsOver = new Set(
-    (summary.days ?? [])
-      .filter((day) => day.date < today)
-      .flatMap((day) => day.slots.map((slot) => `${day.date}|${day.shift}:${slot}`)),
+  const days = summary.days ?? [];
+  const counted = days.filter((day) => countedDayV2(day, today));
+  const countedShifts = new Set(counted.map((day) => `${day.date}|${day.shift}`));
+  const lessons = new Set(
+    counted.flatMap((day) =>
+      day.slots
+        .filter((slot) => !pendingTodayV2(day, today).includes(slot))
+        .map((slot) => `${day.date}|${day.shift}:${slot}`),
+    ),
   );
-  const marksOver = summary.marks.filter((mark) => mark.date < today);
+  const marks = summary.marks.filter(
+    (mark) => mark.date < today || countedShifts.has(`${mark.date}|${mark.shift}`),
+  );
   return {
-    lessons: lessonsOver.size,
-    absences: marksOver.filter((mark) => mark.mark === 'X').length,
+    lessons: lessons.size,
+    absences: marks.filter((mark) => mark.mark === 'X').length,
+    justified: marks.filter((mark) => mark.mark === 'J').length,
     reliable:
       summary.conflicts === 0 &&
-      (summary.days ?? []).every((day) => day.date >= today || day.complete) &&
-      marksOver.every((mark) => lessonsOver.has(`${mark.date}|${mark.shift}:${mark.slot}`)),
+      days.every((day) => day.date >= today || day.complete) &&
+      marks.every((mark) => lessons.has(`${mark.date}|${mark.shift}:${mark.slot}`)),
   };
 }
 

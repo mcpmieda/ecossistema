@@ -52,8 +52,9 @@ const dateLabel = (date: string) => `${date.slice(8)}/${date.slice(5, 7)}`;
 
 /** Each day already over: its lessons (every shift's positions) and its absences without
  * justification, most recent first; days without lessons are left out. `open`: some shift of the day
- * was not read in full (or had a mark in conflict) in the last 30 days, as the ring and the calendar
- * show it. */
+ * was not read in full (or had a mark in conflict) in the last 30 days, as the ring and the
+ * calendar show it. Only days already over: an FP there is a lesson without absence
+ * (pendingTodayV2), as the Portal shows it. */
 function pastSchoolDaysV2(
   months: readonly Pick<FrequencySummaryV2, 'marks' | 'days'>[],
   today: string,

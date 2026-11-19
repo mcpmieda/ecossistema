@@ -119,6 +119,8 @@ const summary = z
             shift: z.string().max(80),
             slots: z.array(z.number().int().min(1).max(6)).min(1).max(6),
             complete: z.boolean(),
+            // Positions still FP in the Smecel ("a confirmar"), only when there is one.
+            pending: z.array(z.number().int().min(1).max(6)).min(1).max(6).optional(),
           })
           .strict(),
       )

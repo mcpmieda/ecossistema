@@ -91,7 +91,7 @@ describe('Frequência page', () => {
     expect(screen.queryByText(/limite/u)).toBeNull();
   });
 
-  it("keeps today's colour on the calendar, while the ring counts no day yet", async () => {
+  it('counts today at once when every lesson is marked (Smecel FP, 18/11/2026)', async () => {
     const months = {
       '2026-10': summary(
         '2026-10',
@@ -103,8 +103,50 @@ describe('Frequência page', () => {
     await ready();
     expect(dayButton(21).className).toContain('pa3-day--missed');
     expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(
+      /^Ano letivo 2026, 1 dia de aula contado/u,
+    );
+  });
+
+  it('keeps today open while a lesson is still FP: its colour shows, the ring waits', async () => {
+    const months = {
+      '2026-10': summary(
+        '2026-10',
+        [{ ...lessonDay('2026-10-21'), pending: [4, 5] }],
+        [1, 2].map((slot) => ({ date: '2026-10-21', slot, mark: 'X' as const })),
+      ),
+    };
+    render(<FrequencyPageV3 client={clientOf(months)} />);
+    await ready();
+    expect(dayButton(21).className).toContain('pa3-day--missed');
+    expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(
       /^Ano letivo 2026, 0 dias de aula contados/u,
     );
+    // No note for FP lessons (owner request 19/11/2026): each tile already says "A confirmar".
+    expect(document.querySelector('.pa3-today-note')).toBeNull();
+    expect(screen.getByText('2 faltas registradas até agora.')).toBeTruthy();
+    // The marked lessons are final at once; only the FP ones are "A confirmar".
+    const states = [...document.querySelectorAll('.pa3-lesson-state')].map((n) => n.textContent);
+    expect(states).toEqual(['Faltou', 'Faltou', 'Sem falta', 'A confirmar', 'A confirmar']);
+  });
+
+  it('an FP of a day already over is "Sem falta" (owner decision 19/11/2026)', async () => {
+    // Dismissed after the 2nd lesson yesterday: lessons 3 to 5 stayed FP.
+    const months = {
+      '2026-10': summary('2026-10', [{ ...lessonDay('2026-10-20'), pending: [3, 4, 5] }]),
+    };
+    render(<FrequencyPageV3 client={clientOf(months)} />);
+    await ready();
+    const button = dayButton(20);
+    expect(button.className).toContain('pa3-day--clear');
+    expect(button.getAttribute('aria-label')).toContain('nenhuma falta registrada');
+    expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(
+      /^Ano letivo 2026, 1 dia de aula contado/u,
+    );
+    fireEvent.click(button);
+    expect(document.querySelector('.pa3-today-note')).toBeNull();
+    const states = [...document.querySelectorAll('.pa3-lesson-state')].map((n) => n.textContent);
+    expect(states).toEqual(['Sem falta', 'Sem falta', 'Sem falta', 'Sem falta', 'Sem falta']);
+    expect(screen.getByText('Nenhuma falta neste dia.')).toBeTruthy();
   });
 
   it('shows a past day not read in full as "leitura incompleta", never as a coloured total', async () => {

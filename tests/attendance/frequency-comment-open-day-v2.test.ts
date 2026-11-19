@@ -62,4 +62,26 @@ describe('frequency comment with a day not read in full', () => {
   it('today not read yet never blocks it', () => {
     expect(comment([...weekdays, TODAY], (date) => date !== TODAY)?.kind).toBe('none-this-year');
   });
+
+  it('an FP of a day already over is a lesson without absence (owner decision 19/11/2026)', () => {
+    const recent = weekdays.at(-2)!;
+    const result = frequencyCommentV2({
+      months: [
+        {
+          days: weekdays.map((date) => ({
+            date,
+            shift: 'MATUTINO',
+            slots: [1, 2, 3, 4, 5],
+            complete: true,
+            ...(date === recent ? { pending: [3, 4, 5] } : {}),
+          })),
+          marks: [],
+        },
+      ],
+      today: TODAY,
+      schoolDays: 200,
+      remainingSchoolDays: 39,
+    });
+    expect(result?.kind).toBe('none-this-year');
+  });
 });

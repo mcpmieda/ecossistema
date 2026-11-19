@@ -141,11 +141,19 @@ function marksOf(month: string, today: string): FrequencySummaryV2['marks'] {
     if (!SCHOOL_DAYS.has(date) || isSaturday(date)) continue;
     const dayMarks =
       month === '2026-10' ? (OCTOBER[date] ?? []) : randomDayMarksV3(month, date, random);
-    for (const [slot, mark] of dayMarks)
+    for (const [slot, mark] of dayMarks) {
+      // Today's lessons from the 3rd on are still FP (TODAY_MARKED_LESSONS): no mark there yet.
+      if (date === today && slot > TODAY_MARKED_LESSONS) continue;
       marks.push({ date, slot, shift: 'VESPERTINO', mark, classLabels: ['TURMA ARTIFICIAL'] });
+    }
   }
   return marks;
 }
+/**
+ * Today, as the Smecel shows it since its FP (18/11/2026): the teacher marks each lesson during it,
+ * so the first lessons are marked and the next ones are still FP ("a confirmar").
+ */
+const TODAY_MARKED_LESSONS = 2;
 function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
   const [year, monthNumber] = month.split('-').map(Number) as [number, number];
   const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
@@ -154,11 +162,14 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
     const date = `${month}-${pad(day)}`;
     if (date > today) break;
     if (!SCHOOL_DAYS.has(date)) continue;
+    const slots = Array.from({ length: lessonsOn(date) }, (_, index) => index + 1);
+    const pending = date === today ? slots.filter((slot) => slot > TODAY_MARKED_LESSONS) : [];
     result.push({
       date,
       shift: 'VESPERTINO',
-      slots: Array.from({ length: lessonsOn(date) }, (_, index) => index + 1),
+      slots,
       complete: true,
+      ...(pending.length ? { pending } : {}),
     });
   }
   return result;
@@ -167,7 +178,8 @@ function daysOf(month: string, today: string): DemoFrequencyV3['days'] {
 /**
  * The month as the Portal's frequency API answers it (portalFrequencySummaryV2 in
  * server/attendance/service-v2.ts), so the page is built against the real shape: the totals by
- * frequencyCountV2 (today never counts), the school's today, the year so far
+ * frequencyCountV2 (a lesson still FP is left out; today counts once read in full), the school's
+ * today, the year so far
  * (null while any month is unknown) and the class's last reading.
  */
 function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
@@ -187,9 +199,7 @@ function demoFrequencyV3(month: string, today: string): DemoFrequencyV3 {
       state: 'ready' as const,
       month: key,
       absences: reliable ? count.absences : null,
-      justified: reliable
-        ? marks.filter((mark) => mark.mark === 'J' && mark.date < today).length
-        : null,
+      justified: reliable ? count.justified : null,
       denominator: reliable ? count.lessons : null,
       percentage:
         reliable && count.lessons
