@@ -394,3 +394,19 @@ A importação continua sem alterar a planilha original (BN-DEC-022). Esta decis
 - O Banco de Notas 2026 (`.xlsb`) deixou de ser usado, porque o Ecossistema o substituiu.
 - O Atualizador de Planilhas do PC não atualiza mais essas planilhas.
 
+## BN-DEC-048 - Recálculo das células que dependem dos vínculos
+
+**Data:** 2026-11-19. **Origem:** pedido do responsável (#1541): quando a cópia do vínculo muda, as notas devem chegar ao Ecossistema sem ninguém abrir a planilha. Condições dele: nenhum endereço de planilha no código ("tudo pode mudar"); se alguma fórmula da cadeia não puder ser calculada com certeza, não gravar, "com indicação no painel para auditoria"; tudo rastreado para poder apagar; começar desligado.
+
+**Decisão.** Com o **Recalcular células** ligado no painel, o Worker `notas-onedrive-sync` pode, além do que permite o BN-DEC-047, regravar o resultado guardado das fórmulas que dependem dos vínculos atualizados, só em `.xlsb`. Não muda fórmula, macro, proteção nem formato.
+
+- A cadeia sai das fórmulas do próprio arquivo, a partir das células do vínculo que mudaram.
+- Só grava o que passa na prova: com os valores antigos do vínculo, cada resultado tem de ser igual ao salvo pelo Excel.
+- O que não puder ser calculado com certeza fica como estava, junto com o que depende dele, e aparece no painel e no Histórico.
+- `INDIRETO`/`DESLOC` com endereço calculado fora da cadeia: nada é recalculado no arquivo.
+- A planilha recalculada é lida de novo pela leitura automática.
+
+Começa desligado. O inventário do que foi acrescentado e de como remover está em `NOTAS_ONEDRIVE_SYNC.md` (Recálculo das células). Não muda regra acadêmica, schema, migration nem publicação do Portal; acrescenta campos opcionais ao contrato `onedrive-sync`.
+
+**Alternativa descartada.** Converter as planilhas para `.xlsm` e recalcular pela API do Excel na nuvem: a API não aceita acesso só do aplicativo (exige uma pessoa conectada).
+

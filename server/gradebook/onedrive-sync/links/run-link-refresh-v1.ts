@@ -1,6 +1,7 @@
 import type { SheetJs } from '../../../../src/features/gradebook/import/spreadsheet-recognizer';
 import { WorkbookTooLargeError } from '../graph-drive-v1';
 import type { LinkItemV1, ReplaceOutcomeV1 } from './graph-links-v1';
+import type { RecalcReportV1 } from './recalc/recalc-v1';
 import {
   refreshDestinationLinksV1,
   resolveLinkSourcesV1,
@@ -21,6 +22,8 @@ export type LinkRefreshInputV1 = {
   readonly settleMs: number;
   /** The last try found it open: ask whether it still is before downloading anything. */
   readonly probeLockFirst?: boolean;
+  /** Also recalculate the cells that depend on the links (#1541, "Recalcular células"). */
+  readonly recalculate?: boolean;
 };
 
 export type LinkRefreshOutcomeV1 =
@@ -53,7 +56,62 @@ export type LinkRefreshResultV1 = {
   /** The workbook after this write: its own save, not a person's. */
   readonly written: { readonly hash: string | null; readonly modifiedAt: string | null } | null;
   readonly ms: number;
+  /** What the recalculation did (written cells, cells left as they are and why); null when off. */
+  readonly recalc?: LinkRecalcSummaryV1 | null;
 };
+
+/** The recalculation in a few numbers and one note, for the panel and the Histórico. */
+export type LinkRecalcSummaryV1 = {
+  readonly cells: number;
+  readonly skipped: number;
+  readonly mismatches: number;
+  /** Why something was left as it is: the main reason and an example cell; null when nothing was. */
+  readonly note: string | null;
+};
+
+/** The engine's reasons (English, in the code) as the panel shows them. */
+const REASONS_PT_V1: ReadonlyArray<readonly [RegExp, string]> = [
+  [/^depends on a cell left as it is$/u, 'depende de uma célula deixada como estava'],
+  [/^function (.+)$/u, 'função $1 não calculada aqui'],
+  [/^volatile function$/u, 'função volátil (HOJE, AGORA…)'],
+  [/^INDIRECT with a computed address$/u, 'INDIRETO com endereço calculado'],
+  [/^OFFSET.*$/u, 'DESLOC'],
+  [/^circular reference$/u, 'referência circular'],
+  [/^array result of another size$/u, 'matriz que mudaria de tamanho'],
+  [/^did not match Excel with the old values$/u, 'não bateu com o Excel nos valores antigos'],
+  [/^only \.xlsb files are recalculated$/u, 'só arquivos .xlsb são recalculados'],
+  [/^recalculation failed$/u, 'o recálculo falhou'],
+  [/^too many formulas$/u, 'fórmulas demais'],
+  [
+    /^(\d+) formula\(s\) with INDIRECT\/OFFSET whose address cannot be checked$/u,
+    '$1 fórmula(s) com INDIRETO/DESLOC sem endereço verificável',
+  ],
+];
+
+function reasonPtV1(reason: string): string {
+  for (const [pattern, text] of REASONS_PT_V1)
+    if (pattern.test(reason)) return reason.replace(pattern, text);
+  return reason;
+}
+
+export function recalcSummaryV1(report: RecalcReportV1 | null): LinkRecalcSummaryV1 | null {
+  if (!report) return null;
+  let note: string | null = report.blocked
+    ? `Nada recalculado: ${reasonPtV1(report.blocked)}`
+    : null;
+  if (!note && report.mismatches > 0)
+    note = `${report.mismatches} fórmula(s) não bateram com o Excel nos valores antigos (ex.: ${report.mismatchSamples[0] ?? '-'})`;
+  if (!note && report.skipped > 0) {
+    const [reason, count] = Object.entries(report.reasons).sort((a, b) => b[1] - a[1])[0]!;
+    note = `${report.skipped} fórmula(s) deixadas como estavam; principal motivo: ${reasonPtV1(reason)} (${count}, ex.: ${report.reasonSamples[reason]?.[0] ?? '-'})`;
+  }
+  return {
+    cells: report.writtenCells,
+    skipped: report.skipped,
+    mismatches: report.mismatches,
+    note,
+  };
+}
 
 export type LinkRefreshPortsV1 = {
   readonly xlsx: SheetJs;
@@ -198,7 +256,7 @@ export async function runLinkRefreshV1(
   const result = (
     outcome: LinkRefreshOutcomeV1,
     code: string | null = null,
-    extra: Partial<Pick<LinkRefreshResultV1, 'changedCells' | 'written'>> = {},
+    extra: Partial<Pick<LinkRefreshResultV1, 'changedCells' | 'written' | 'recalc'>> = {},
   ): LinkRefreshResultV1 => ({
     outcome,
     code,
@@ -206,6 +264,7 @@ export async function runLinkRefreshV1(
     sourceHashes: loader.hashes,
     unavailableLinks: loader.unavailable,
     changedCells: extra.changedCells ?? 0,
+    recalc: extra.recalc ?? null,
     seen,
     written: extra.written ?? null,
     ms: Math.round(ports.now() - started),
@@ -228,6 +287,7 @@ export async function runLinkRefreshV1(
       bytes,
       resolve: (link) => resolveLinkSourcesV1(link, drive, destination.folderPath ?? ''),
       loadSource: loader.load,
+      recalculate: input.recalculate === true,
     });
     loader.unavailable += refreshed.parts.filter(
       (part) =>
@@ -245,6 +305,7 @@ export async function runLinkRefreshV1(
     if (replaced.outcome === 'changed') return result('changed-meanwhile', 'FILE-SAVED-MEANWHILE');
     return result('written', null, {
       changedCells: refreshed.changedCells,
+      recalc: recalcSummaryV1(refreshed.recalc),
       written: { hash: replaced.quickXorHash, modifiedAt: replaced.lastModifiedDateTime },
     });
   } catch (cause) {

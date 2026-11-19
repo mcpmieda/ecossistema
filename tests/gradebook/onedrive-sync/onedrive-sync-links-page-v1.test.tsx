@@ -77,3 +77,32 @@ it('shows the links like the reading: header with the last update, then the work
     fileId: 'item-1',
   });
 });
+
+it('recalculation of the cells: off by default, switched on and off, with the audit of each workbook (#1541)', async () => {
+  render(<OneDriveSyncPageV1 />);
+  await screen.findByText('Recalcular células');
+  const section = screen
+    .getByRole('heading', { name: 'Recalcular células' })
+    .closest('section') as HTMLElement;
+  expect(within(section).getByText('Desligado')).toBeTruthy();
+
+  const list = card('Planilhas com vínculos');
+  expect(within(list).getByText(/1204 célula\(s\) recalculada\(s\)/u)).toBeTruthy();
+  expect(
+    within(list).getByText(
+      'Recálculo: 2 fórmula(s) deixadas como estavam; principal motivo: função TEXT não calculada aqui (1, ex.: 6A1º!K1)',
+    ),
+  ).toBeTruthy();
+
+  await act(async () => {
+    fireEvent.click(within(section).getByRole('button', { name: /Ligar recálculo/u }));
+  });
+  expect(vi.mocked(requestOneDriveSyncV1)).toHaveBeenCalledWith({ action: 'links-recalc-on' });
+  expect(await within(section).findByText('Ligado (teste)')).toBeTruthy();
+
+  await act(async () => {
+    fireEvent.click(within(section).getByRole('button', { name: /Desligar recálculo/u }));
+  });
+  expect(vi.mocked(requestOneDriveSyncV1)).toHaveBeenCalledWith({ action: 'links-recalc-off' });
+  expect(await within(section).findByText('Desligado')).toBeTruthy();
+});

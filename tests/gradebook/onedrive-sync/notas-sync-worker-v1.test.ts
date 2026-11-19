@@ -536,4 +536,15 @@ describe('a teacher workbook written by the links refresh (#1541)', () => {
     ack.acknowledgeLinkWrite('w1', written(null));
     expect(saved).toEqual([]);
   });
+
+  it('is read again when the refresh recalculated cells the grades are read from', () => {
+    const recalc = (cells: number) => ({ cells, skipped: 0, mismatches: 0, note: null });
+    const { ack, saved } = coordinator(read());
+    ack.acknowledgeLinkWrite('w1', { ...written('h2'), recalc: recalc(40) });
+    expect(saved).toEqual([]);
+    // Recalculation on, but nothing to write: the save is still the links' own.
+    const quiet = coordinator(read());
+    quiet.ack.acknowledgeLinkWrite('w1', { ...written('h2'), recalc: recalc(0) });
+    expect(quiet.saved).toEqual([expect.objectContaining({ processedHash: 'h2' })]);
+  });
 });

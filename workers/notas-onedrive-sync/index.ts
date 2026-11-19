@@ -400,6 +400,7 @@ function linkRefreshInputV1(value: unknown): LinkRefreshInputV1 | null {
     typeof input.maxBytes !== 'number' ||
     typeof input.settleMs !== 'number' ||
     (input.probeLockFirst !== undefined && typeof input.probeLockFirst !== 'boolean') ||
+    (input.recalculate !== undefined && typeof input.recalculate !== 'boolean') ||
     !(
       onlySources === null ||
       (Array.isArray(onlySources) && onlySources.every((id) => typeof id === 'string'))

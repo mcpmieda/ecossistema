@@ -500,6 +500,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       case 'links-remove-target':
       case 'links-check-all':
       case 'links-refresh-now':
+      case 'links-recalc-on':
+      case 'links-recalc-off':
         this.controlLinks(command, actor);
         break;
     }
@@ -524,6 +526,12 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         break;
       case 'links-off':
         this.setMeta('linkSettings', { ...settings, enabled: false });
+        break;
+      case 'links-recalc-on':
+        this.setMeta('linkSettings', { ...settings, recalc: true });
+        break;
+      case 'links-recalc-off':
+        this.setMeta('linkSettings', { ...settings, recalc: false });
         break;
       case 'links-add-target':
         this.setMeta('linkSettings', {
@@ -693,6 +701,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         settleMs: LINK_DESTINATION_SETTLE_MS_V1,
         // Still open since the last try: asked first, before any download.
         probeLockFirst: file.lastOutcome === 'locked',
+        recalculate: this.linkSettings().recalc === true,
       })
         .catch((cause: unknown): LinkRefreshResultV1 => {
           console.error(
@@ -730,8 +739,11 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         ...this.meta<Record<string, string | null>>('linkSourceHashes', {}),
         ...result.sourceHashes,
       });
-    // Only giving up goes to the Histórico; each update shows in the workbook's row.
+    // Only giving up goes to the Histórico; each update shows in the workbook's row. Cells the
+    // recalculation left as they are go to the Histórico too (audit).
     if (result.outcome === 'written') this.acknowledgeLinkWrite(id, result);
+    if (result.outcome === 'written' && result.recalc?.note)
+      this.event('links-recalc-skipped', { file: next.name, note: result.recalc.note });
     else if (result.outcome === 'failed' && next.state === 'idle')
       this.event('links-failed', { file: next.name, code: result.code });
     console.log(
@@ -742,6 +754,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         ms: result.ms,
         cells: result.changedCells,
         unavailable: result.unavailableLinks,
+        recalcCells: result.recalc?.cells ?? null,
+        recalcSkipped: result.recalc?.skipped ?? null,
+        recalcMismatches: result.recalc?.mismatches ?? null,
       }),
     );
   }
@@ -749,8 +764,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /**
    * The refresh's own save changed only what the links keep, not the cells the grades are read
    * from: a workbook of the grades already read at the version written over is not read again.
+   * A save that recalculated cells did change them (#1541): it is read as any other save.
    */
   private acknowledgeLinkWrite(id: string, result: LinkRefreshResultV1): void {
+    if (result.recalc && result.recalc.cells > 0) return;
     const before = result.seen?.hash ?? null;
     const after = result.written?.hash ?? null;
     if (!before || !after) return;
@@ -882,6 +899,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const settings = this.linkSettings();
     return {
       enabled: settings.enabled,
+      recalc: settings.recalc === true,
       targets: Object.values(settings.targets).sort((a, b) =>
         PT_BR_COLLATOR_V1.compare(a.path, b.path),
       ),
@@ -901,6 +919,9 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         changedCells: file.changedCells,
         unavailableLinks: file.unavailableLinks,
         sources: file.sources.length,
+        recalcCells: file.recalcCells ?? null,
+        recalcSkipped: file.recalcSkipped ?? null,
+        recalcNote: file.recalcNote ?? null,
       })),
     };
   }
