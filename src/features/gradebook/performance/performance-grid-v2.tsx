@@ -3,6 +3,7 @@ import {
   memo,
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -10,8 +11,9 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Chip, Table } from '@heroui/react';
+import { Chip } from '@heroui/react';
 import { CellButtonV1 } from '../../../shared/ui/cell-button-v1';
+import { useGridNavigationV1 } from '../../../shared/ui/grid-navigation-v1';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 import '../../student-portal-admin/shared/student-avatar-v1.css';
 import type { PerformanceRowV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
@@ -58,8 +60,118 @@ function statusShort(student: PerformanceRowV2['student']) {
   return student.status === 7 ? student.statusLabel : STATUS_SHORT[student.status];
 }
 
-/** Shared table anatomy keeps all four lenses compact and keyboard-resizable. Memoized: the
- * matrix renders again only when its own columns, rows or callbacks change. */
+type PerformanceGridHeaderV2 = {
+  readonly id: string;
+  readonly label: string;
+  readonly width: number;
+};
+type PerformanceGridOrderedRowV2 = PerformanceGridRowV2 & {
+  readonly id: number;
+  readonly position: number;
+};
+
+/** One student's line. Memoized: it renders again only when its own data or the columns change. */
+const PerformanceGridLineV2 = memo(function PerformanceGridLineV2({
+  row,
+  headers,
+  columns,
+  open,
+  academicYear,
+  gridId,
+}: {
+  readonly row: PerformanceGridOrderedRowV2;
+  readonly headers: readonly PerformanceGridHeaderV2[];
+  readonly columns: readonly PerformanceGridColumnV2[];
+  readonly open: (studentId: number, offerId?: number) => void;
+  readonly academicYear: number | null;
+  readonly gridId: string;
+}) {
+  const studentCell = `${gridId}-${row.id}-student`;
+  return (
+    <tr
+      role="row"
+      tabIndex={-1}
+      data-slot="table-row"
+      data-key={row.id}
+      aria-labelledby={studentCell}
+      className="table__row performance-grid__row"
+    >
+      {headers.map((header, column) => {
+        const index = column - FIXED_COLUMNS;
+        let content: ReactNode;
+        if (header.id === 'number') {
+          content = <span className="tabular-nums">{row.position}</span>;
+        } else if (header.id === 'status') {
+          content = (
+            <Chip
+              size="sm"
+              variant="soft"
+              title={row.student.statusLabel}
+              aria-label={row.student.statusLabel}
+              className={`performance-status-chip performance-status-chip--${row.student.status === null ? 'regular' : STATUS_TONE[row.student.status]}`}
+            >
+              <Chip.Label className="whitespace-nowrap">{statusShort(row.student)}</Chip.Label>
+            </Chip>
+          );
+        } else if (header.id === 'student') {
+          content = (
+            <span className="flex min-w-0 items-center gap-1.5">
+              {academicYear === null ? null : (
+                // 20px inside a 24px row: the photo never makes the line taller.
+                <LinkedStudentPhotoAvatarV1
+                  decorative
+                  size="sm"
+                  className="pa-student-avatar size-5 shrink-0"
+                  fallbackTone={row.student.id % 6}
+                  subject={{ source: 'gradebook', academicYear, studentIds: [row.student.id] }}
+                />
+              )}
+              <CellButtonV1
+                tabIndex={-1}
+                className="min-h-6 h-auto min-w-0 flex-1 justify-start whitespace-normal break-words px-1.5 py-0 text-left text-xs leading-4"
+                onClick={() => open(row.student.id)}
+              >
+                {row.student.name}
+              </CellButtonV1>
+            </span>
+          );
+        } else if (header.id === 'annual') {
+          content = <span className="text-xs">{row.annual ?? '—'}</span>;
+        } else {
+          content = (
+            <CellButtonV1
+              tabIndex={-1}
+              className="min-h-6 h-auto w-full min-w-0 px-0 py-0 text-xs"
+              aria-label={`${row.student.name}, ${columns[index]!.title}`}
+              onClick={() => open(row.student.id, columns[index]!.offerId)}
+            >
+              {row.values[index]}
+            </CellButtonV1>
+          );
+        }
+        return (
+          <td
+            key={header.id}
+            id={header.id === 'student' ? studentCell : undefined}
+            role={header.id === 'student' ? 'rowheader' : 'gridcell'}
+            tabIndex={-1}
+            data-slot="table-cell"
+            className={`table__cell performance-grid__cell py-0.5 ${header.id === 'student' ? 'pl-1 pr-2' : 'px-1'}${header.id === 'number' ? ' text-center' : ''}${header.id === 'number' || header.id === 'status' ? ' performance-grid__fit' : ''}`}
+          >
+            {content}
+          </td>
+        );
+      })}
+    </tr>
+  );
+});
+
+/**
+ * The grade matrix of the four lenses: a native table with HeroUI's table classes and React Aria's
+ * grid keyboard (useGridNavigationV1). React Aria's Table ran its per-cell hooks for about 500
+ * cells, which made each trimester switch and the hover slower. Memoized: the matrix renders again
+ * only when its own columns, rows or callbacks change.
+ */
 export const PerformanceGridV2 = memo(function PerformanceGridV2({
   columns,
   rows,
@@ -90,9 +202,6 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
     ],
     [columns, showAnnual],
   );
-  // React Aria keeps each rendered row and cell while its item stays the same; these are what
-  // the cells read besides their own row and column, so a change in any of them renders anew.
-  const dependencies = [headers, columns, open, focusOffer, academicYear];
   // Shown in alphabetical order and counted from 1 over what is listed; the number and the
   // order of the source spreadsheet stay where they are stored.
   const ordered = useMemo(
@@ -106,6 +215,8 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
     () => new Map(ordered.map((row) => [String(row.student.id), row.below ?? []])),
     [ordered],
   );
+  const gridId = useId();
+  const navigation = useGridNavigationV1();
 
   const root = useRef<HTMLDivElement | null>(null);
   const pin = useRef<HTMLDivElement | null>(null);
@@ -265,133 +376,89 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
             </div>,
             document.body,
           )}
-      <Table className="min-w-0">
-        <Table.ScrollContainer className="max-w-full overflow-x-auto rounded-xl border border-separator">
-          <Table.Content
+      <div className="table-root table-root--primary min-w-0" data-slot="table">
+        <div
+          className="table__scroll-container max-w-full overflow-x-auto rounded-xl border border-separator"
+          data-slot="table-scroll-container"
+        >
+          <table
+            ref={navigation.ref}
+            role="grid"
             aria-label={label}
-            className="w-full text-xs"
+            data-slot="table-content"
+            className="table__content w-full text-xs"
             style={{ minWidth: headers.reduce((sum, col) => sum + col.width, 0) }}
+            onFocus={navigation.onFocus}
+            onBlur={navigation.onBlur}
+            onKeyDown={navigation.onKeyDown}
           >
-            <Table.Header columns={headers} dependencies={dependencies}>
-              {(header) => {
-                const column = columns.find((item) => `value-${item.key}` === header.id);
-                // A component's column opens its assessments when the page offers that.
-                let title: ReactNode = header.label;
-                if (column)
-                  title = focusOffer ? (
-                    <button
-                      type="button"
-                      title={column.title}
-                      aria-label={`Ver avaliações de ${column.title}`}
-                      onClick={() => focusOffer(column.offerId)}
-                      className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                    >
-                      {column.label}
-                    </button>
-                  ) : (
-                    <span
-                      title={column.title}
-                      className="block w-full whitespace-normal break-words text-center font-semibold"
-                    >
-                      {column.label}
-                    </span>
-                  );
-                return (
-                  <Table.Column
-                    id={header.id}
-                    isRowHeader={header.id === 'student'}
-                    defaultWidth={header.id === 'student' ? '1fr' : header.width}
-                    minWidth={header.width}
-                    className={`performance-grid__head py-1 ${header.id === 'student' ? 'px-2' : 'px-1'}${header.id === 'number' || header.id === 'status' ? ' performance-grid__fit' : ''}`}
-                  >
-                    {title}
-                  </Table.Column>
-                );
-              }}
-            </Table.Header>
-            <Table.Body
-              items={ordered}
-              dependencies={dependencies}
-              renderEmptyState={() => 'Nenhum aluno neste recorte.'}
-            >
-              {(row) => (
-                <Table.Row
-                  id={row.id}
-                  columns={headers}
-                  dependencies={dependencies}
-                  className="performance-grid__row"
-                >
-                  {(header) => {
-                    const index = headers.indexOf(header) - FIXED_COLUMNS;
-                    let content: ReactNode;
-                    if (header.id === 'number') {
-                      content = <span className="tabular-nums">{row.position}</span>;
-                    } else if (header.id === 'status') {
-                      content = (
-                        <Chip
-                          size="sm"
-                          variant="soft"
-                          title={row.student.statusLabel}
-                          aria-label={row.student.statusLabel}
-                          className={`performance-status-chip performance-status-chip--${row.student.status === null ? 'regular' : STATUS_TONE[row.student.status]}`}
-                        >
-                          <Chip.Label className="whitespace-nowrap">
-                            {statusShort(row.student)}
-                          </Chip.Label>
-                        </Chip>
-                      );
-                    } else if (header.id === 'student') {
-                      content = (
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          {academicYear === null ? null : (
-                            // 20px inside a 24px row: the photo never makes the line taller.
-                            <LinkedStudentPhotoAvatarV1
-                              decorative
-                              size="sm"
-                              className="pa-student-avatar size-5 shrink-0"
-                              fallbackTone={row.student.id % 6}
-                              subject={{
-                                source: 'gradebook',
-                                academicYear,
-                                studentIds: [row.student.id],
-                              }}
-                            />
-                          )}
-                          <CellButtonV1
-                            className="min-h-6 h-auto min-w-0 flex-1 justify-start whitespace-normal break-words px-1.5 py-0 text-left text-xs leading-4"
-                            onClick={() => open(row.student.id)}
-                          >
-                            {row.student.name}
-                          </CellButtonV1>
-                        </span>
-                      );
-                    } else if (header.id === 'annual') {
-                      content = <span className="text-xs">{row.annual ?? '—'}</span>;
-                    } else {
-                      content = (
-                        <CellButtonV1
-                          className="min-h-6 h-auto w-full min-w-0 px-0 py-0 text-xs"
-                          aria-label={`${row.student.name}, ${columns[index]!.title}`}
-                          onClick={() => open(row.student.id, columns[index]!.offerId)}
-                        >
-                          {row.values[index]}
-                        </CellButtonV1>
-                      );
-                    }
-                    return (
-                      <Table.Cell
-                        className={`performance-grid__cell py-0.5 ${header.id === 'student' ? 'pl-1 pr-2' : 'px-1'}${header.id === 'number' ? ' text-center' : ''}${header.id === 'number' || header.id === 'status' ? ' performance-grid__fit' : ''}`}
+            <thead data-slot="table-header" className="table__header">
+              <tr role="row">
+                {headers.map((header, index) => {
+                  const column = columns.find((item) => `value-${item.key}` === header.id);
+                  // A component's column opens its assessments when the page offers that.
+                  let title: ReactNode = header.label;
+                  if (column)
+                    title = focusOffer ? (
+                      <button
+                        type="button"
+                        // With no rows the grid has no keys and each header button takes Tab.
+                        tabIndex={ordered.length === 0 ? undefined : -1}
+                        title={column.title}
+                        aria-label={`Ver avaliações de ${column.title}`}
+                        onClick={() => focusOffer(column.offerId)}
+                        className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
-                        {content}
-                      </Table.Cell>
+                        {column.label}
+                      </button>
+                    ) : (
+                      <span
+                        title={column.title}
+                        className="block w-full whitespace-normal break-words text-center font-semibold"
+                      >
+                        {column.label}
+                      </span>
                     );
-                  }}
-                </Table.Row>
+                  return (
+                    <th
+                      key={header.id}
+                      role="columnheader"
+                      aria-colindex={index + 1}
+                      tabIndex={-1}
+                      data-slot="table-column"
+                      data-key={header.id}
+                      className={`table__column performance-grid__head py-1 ${header.id === 'student' ? 'px-2' : 'px-1'}${header.id === 'number' || header.id === 'status' ? ' performance-grid__fit' : ''}`}
+                    >
+                      {title}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody data-slot="table-body" className="table__body">
+              {ordered.length === 0 ? (
+                <tr role="row">
+                  <td role="rowheader" colSpan={headers.length}>
+                    Nenhum aluno neste recorte.
+                  </td>
+                </tr>
+              ) : (
+                ordered.map((row) => (
+                  <PerformanceGridLineV2
+                    key={row.id}
+                    row={row}
+                    headers={headers}
+                    columns={columns}
+                    open={open}
+                    academicYear={academicYear}
+                    gridId={gridId}
+                  />
+                ))
               )}
-            </Table.Body>
-          </Table.Content>
-        </Table.ScrollContainer>
-      </Table>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 });

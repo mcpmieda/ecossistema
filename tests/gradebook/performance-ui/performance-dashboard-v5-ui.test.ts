@@ -89,7 +89,7 @@ describe('Performance dashboard V5 HeroUI', () => {
   });
 
   it('keeps columns in server order and removes every manual drag/resize affordance', () => {
-    expect(grid).toContain('<Table.ScrollContainer');
+    expect(grid).toContain('className="table__scroll-container');
     expect(grid).not.toContain('ResizableContainer');
     expect(grid).not.toContain('ColumnResizer');
     expect(grid).not.toMatch(/drag|sortable|dnd/iu);

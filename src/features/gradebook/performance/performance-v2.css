@@ -305,6 +305,15 @@ button.performance-kpi__button:hover {
   color: var(--danger);
 }
 
+/* What React Aria's press handling gave the column headers: no double-tap zoom on touch and no
+   text selection while pressed. */
+.performance-grid__head {
+  touch-action: pan-x pan-y pinch-zoom;
+}
+.performance-grid__head:active {
+  user-select: none;
+}
+
 /* The header again, under the top bar, once the table's own has scrolled away. */
 /* Hidden while the table's own header is in view (the copy stays mounted, out of React). */
 .performance-grid-pin[hidden] {
