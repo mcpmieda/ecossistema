@@ -63,7 +63,7 @@ describe('frequency comment with a day not read in full', () => {
     expect(comment([...weekdays, TODAY], (date) => date !== TODAY)?.kind).toBe('none-this-year');
   });
 
-  it('a recent lesson still FP (Smecel, 18/11/2026) holds the green sentences back like a gap', () => {
+  it('an FP of a day already over is a lesson without absence (owner decision 19/11/2026)', () => {
     const recent = weekdays.at(-2)!;
     const result = frequencyCommentV2({
       months: [
@@ -73,7 +73,7 @@ describe('frequency comment with a day not read in full', () => {
             shift: 'MATUTINO',
             slots: [1, 2, 3, 4, 5],
             complete: true,
-            ...(date === recent ? { pending: [5] } : {}),
+            ...(date === recent ? { pending: [3, 4, 5] } : {}),
           })),
           marks: [],
         },
@@ -82,6 +82,6 @@ describe('frequency comment with a day not read in full', () => {
       schoolDays: 200,
       remainingSchoolDays: 39,
     });
-    expect(result).toBeNull();
+    expect(result?.kind).toBe('none-this-year');
   });
 });

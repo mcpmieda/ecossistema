@@ -338,7 +338,8 @@ export const frequencyRequestV2 = z.discriminatedUnion('operation', [
       /**
        * `pending`: the day's positions the Smecel shows as FP ("frequência pendente", since
        * 18/11/2026: the teacher has not marked presence or absence yet), a part of `slots`. Sent
-       * only when there is one; they count neither as a presence nor as an absence until marked.
+       * only when there is one. On the day itself they are "a confirmar"; once it is over, a
+       * lesson without absence (pendingTodayV2).
        */
       coverage: z
         .array(
@@ -628,7 +629,7 @@ export type FrequencyFailureEntryV2 = {
  * (a point, an X or a justified mark), so 5- or 6-lesson days, weekends,
  * holidays and days outside the enrolment need no configuration. `complete`: the collector read
  * every position of the day. `pending`: positions still FP in the Smecel (the teacher has not marked
- * them yet), "a confirmar"; absent when there is none.
+ * them yet), "a confirmar" on the day itself (pendingTodayV2); absent when there is none.
  */
 export type FrequencyDayV2 = {
   date: string;
@@ -721,11 +722,20 @@ type FrequencyCountV2 = { lessons: number; absences: number; justified: number; 
 export const countedDayV2 = (day: Pick<FrequencyDayV2, 'date' | 'complete'>, today: string) =>
   day.date < today || (day.date === today && day.complete);
 /**
+ * The day's FP positions that are still "a confirmar": only today's (owner decision 19/11/2026).
+ * During the day an FP may be a lesson still to come or one the teacher is about to mark. Once the
+ * day is over it is a lesson without absence, as the Smecel showed it before its FP: the students
+ * were dismissed, the whole day had no roll call, or the teacher did not mark it (an X marked later
+ * still arrives with the next reading).
+ */
+export const pendingTodayV2 = (day: Pick<FrequencyDayV2, 'date' | 'pending'>, today: string) =>
+  day.date >= today ? (day.pending ?? []) : [];
+/**
  * A month's counts: lessons are the positions of the days that count (countedDayV2) except the
- * ones still FP ("a confirmar", neither a presence nor an absence until the teacher marks them),
- * absences their X marks, a J is not taken off. Reliable when every day already over was read in
- * full, no conflict is open and every mark counted has its lesson. A pending lesson never makes the
- * month unknown. The server's totals and the Portal agree on it.
+ * ones still "a confirmar" (pendingTodayV2: today's FP, neither a presence nor an absence until
+ * the teacher marks them), absences their X marks, a J is not taken off. Reliable when every day
+ * already over was read in full, no conflict is open and every mark counted has its lesson. A
+ * pending lesson never makes the month unknown. The server's totals and the Portal agree on it.
  */
 export function frequencyCountV2(
   summary: Pick<FrequencySummaryV2, 'marks' | 'conflicts' | 'days'>,
@@ -737,7 +747,7 @@ export function frequencyCountV2(
   const lessons = new Set(
     counted.flatMap((day) =>
       day.slots
-        .filter((slot) => !day.pending?.includes(slot))
+        .filter((slot) => !pendingTodayV2(day, today).includes(slot))
         .map((slot) => `${day.date}|${day.shift}:${slot}`),
     ),
   );

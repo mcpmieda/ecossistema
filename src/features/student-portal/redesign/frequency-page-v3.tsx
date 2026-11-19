@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import {
   frequencyCountV2,
+  pendingTodayV2,
   type FrequencySummaryV2,
   type FrequencyYearSummaryV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
@@ -114,7 +115,10 @@ type DayKindV3 = 'clear' | 'missed';
 /** The calendar's state of a date: a day kind, or a date with nothing to judge yet. */
 type DayStateV3 = DayKindV3 | 'pending' | 'off' | 'holiday' | 'unknown' | 'future';
 type MarkV3 = FrequencySummaryV2['marks'][number];
-/** `pending`: the positions still FP in the Smecel (the teacher has not marked them yet). */
+/**
+ * `pending`: today's positions still FP in the Smecel (the teacher has not marked them yet). An FP
+ * of a day already over is a lesson without absence (pendingTodayV2), so it is never kept here.
+ */
 type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean; pending: number[] };
 /**
  * A day whose shifts were read in full and have no lesson still FP: nothing more will come. Since
@@ -123,11 +127,20 @@ type ShiftLessonsV3 = { shift: string; slots: number[]; complete: boolean; pendi
  */
 const settledV3 = (lessons: readonly ShiftLessonsV3[]) =>
   lessons.every((item) => item.complete && item.pending.length === 0);
+type LessonDayV3 = NonNullable<FrequencySummaryV2['days']>[number];
+/** A lesson day's shift as the page keeps it: only today's FP is still "a confirmar". */
+const shiftLessonsOfV3 = (day: LessonDayV3, today: string): ShiftLessonsV3 => ({
+  shift: day.shift,
+  slots: [...day.slots].sort((a, b) => a - b),
+  complete: day.complete,
+  pending: [...pendingTodayV2(day, today)].sort((a, b) => a - b),
+});
 /** The same shift of a day read twice (two records): every position and every FP of both. */
-function mergeShiftV3(same: ShiftLessonsV3, day: NonNullable<FrequencySummaryV2['days']>[number]) {
-  same.slots = [...new Set([...same.slots, ...day.slots])].sort((a, b) => a - b);
-  same.pending = [...new Set([...same.pending, ...(day.pending ?? [])])].sort((a, b) => a - b);
-  same.complete &&= day.complete;
+function mergeShiftV3(same: ShiftLessonsV3, day: LessonDayV3, today: string) {
+  const other = shiftLessonsOfV3(day, today);
+  same.slots = [...new Set([...same.slots, ...other.slots])].sort((a, b) => a - b);
+  same.pending = [...new Set([...same.pending, ...other.pending])].sort((a, b) => a - b);
+  same.complete &&= other.complete;
 }
 /** `share`: lessons with an absence ÷ lessons of the day, drawn as the tile's tone. */
 type DayV3 = {
@@ -310,14 +323,8 @@ function ringTotalsOf(
   for (const day of days) {
     const list = lessonsByDay.get(day.date) ?? [];
     const same = list.find((item) => item.shift === day.shift);
-    if (same) mergeShiftV3(same, day);
-    else
-      list.push({
-        shift: day.shift,
-        slots: [...day.slots],
-        complete: day.complete,
-        pending: [...(day.pending ?? [])],
-      });
+    if (same) mergeShiftV3(same, day, today);
+    else list.push(shiftLessonsOfV3(day, today));
     lessonsByDay.set(day.date, list);
   }
   const marksByDay = new Map<string, MarkV3[]>();
@@ -936,19 +943,13 @@ function useMonthDaysV3(
     for (const day of data.days ?? []) {
       const list = map.get(day.date) ?? [];
       const same = list.find((item) => item.shift === day.shift);
-      if (same) mergeShiftV3(same, day);
-      else
-        list.push({
-          shift: day.shift,
-          slots: [...day.slots].sort((a, b) => a - b),
-          complete: day.complete,
-          pending: [...(day.pending ?? [])].sort((a, b) => a - b),
-        });
+      if (same) mergeShiftV3(same, day, today);
+      else list.push(shiftLessonsOfV3(day, today));
       map.set(day.date, list);
     }
     for (const list of map.values()) list.sort((a, b) => a.shift.localeCompare(b.shift));
     return map;
-  }, [data]);
+  }, [data, today]);
   const marksByDay = useMemo(() => {
     const map = new Map<string, MarkV3[]>();
     for (const mark of data.marks) map.set(mark.date, [...(map.get(mark.date) ?? []), mark]);

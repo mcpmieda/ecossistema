@@ -6,6 +6,7 @@ import {
   frequencyContentHashV2,
   frequencyRequestV2,
   frequencyCountV2,
+  pendingTodayV2,
   frequencyPayloadHashV2,
   frequencyScheduleHashV2,
   frequencyIncidentHashV2,
@@ -324,11 +325,11 @@ const LESSON_DAYS_SQL_V2 = `SELECT DISTINCT ON(b.class_id,c.record_key,c.date) c
 /**
  * Adds the Smecel lesson days to a month's summary. The counts follow the Smecel: lessons are the
  * positions of the days, absences are X, justified are J (the yellow icon and the blue X) and do
- * not lower the attendance: 100 × (lessons − absences) / lessons. A lesson still FP ("a
- * confirmar") is left out until the teacher marks it. Today counts once read in full (its lessons
- * not marked yet are FP); its unfinished reading never makes the month incomplete
- * (frequencyCountV2). The totals are given only when every day already over was read completely
- * and nothing is in review; the marks and days are always given.
+ * not lower the attendance: 100 × (lessons − absences) / lessons. Today's lessons still FP ("a
+ * confirmar") are left out until the teacher marks them; an FP of a day already over is a lesson
+ * without absence (pendingTodayV2). Today counts once read in full; its unfinished reading never
+ * makes the month incomplete (frequencyCountV2). The totals are given only when every day already
+ * over was read completely and nothing is in review; the marks and days are always given.
  */
 export function withLessonDaysV2(
   summary: FrequencySummaryV2,
@@ -367,8 +368,10 @@ export function withLessonDaysV2(
         slots: [...day.slots].sort((a, b) => a - b),
         complete: day.complete,
       };
-      // Only when there is one: a day without FP stays as before (and as an older Portal reads it).
-      if (day.pending.size) lesson.pending = [...day.pending].sort((a, b) => a - b);
+      // Only today's FP is "a confirmar" (pendingTodayV2), and only when there is one: a day
+      // already over, or one without FP, reads as before (and as an older Portal reads it).
+      const pending = pendingTodayV2({ date: day.date, pending: [...day.pending] }, today);
+      if (pending.length) lesson.pending = pending.sort((a, b) => a - b);
       return lesson;
     });
   if (!days.length) return summary;

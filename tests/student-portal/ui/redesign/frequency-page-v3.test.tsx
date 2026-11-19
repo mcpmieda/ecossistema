@@ -129,19 +129,24 @@ describe('Frequência page', () => {
     expect(states).toEqual(['Faltou', 'Faltou', 'Sem falta', 'A confirmar', 'A confirmar']);
   });
 
-  it('shows a past day with an FP lesson as "aulas a confirmar", never as "sem falta"', async () => {
+  it('an FP of a day already over is "Sem falta" (owner decision 19/11/2026)', async () => {
+    // Dismissed after the 2nd lesson yesterday: lessons 3 to 5 stayed FP.
     const months = {
-      '2026-10': summary('2026-10', [{ ...lessonDay('2026-10-20'), pending: [3] }]),
+      '2026-10': summary('2026-10', [{ ...lessonDay('2026-10-20'), pending: [3, 4, 5] }]),
     };
     render(<FrequencyPageV3 client={clientOf(months)} />);
     await ready();
     const button = dayButton(20);
-    expect(button.className).toContain('pa3-day--pending');
-    expect(button.getAttribute('aria-label')).toContain('aulas a confirmar');
+    expect(button.className).toContain('pa3-day--clear');
+    expect(button.getAttribute('aria-label')).toContain('nenhuma falta registrada');
+    expect(document.querySelector('.pa3-guide-ring')?.getAttribute('aria-label')).toMatch(
+      /^Ano letivo 2026, 1 dia de aula contado/u,
+    );
     fireEvent.click(button);
     expect(document.querySelector('.pa3-today-note')).toBeNull();
     const states = [...document.querySelectorAll('.pa3-lesson-state')].map((n) => n.textContent);
-    expect(states).toEqual(['Sem falta', 'Sem falta', 'A confirmar', 'Sem falta', 'Sem falta']);
+    expect(states).toEqual(['Sem falta', 'Sem falta', 'Sem falta', 'Sem falta', 'Sem falta']);
+    expect(screen.getByText('Nenhuma falta neste dia.')).toBeTruthy();
   });
 
   it('shows a past day not read in full as "leitura incompleta", never as a coloured total', async () => {
