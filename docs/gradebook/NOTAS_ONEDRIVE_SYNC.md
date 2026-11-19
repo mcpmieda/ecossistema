@@ -88,3 +88,50 @@ A Relação do ano (por exemplo `ADMINISTRATIVO/LINHA DO TEMPO/2026/RELAÇÃO 20
 ## Coordenador sempre no código novo (14/11/2026)
 
 Uma publicação nem sempre reinicia o Durable Object coordenador: em 14/11 ele ficou na versão anterior até a publicação ser refeita. Agora o Worker tem a ligação `CF_VERSION_METADATA`, e o cron de cada minuto manda ao coordenador a versão do próprio código. Se o cron já roda uma publicação **mais nova** (pela data da versão) e nada está sendo lido ou gravado, o coordenador chama `ctx.abort()` e volta no código novo na chamada seguinte. Um cron mais antigo nunca reinicia um coordenador mais novo, então não há laço durante a troca de versão. O registro `notas-sync-coordinator-restart` mostra quando isso acontece.
+
+## Vínculos entre planilhas (19/11/2026, #1541)
+
+O Worker também mantém em dia os vínculos entre planilhas do OneDrive da secretaria: Relação e simulados → planilhas dos professores → Banco de Notas. Faz o mesmo que o "Atualizar vínculos" do Excel com as origens fechadas:
+
+- regrava só a cópia das células da origem que o Excel guarda em cada vínculo (`xl/externalLinks/externalLinkN.bin` ou `.xml`), com os valores salvos na origem;
+- marca "recalcular tudo ao abrir" (BrtCalcProp `recalcID=0` + `fFullCalcOnLoad`; no `.xlsx`, `calcPr fullCalcOnLoad="1"`).
+
+Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes do ZIP que não mudam são copiadas byte a byte.
+
+**Quando.**
+- Uma origem salva (conteúdo novo, não a própria gravação do Worker) agenda as planilhas que dependem dela para 1 min depois do último salvamento.
+- A planilha de destino só é gravada se estiver sem salvar há 1 min e se o cache realmente mudar.
+- Cada vez só os vínculos das origens que mudaram são relidos; a conferência das 03:00 relê todos.
+- No máximo 2 planilhas são atualizadas ao mesmo tempo, cada uma numa invocação própria (`SELF` → `/vinculos`, sem banco).
+
+**Gravação segura.**
+- A versão (eTag) é tirada antes do download e o envio é condicional: `createUploadSession` com `if-match`. Se alguém salvou no meio (412), nada é gravado e a planilha volta para a fila.
+- Arquivo aberto no Excel para a Web ou no Excel do PC, mesmo com salvamento automático desligado, recebe 423 do servidor. Testado em 19/11/2026. O Worker tenta de novo depois de 2, 4, 8 e a cada 15 min. Nunca usa `bypass-shared-lock` nem check-out.
+- A versão de uma pessoa sempre vence; o Worker nunca apaga nem mescla. O histórico de versões do OneDrive guarda a versão anterior.
+- Não usar a rota REST `$value` do SharePoint para isso: no teste de 19/11 ela ignorou o `If-Match` e gravou por cima de uma edição.
+
+**Depois.**
+- Ao abrir, o Excel (PC ou Web) recalcula com os valores novos, sem pedir para atualizar vínculos.
+- O Excel para a Web salva o recálculo ao fechar, mesmo sem edição (testado em 19/11/2026).
+- Até alguém abrir, quem lê a planilha fechada (o Banco de Notas.xlsb e a leitura automática) vê os resultados do último salvamento.
+
+**Painel.** Banco de notas › Importação › OneDrive › **Vínculos entre planilhas**:
+- ligar e desligar;
+- escolher pastas ou planilhas de destino;
+- "Conferir tudo";
+- por planilha: situação, hora da última conferência e da última atualização, e "Atualizar agora".
+
+A atualização só roda com a leitura automática ligada e não pausada.
+
+**Escritor único.** Planilhas atualizadas por aqui não devem estar também numa tarefa do Atualizador de Planilhas do PC: os dois desfariam um ao outro.
+
+**Permissão.** Papel `write` do app Graph Backend (`Sites.Selected`) no site do OneDrive da secretaria, concedido em 19/11/2026 com autorização do responsável.
+
+**Validação.**
+- Medido nas planilhas reais, só leitura: as 18 de professores estavam em dia, e o Banco tinha 4.998 células atrasadas, confirmadas uma a uma no Excel (88.082 células iguais).
+- O Excel abre os arquivos remontados sem reparo, com macros e vínculos.
+
+**Limites.**
+- Origem fora do OneDrive da secretaria ou maior que 8 MiB fica como está e aparece como "vínculo sem origem acessível".
+- Cópia de conflito numa pasta de fontes ainda seria lida como mais uma planilha (regra própria, fora desta entrega).
+- A escola não reorganiza a Relação; reordenar a lista desalinharia nomes e notas, como no próprio Excel.

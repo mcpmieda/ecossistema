@@ -1,0 +1,293 @@
+import type { LinkRefreshOutcomeV1, LinkRefreshResultV1 } from './run-link-refresh-v1';
+
+/**
+ * State of the link refresh, kept by the coordinator: which workbooks hold links, which sources
+ * they use, and when each is refreshed again. Pure functions; the coordinator stores the records.
+ */
+export type LinkTargetV1 = {
+  readonly itemId: string;
+  readonly kind: 'folder' | 'file';
+  readonly path: string;
+  readonly setBy: string;
+  readonly setAt: number;
+};
+
+export type LinkSettingsV1 = {
+  readonly enabled: boolean;
+  readonly targets: Readonly<Record<string, LinkTargetV1>>;
+};
+
+export const DEFAULT_LINK_SETTINGS_V1: LinkSettingsV1 = { enabled: false, targets: {} };
+
+export type LinkFileV1 = {
+  readonly id: string;
+  readonly name: string;
+  /** The folder or file chosen in the panel that brought this workbook in. */
+  readonly targetId: string;
+  readonly state: 'idle' | 'pending' | 'working';
+  readonly dueAt: number | null;
+  /** Sources that changed since the last refresh; null refreshes every link. */
+  readonly changed: readonly string[] | null;
+  /** Sources that changed while a refresh was running ('all': every link): the next refresh. */
+  readonly changedWhileWorking?: readonly string[] | 'all';
+  readonly sources: readonly string[];
+  readonly lease: string | null;
+  readonly leaseUntil: number | null;
+  /** Consecutive waits (open file) or failures, for the back-off. */
+  readonly attempts: number;
+  readonly removed: boolean;
+  readonly hash: string | null;
+  readonly modifiedAt: string | null;
+  /** The hash of the version the refresh itself wrote (its own save, not a person's). */
+  readonly ownHash: string | null;
+  readonly lastOutcome: LinkRefreshOutcomeV1 | null;
+  readonly lastCode: string | null;
+  readonly lastCheckedAt: number | null;
+  readonly lastWrittenAt: number | null;
+  readonly changedCells: number | null;
+  readonly unavailableLinks: number | null;
+};
+
+/** A source saved: its dependants wait this long for more saves of the same burst. */
+export const LINK_SOURCE_SETTLE_MS_V1 = 60_000;
+/** The workbook to write must be unchanged this long (Excel for the web saves in bursts). */
+export const LINK_DESTINATION_SETTLE_MS_V1 = 60_000;
+export const LINK_PARALLEL_V1 = 2;
+export const LINK_LEASE_MS_V1 = 4 * 60_000;
+/** Open file: tried again after 2, 4, 8 and then every 15 minutes. */
+const LOCKED_BACKOFF_MS_V1 = [2, 4, 8, 15].map((minutes) => minutes * 60_000);
+const FAILED_BACKOFF_MS_V1 = [5, 15, 60].map((minutes) => minutes * 60_000);
+/** After this many failures in a row the workbook waits for the next change or the nightly check. */
+const MAX_FAILURES_V1 = 4;
+
+const backoffV1 = (steps: readonly number[], attempts: number) =>
+  steps[Math.min(attempts, steps.length - 1)]!;
+
+export function newLinkFileV1(
+  item: { id: string; name: string; hash: string | null; modifiedAt: string | null },
+  targetId: string,
+  now: number,
+): LinkFileV1 {
+  return {
+    id: item.id,
+    name: item.name,
+    targetId,
+    state: 'pending',
+    dueAt: now,
+    changed: null,
+    sources: [],
+    lease: null,
+    leaseUntil: null,
+    attempts: 0,
+    removed: false,
+    hash: item.hash,
+    modifiedAt: item.modifiedAt,
+    ownHash: null,
+    lastOutcome: null,
+    lastCode: null,
+    lastCheckedAt: null,
+    lastWrittenAt: null,
+    changedCells: null,
+    unavailableLinks: null,
+  };
+}
+
+function mergeChangedV1(
+  current: readonly string[] | null | undefined,
+  more: readonly string[] | null,
+): readonly string[] | null {
+  if (current === null || more === null) return null;
+  return [...new Set([...(current ?? []), ...more])].sort();
+}
+
+/** Every workbook whose links use `sourceIds` (or every one, for null) is refreshed after the settle. */
+export function requestLinkRefreshV1(
+  file: LinkFileV1,
+  sourceIds: readonly string[] | null,
+  now: number,
+  settleMs: number,
+): LinkFileV1 {
+  if (file.removed) return file;
+  if (file.state === 'working') {
+    const waiting = file.changedWhileWorking;
+    return {
+      ...file,
+      changedWhileWorking:
+        sourceIds === null || waiting === 'all'
+          ? 'all'
+          : [...new Set([...(waiting ?? []), ...sourceIds])].sort(),
+    };
+  }
+  const changed = file.state === 'pending' ? mergeChangedV1(file.changed, sourceIds) : sourceIds;
+  return { ...file, state: 'pending', changed, dueAt: now + settleMs, attempts: 0 };
+}
+
+export function linkFilesToStartV1(
+  files: readonly LinkFileV1[],
+  now: number,
+  enabled: boolean,
+  max = LINK_PARALLEL_V1,
+): LinkFileV1[] {
+  if (!enabled) return [];
+  const working = files.filter((file) => file.state === 'working').length;
+  return files
+    .filter((file) => !file.removed && file.state === 'pending' && (file.dueAt ?? 0) <= now)
+    .sort((a, b) => (a.dueAt ?? 0) - (b.dueAt ?? 0))
+    .slice(0, Math.max(0, max - working));
+}
+
+export function startLinkRefreshV1(file: LinkFileV1, lease: string, now: number): LinkFileV1 {
+  return {
+    ...file,
+    state: 'working',
+    lease,
+    leaseUntil: now + LINK_LEASE_MS_V1,
+    changedWhileWorking: undefined,
+  };
+}
+
+export function expiredLinkLeasesV1(files: readonly LinkFileV1[], now: number): LinkFileV1[] {
+  return files.filter(
+    (file) => file.state === 'working' && file.leaseUntil !== null && file.leaseUntil <= now,
+  );
+}
+
+/** Outcomes that come from reading the links (the source list they report is complete). */
+const READ_LINKS_V1: ReadonlySet<LinkRefreshOutcomeV1> = new Set([
+  'unchanged',
+  'written',
+  'no-links',
+  'locked',
+  'changed-meanwhile',
+]);
+
+export function finishLinkRefreshV1(
+  file: LinkFileV1,
+  lease: string,
+  result: LinkRefreshResultV1,
+  now: number,
+): LinkFileV1 | null {
+  if (file.state !== 'working' || file.lease !== lease) return null;
+  const base: LinkFileV1 = {
+    ...file,
+    name: result.seen?.name ?? file.name,
+    lease: null,
+    leaseUntil: null,
+    lastOutcome: result.outcome,
+    lastCode: result.code,
+    lastCheckedAt: now,
+    sources: READ_LINKS_V1.has(result.outcome) ? result.sources : file.sources,
+    unavailableLinks: READ_LINKS_V1.has(result.outcome)
+      ? result.unavailableLinks
+      : file.unavailableLinks,
+    hash: result.written?.hash ?? result.seen?.hash ?? file.hash,
+    modifiedAt: result.written?.modifiedAt ?? result.seen?.modifiedAt ?? file.modifiedAt,
+    ownHash: result.outcome === 'written' ? (result.written?.hash ?? null) : file.ownHash,
+    lastWrittenAt: result.outcome === 'written' ? now : file.lastWrittenAt,
+    changedCells: result.outcome === 'written' ? result.changedCells : file.changedCells,
+  };
+  // Saved while this refresh ran: null is every link, undefined is nothing.
+  const waiting =
+    file.changedWhileWorking === 'all'
+      ? null
+      : file.changedWhileWorking && file.changedWhileWorking.length > 0
+        ? file.changedWhileWorking
+        : undefined;
+  const retry = (delay: number, attempts: number): LinkFileV1 => ({
+    ...base,
+    state: 'pending',
+    dueAt: now + delay,
+    changed: waiting === undefined ? file.changed : mergeChangedV1(file.changed, waiting),
+    changedWhileWorking: undefined,
+    attempts,
+  });
+  switch (result.outcome) {
+    case 'locked':
+      return retry(backoffV1(LOCKED_BACKOFF_MS_V1, file.attempts), file.attempts + 1);
+    case 'changed-meanwhile':
+    case 'settling':
+      return retry(LINK_DESTINATION_SETTLE_MS_V1, file.attempts + 1);
+    case 'failed':
+      if (file.attempts + 1 < MAX_FAILURES_V1)
+        return retry(backoffV1(FAILED_BACKOFF_MS_V1, file.attempts), file.attempts + 1);
+      break;
+    case 'gone':
+      return {
+        ...base,
+        state: 'idle',
+        dueAt: null,
+        removed: true,
+        changed: [],
+        changedWhileWorking: undefined,
+        attempts: 0,
+      };
+    default:
+      break;
+  }
+  // Done (or given up until the next change): sources saved meanwhile start a new refresh.
+  if (waiting !== undefined)
+    return {
+      ...base,
+      state: 'pending',
+      dueAt: now + LINK_SOURCE_SETTLE_MS_V1,
+      changed: waiting,
+      changedWhileWorking: undefined,
+      attempts: 0,
+    };
+  return {
+    ...base,
+    state: 'idle',
+    dueAt: null,
+    changed: [],
+    changedWhileWorking: undefined,
+    attempts: result.outcome === 'failed' ? file.attempts + 1 : 0,
+  };
+}
+
+/** A lease that ran out (the refresh died): tried again like a failure. */
+export function expiredLinkResultV1(): LinkRefreshResultV1 {
+  return {
+    outcome: 'failed',
+    code: 'LEASE-EXPIRED',
+    sources: [],
+    sourceHashes: {},
+    unavailableLinks: 0,
+    changedCells: 0,
+    seen: null,
+    written: null,
+    ms: 0,
+  };
+}
+
+/** The chosen folder or file a workbook belongs to: itself, or its folder (direct children only). */
+export function linkTargetOfV1(
+  item: { id: string; parentId: string | null },
+  targets: Readonly<Record<string, LinkTargetV1>>,
+): LinkTargetV1 | null {
+  const own = targets[item.id];
+  if (own?.kind === 'file') return own;
+  const folder = item.parentId === null ? undefined : targets[item.parentId];
+  return folder?.kind === 'folder' ? folder : null;
+}
+
+/**
+ * Which saved workbooks count as a change of a source: a new content hash, not the refresh's own
+ * write and not the same content seen before (a rename or a share is not a change).
+ */
+export function changedSourcesV1(
+  items: readonly { id: string; hash: string | null; deleted: boolean }[],
+  known: Readonly<Record<string, string | null>>,
+  ownHashes: ReadonlyMap<string, string | null>,
+): { changed: string[]; seen: Record<string, string | null> } {
+  const changed: string[] = [];
+  const seen: Record<string, string | null> = {};
+  for (const item of items) {
+    if (item.deleted) continue;
+    const own = ownHashes.get(item.id);
+    seen[item.id] = item.hash;
+    if (item.hash !== null && own === item.hash) continue;
+    if (item.hash !== null && known[item.id] === item.hash) continue;
+    changed.push(item.id);
+  }
+  return { changed, seen };
+}

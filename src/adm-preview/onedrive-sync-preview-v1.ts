@@ -65,6 +65,43 @@ const status: OneDriveSyncStatusV1 = {
   lastDeltaAt: minutes(2),
   parallelCeiling: 6,
   files: empty ? [] : syntheticFiles,
+  links: {
+    enabled: !empty,
+    targets: empty
+      ? []
+      : [
+          {
+            itemId: 'folder-2026',
+            kind: 'folder',
+            path: 'PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026',
+            setBy: 'Preview Local',
+            setAt: minutes(60 * 3),
+          },
+        ],
+    files: empty
+      ? []
+      : (
+          [
+            ['Planilha Sintética Professora A 2026.xlsb', 'idle', 'written', 2, 138],
+            ['Planilha Sintética Professor B 2026.xlsb', 'idle', 'unchanged', 9, null],
+            ['Planilha Sintética Professora C 2026.xlsb', 'pending', 'locked', 4, null],
+            ['Planilha Sintética Professor D 2026.xlsb', 'idle', 'no-links', 30, null],
+          ] as const
+        ).map(([name, state, outcome, age, cells], index) => ({
+          id: `item-${index + 1}`,
+          name,
+          state,
+          removed: false,
+          dueAt: state === 'pending' ? now + 2 * 60_000 : null,
+          lastOutcome: outcome,
+          lastCode: outcome === 'locked' ? 'FILE-OPEN' : null,
+          lastCheckedAt: minutes(age),
+          lastWrittenAt: cells === null ? null : minutes(age),
+          changedCells: cells,
+          unavailableLinks: 0,
+          sources: 4,
+        })),
+  },
   events: empty
     ? []
     : [
@@ -139,6 +176,27 @@ function control(command: Record<string, unknown>): void {
   }
   if (action === 'remove-source')
     status.sources = (status.sources ?? []).filter((item) => item.itemId !== command.itemId);
+  const links = status.links;
+  if (links) {
+    if (action === 'links-on') links.enabled = true;
+    if (action === 'links-off') links.enabled = false;
+    if (action === 'links-add-target')
+      links.targets = [
+        ...links.targets.filter((item) => item.itemId !== command.itemId),
+        {
+          itemId: String(command.itemId),
+          kind: command.kind === 'file' ? 'file' : 'folder',
+          path: String(command.path),
+          setBy: 'Preview Local',
+          setAt: Date.now(),
+        },
+      ];
+    if (action === 'links-remove-target')
+      links.targets = links.targets.filter((item) => item.itemId !== command.itemId);
+    if (action === 'links-refresh-now' || action === 'links-check-all')
+      for (const file of links.files)
+        if (action === 'links-check-all' || file.id === command.fileId) file.state = 'pending';
+  }
   status.events = [
     { at: Date.now(), kind: 'control', actor: 'Preview Local', detail: JSON.stringify(command) },
     ...status.events,

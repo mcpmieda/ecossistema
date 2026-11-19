@@ -20,6 +20,24 @@ import {
   type DriveWorkbookV1,
   type GraphAppEnvV1,
 } from './graph-drive-v1';
+import { graphDriveWebUrlV1 } from './links/graph-links-v1';
+import {
+  changedSourcesV1,
+  DEFAULT_LINK_SETTINGS_V1,
+  expiredLinkLeasesV1,
+  expiredLinkResultV1,
+  finishLinkRefreshV1,
+  LINK_DESTINATION_SETTLE_MS_V1,
+  LINK_SOURCE_SETTLE_MS_V1,
+  linkFilesToStartV1,
+  linkTargetOfV1,
+  newLinkFileV1,
+  requestLinkRefreshV1,
+  startLinkRefreshV1,
+  type LinkFileV1,
+  type LinkSettingsV1,
+} from './links/link-rules-v1';
+import type { LinkRefreshInputV1, LinkRefreshResultV1 } from './links/run-link-refresh-v1';
 import { WRITE_QUEUE_DEADLINE_CODE_V1, type ProcessWorkbookInputV1 } from './process-workbook-v1';
 import {
   DEFAULT_SYNC_SETTINGS_V1,
@@ -102,6 +120,24 @@ async function readFileV1(
 }
 
 export const readFileForTestsV1 = readFileV1;
+
+const LINKS_URL_V1 = 'https://notas-sync-reader.internal/vinculos';
+/** The links refresh through `SELF`: its own invocation (CPU and memory), no database. */
+export const LINKS_PATH_V1 = '/vinculos';
+
+async function refreshLinksV1(
+  env: Pick<SyncCoordinatorEnvV1, 'SELF'>,
+  input: LinkRefreshInputV1,
+): Promise<LinkRefreshResultV1> {
+  const response = await env.SELF.fetch(LINKS_URL_V1, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(PUBLIC_READ_TIMEOUT_MS_V1),
+  });
+  if (!response.ok) throw new Error(`notas-sync-links-http-${response.status}`);
+  return (await response.json()) as LinkRefreshResultV1;
+}
 
 export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
   /** The secretaria's OneDrive site; the folder of each academic year is chosen in the admin panel. */
@@ -186,6 +222,10 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.ctx.storage.sql
       .exec(`CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT,
       at INTEGER NOT NULL, kind TEXT NOT NULL, actor TEXT, detail TEXT NOT NULL)`);
+    // Workbooks whose links are kept up to date (#1541).
+    this.ctx.storage.sql.exec(
+      `CREATE TABLE IF NOT EXISTS links (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+    );
   }
 
   /** The retired first coordinator erases itself when it wakes and does nothing else. */
@@ -223,6 +263,28 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   private saveFile(file: SyncFileV1): void {
     this.ctx.storage.sql.exec(
       'INSERT INTO files (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data',
+      file.id,
+      JSON.stringify(file),
+    );
+  }
+  private linkSettings(): LinkSettingsV1 {
+    return this.meta<LinkSettingsV1>('linkSettings', DEFAULT_LINK_SETTINGS_V1);
+  }
+  private linkFiles(): LinkFileV1[] {
+    return this.ctx.storage.sql
+      .exec<{ data: string }>('SELECT data FROM links')
+      .toArray()
+      .map((row) => JSON.parse(row.data) as LinkFileV1);
+  }
+  private linkFile(id: string): LinkFileV1 | null {
+    const row = this.ctx.storage.sql
+      .exec<{ data: string }>('SELECT data FROM links WHERE id = ?', id)
+      .toArray()[0];
+    return row ? (JSON.parse(row.data) as LinkFileV1) : null;
+  }
+  private saveLinkFile(file: LinkFileV1): void {
+    this.ctx.storage.sql.exec(
+      'INSERT INTO links (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data',
       file.id,
       JSON.stringify(file),
     );
@@ -422,11 +484,246 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
           });
         break;
       }
+      case 'links-on':
+      case 'links-off':
+      case 'links-add-target':
+      case 'links-remove-target':
+      case 'links-check-all':
+      case 'links-refresh-now':
+        this.controlLinks(command, actor);
+        break;
     }
     this.event('control', { ...command }, actor.name);
     if (command.action === 'disable') await this.removeSubscription();
     await this.wakeAt(Date.now());
     return this.status();
+  }
+
+  /** The links refresh (#1541): switched on/off, its chosen folders/workbooks, a whole check. */
+  private controlLinks(
+    command: Extract<SyncControlV1, { action: `links-${string}` }>,
+    actor: OneDriveSyncActorV1,
+  ): void {
+    const settings = this.linkSettings();
+    const now = Date.now();
+    switch (command.action) {
+      case 'links-on':
+        this.setMeta('linkSettings', { ...settings, enabled: true });
+        this.setMeta('linksResync', true);
+        break;
+      case 'links-off':
+        this.setMeta('linkSettings', { ...settings, enabled: false });
+        break;
+      case 'links-add-target':
+        this.setMeta('linkSettings', {
+          ...settings,
+          targets: {
+            ...settings.targets,
+            [command.itemId]: {
+              itemId: command.itemId,
+              kind: command.kind,
+              path: command.path,
+              setBy: actor.name,
+              setAt: now,
+            },
+          },
+        });
+        this.setMeta('linksResync', true);
+        break;
+      case 'links-remove-target': {
+        const targets = { ...settings.targets };
+        delete targets[command.itemId];
+        this.setMeta('linkSettings', { ...settings, targets });
+        for (const file of this.linkFiles()) {
+          if (file.targetId !== command.itemId) continue;
+          if (file.state === 'working') this.saveLinkFile({ ...file, removed: true });
+          else this.ctx.storage.sql.exec('DELETE FROM links WHERE id = ?', file.id);
+        }
+        break;
+      }
+      case 'links-check-all':
+        for (const file of this.linkFiles())
+          this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0));
+        this.setMeta('linksResync', true);
+        break;
+      case 'links-refresh-now': {
+        const file = this.linkFile(command.fileId);
+        if (file) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0));
+        break;
+      }
+    }
+  }
+
+  /**
+   * The workbooks of the chosen folders (and the chosen workbooks) join the list; those that left
+   * are marked removed. `everything` asks every one for a whole refresh (nightly, "check all").
+   */
+  private async resyncLinks(now: number, everything: boolean): Promise<void> {
+    // Taken now: a request made while this listing awaits Graph stays for the next one.
+    this.setMeta('linksResync', false);
+    const settings = this.linkSettings();
+    if (!settings.enabled) return;
+    const listed: DriveWorkbookV1[] = [];
+    try {
+      const driveId = await this.driveId();
+      for (const target of Object.values(settings.targets))
+        listed.push(...(await this.listSource(driveId, target)));
+    } catch (cause) {
+      this.setMeta('linksResync', true);
+      throw cause;
+    }
+    const present = new Set(listed.map((item) => item.id));
+    this.observeLinks(listed, now);
+    for (const file of this.linkFiles()) {
+      if (!present.has(file.id)) {
+        if (!file.removed)
+          this.saveLinkFile({
+            ...file,
+            removed: true,
+            state: file.state === 'working' ? 'working' : 'idle',
+            dueAt: null,
+          });
+        continue;
+      }
+      if (everything) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0));
+    }
+    this.event('links-listing', { files: present.size, everything });
+  }
+
+  /**
+   * Link destinations and sources in what OneDrive reports: a new workbook of a chosen folder joins
+   * the list; a saved source (new content, not the refresh's own write) refreshes the workbooks
+   * whose links use it, once its burst of saves settles.
+   */
+  private observeLinks(items: readonly DriveWorkbookV1[], now: number): void {
+    const settings = this.linkSettings();
+    if (!settings.enabled || items.length === 0) return;
+    const files = new Map(this.linkFiles().map((file) => [file.id, file]));
+    for (const item of items) {
+      const current = files.get(item.id);
+      if (item.deleted) {
+        if (current && !current.removed)
+          this.saveLinkFile({
+            ...current,
+            removed: true,
+            state: current.state === 'working' ? 'working' : 'idle',
+            dueAt: null,
+          });
+        continue;
+      }
+      const target = linkTargetOfV1(item, settings.targets);
+      if (!target) continue;
+      if (!current || current.removed) {
+        const added = newLinkFileV1(
+          {
+            id: item.id,
+            name: item.name,
+            hash: item.quickXorHash,
+            modifiedAt: item.lastModifiedDateTime,
+          },
+          target.itemId,
+          now,
+        );
+        this.saveLinkFile(added);
+        files.set(added.id, added);
+      } else if (current.name !== item.name) this.saveLinkFile({ ...current, name: item.name });
+    }
+    const all = [...files.values()];
+    const used = new Set(all.flatMap((file) => file.sources));
+    const relevant = items.filter((item) => used.has(item.id));
+    if (relevant.length === 0) return;
+    const known = this.meta<Record<string, string | null>>('linkSourceHashes', {});
+    const { changed, seen } = changedSourcesV1(
+      relevant.map((item) => ({ id: item.id, hash: item.quickXorHash, deleted: item.deleted })),
+      known,
+      new Map(all.map((file) => [file.id, file.ownHash])),
+    );
+    this.setMeta('linkSourceHashes', { ...known, ...seen });
+    if (changed.length === 0) return;
+    for (const file of this.linkFiles())
+      if (file.sources.some((source) => changed.includes(source)))
+        this.saveLinkFile(requestLinkRefreshV1(file, changed, now, LINK_SOURCE_SETTLE_MS_V1));
+  }
+
+  /** Starts the link refreshes that are due; the alarm loop awaits them like the reads. */
+  private async startLinkRefreshes(now: number): Promise<void> {
+    const sync = this.settings();
+    if (!sync.enabled || sync.paused || !this.linkSettings().enabled) return;
+    const driveId = this.meta<string | null>('driveId', null);
+    if (!driveId) return;
+    const due = linkFilesToStartV1(this.linkFiles(), now, true);
+    if (due.length === 0) return;
+    let webUrl = this.meta<string | null>('driveWebUrl', null);
+    if (!webUrl) {
+      try {
+        webUrl = await graphDriveWebUrlV1(this.env, driveId);
+        this.setMeta('driveWebUrl', webUrl);
+      } catch {
+        return;
+      }
+    }
+    const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
+    for (const file of due) {
+      const lease = crypto.randomUUID();
+      this.saveLinkFile(startLinkRefreshV1(file, lease, now));
+      const run = refreshLinksV1(this.env, {
+        driveId,
+        driveWebUrl: webUrl,
+        itemId: file.id,
+        maxBytes,
+        onlySources: file.changed,
+        settleMs: LINK_DESTINATION_SETTLE_MS_V1,
+      })
+        .catch((cause: unknown): LinkRefreshResultV1 => {
+          console.error(
+            JSON.stringify({
+              event: 'notas-sync-links-unreachable',
+              error: String(cause).slice(0, 300),
+            }),
+          );
+          return { ...expiredLinkResultV1(), code: 'LINKS-UNREACHABLE' };
+        })
+        .then((result) => this.finishLinkRefresh(file.id, lease, result))
+        .catch((cause: unknown) => {
+          console.error(
+            JSON.stringify({
+              event: 'notas-sync-links-finish-failed',
+              error: String(cause).slice(0, 300),
+            }),
+          );
+        })
+        .then(() => {
+          this.inflight.delete(run);
+        });
+      this.inflight.add(run);
+    }
+  }
+
+  private finishLinkRefresh(id: string, lease: string, result: LinkRefreshResultV1): void {
+    const file = this.linkFile(id);
+    if (!file) return;
+    const next = finishLinkRefreshV1(file, lease, result, Date.now());
+    if (!next) return;
+    this.saveLinkFile(next);
+    if (Object.keys(result.sourceHashes).length > 0)
+      this.setMeta('linkSourceHashes', {
+        ...this.meta<Record<string, string | null>>('linkSourceHashes', {}),
+        ...result.sourceHashes,
+      });
+    if (result.outcome === 'written')
+      this.event('links-written', { file: next.name, cells: result.changedCells });
+    else if (result.outcome === 'failed' && next.state === 'idle')
+      this.event('links-failed', { file: next.name, code: result.code });
+    console.log(
+      JSON.stringify({
+        event: 'notas-sync-links',
+        outcome: result.outcome,
+        code: result.code,
+        ms: result.ms,
+        cells: result.changedCells,
+        unavailable: result.unavailableLinks,
+      }),
+    );
   }
 
   /** Its files leave the list (a read in progress ends as removed); grades already written stay. */
@@ -533,11 +830,39 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         lastAppliedAt: file.lastAppliedAt ?? null,
         ...(file.heldStudents ? { heldStudents: file.heldStudents } : {}),
       })),
+      links: this.linksStatus(),
       events: this.ctx.storage.sql
         .exec<{ at: number; kind: string; actor: string | null; detail: string }>(
           'SELECT at, kind, actor, detail FROM events ORDER BY id DESC LIMIT 50',
         )
         .toArray(),
+    };
+  }
+
+  private linksStatus(): NonNullable<SyncStatusV1['links']> {
+    const settings = this.linkSettings();
+    return {
+      enabled: settings.enabled,
+      targets: Object.values(settings.targets).sort((a, b) =>
+        PT_BR_COLLATOR_V1.compare(a.path, b.path),
+      ),
+      files: this.linkFiles()
+        .filter((file) => !file.removed)
+        .sort((a, b) => PT_BR_COLLATOR_V1.compare(a.name, b.name))
+        .map((file) => ({
+          id: file.id,
+          name: file.name,
+          state: file.state,
+          removed: file.removed,
+          dueAt: file.dueAt,
+          lastOutcome: file.lastOutcome,
+          lastCode: file.lastCode,
+          lastCheckedAt: file.lastCheckedAt,
+          lastWrittenAt: file.lastWrittenAt,
+          changedCells: file.changedCells,
+          unavailableLinks: file.unavailableLinks,
+          sources: file.sources.length,
+        })),
     };
   }
 
@@ -554,9 +879,12 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         savedToWrittenMs: null,
       });
     }
+    for (const file of expiredLinkLeasesV1(this.linkFiles(), now))
+      this.finishLinkRefresh(file.id, file.lease ?? '', expiredLinkResultV1());
     if (this.settings().enabled) {
       await this.lookAtOneDrive(now);
       this.startReads(now);
+      await this.startLinkRefreshes(now);
       // The alarm stays while reads run (a read left alone can be lost) and keeps looking at
       // OneDrive meanwhile, so a workbook saved during a batch does not wait for the batch.
       while (this.inflight.size > 0) {
@@ -565,6 +893,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         const at = Date.now();
         await this.lookAtOneDrive(at);
         this.startReads(at);
+        await this.startLinkRefreshes(at);
       }
     }
     await this.scheduleNext();
@@ -617,6 +946,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         });
       } else if (this.meta('deltaRequested', false) || this.pollDue(now))
         await this.deltaCheck(now);
+      if (this.meta('linksResync', false)) await this.resyncLinks(now, false);
     } catch (cause) {
       if (cause instanceof NoFolderConfiguredError) {
         this.setMeta('deltaRequested', false);
@@ -713,6 +1043,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     // written after the date it reports, arrive without waiting for Microsoft's notice.
     if (this.observe(delta.changes, now))
       this.setMeta('editPollUntil', editPollUntilV1(await this.pollWindow(now), now));
+    this.observeLinks(delta.changes, now);
     this.setMeta('deltaLink', delta.deltaLink);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
@@ -724,6 +1055,8 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.setMeta('nightlyRequested', false);
     const driveId = await this.driveId();
     await this.resyncSources(now, driveId, true);
+    // Every workbook with links gets a whole refresh too: anything a notice missed is caught here.
+    await this.resyncLinks(now, true);
   }
 
   /**
@@ -977,10 +1310,27 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       active && this.editPolling(now)
         ? Math.max(now + 1_000, (this.meta<number | null>('lastDeltaAt', null) ?? 0) + POLL_MS)
         : null;
+    // A link refresh due (or a refresh whose lease may run out) wakes it too, while switched on.
+    const linkAt =
+      active && this.linkSettings().enabled
+        ? this.linkFiles()
+            .filter((file) => !file.removed)
+            .map((file) =>
+              file.state === 'pending'
+                ? file.dueAt
+                : file.state === 'working'
+                  ? file.leaseUntil
+                  : null,
+            )
+            .filter((value): value is number => value !== null)
+            .reduce<number | null>((min, at) => (min === null || at < min ? at : min), null)
+        : null;
     const candidates = [
       next,
       pendingWork && this.settings().enabled ? graphReadyAt : null,
       pollAt,
+      linkAt === null ? null : Math.max(now + 1_000, linkAt),
+      this.meta('linksResync', false) && active ? graphReadyAt : null,
     ].filter((value): value is number => value !== null);
     if (candidates.length > 0) await this.wakeAt(Math.min(...candidates));
   }

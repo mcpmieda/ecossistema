@@ -1,0 +1,210 @@
+import {
+  forceXlsbRecalcOnOpenV1,
+  forceXlsxRecalcOnOpenV1,
+  readXlsbLinkCacheV1,
+  readXlsxLinkCacheV1,
+  rewriteXlsbLinkCacheV1,
+  rewriteXlsxLinkCacheV1,
+  type ExternalLinkCacheV1,
+} from './external-link-cache-v1';
+import type { SourceValuesV1 } from './source-values-v1';
+import {
+  readZipEntryV1,
+  readZipPackageV1,
+  rewriteZipPackageV1,
+  zipEntryNamesV1,
+} from './zip-package-v1';
+
+/** Where a link points: the Graph item, or a path inside the same drive. */
+export type LinkSourceRefV1 =
+  | { readonly kind: 'item'; readonly driveId: string; readonly itemId: string }
+  | { readonly kind: 'path'; readonly path: string };
+
+export type LinkPartV1 = {
+  readonly part: string;
+  readonly cache: ExternalLinkCacheV1;
+  readonly targets: readonly string[];
+};
+
+export type DestinationLinksV1 = {
+  readonly format: 'xlsb' | 'xlsx';
+  readonly links: readonly LinkPartV1[];
+};
+
+export type LinkPartStatusV1 =
+  'updated' | 'same' | 'source-unavailable' | 'sheet-missing' | 'unsupported';
+
+export type RefreshOutcomeV1 = {
+  readonly outcome: 'no-links' | 'unchanged' | 'changed';
+  /** The new workbook when outcome is changed. */
+  readonly bytes: Uint8Array | null;
+  readonly changedCells: number;
+  readonly parts: readonly {
+    readonly part: string;
+    readonly source: LinkSourceRefV1 | null;
+    readonly status: LinkPartStatusV1;
+    readonly changed: number;
+  }[];
+};
+
+const LINK_PART_V1 = /^xl\/externalLinks\/externalLink\d+\.(bin|xml)$/u;
+
+function relsTargetsV1(xml: string): string[] {
+  return [...xml.matchAll(/<Relationship\b([^>]*)\/?>/gu)]
+    .filter((match) => /Type="[^"]*\/externalLinkPath"/u.test(match[1]!))
+    .map((match) => /\sTarget="([^"]*)"/u.exec(match[1]!)?.[1] ?? '')
+    .filter(Boolean)
+    .map((target) => target.replace(/&amp;/gu, '&'));
+}
+
+export async function readDestinationLinksV1(bytes: Uint8Array) {
+  const pkg = readZipPackageV1(bytes);
+  const names = zipEntryNamesV1(pkg);
+  const format = names.includes('xl/workbook.bin')
+    ? 'xlsb'
+    : names.includes('xl/workbook.xml')
+      ? 'xlsx'
+      : null;
+  if (!format) return { pkg, format: null, links: [] as LinkPartV1[] };
+  const links: LinkPartV1[] = [];
+  for (const part of names.filter((name) => LINK_PART_V1.test(name))) {
+    const content = await readZipEntryV1(pkg, part);
+    if (!content) continue;
+    const cache = part.endsWith('.bin')
+      ? readXlsbLinkCacheV1(content)
+      : readXlsxLinkCacheV1(new TextDecoder().decode(content));
+    const relsName = part.replace(/^xl\/externalLinks\//u, 'xl/externalLinks/_rels/') + '.rels';
+    const rels = await readZipEntryV1(pkg, relsName);
+    links.push({ part, cache, targets: rels ? relsTargetsV1(new TextDecoder().decode(rels)) : [] });
+  }
+  return { pkg, format: format as 'xlsb' | 'xlsx', links };
+}
+
+/**
+ * Which file a link uses. The Graph ids Excel stores with the link win; otherwise the OneDrive
+ * address or the path relative to the destination is turned into a path in the same drive.
+ * Anything outside the drive (another person's OneDrive, a local disk) is not followed.
+ */
+export function resolveLinkSourceV1(
+  link: LinkPartV1,
+  drive: { readonly driveId: string; readonly webUrl: string },
+  destinationFolder: string,
+): LinkSourceRefV1 | null {
+  if (link.cache.itemId && link.cache.driveId === drive.driveId)
+    return { kind: 'item', driveId: drive.driveId, itemId: link.cache.itemId };
+  const base = new URL(drive.webUrl.endsWith('/') ? drive.webUrl : `${drive.webUrl}/`);
+  for (const raw of link.targets) {
+    if (/^https?:\/\//iu.test(raw)) {
+      const url = new URL(raw);
+      if (
+        url.host.toLowerCase() === base.host.toLowerCase() &&
+        url.pathname.startsWith(base.pathname)
+      )
+        return { kind: 'path', path: decodeURIComponent(url.pathname.slice(base.pathname.length)) };
+    } else if (raw.startsWith('/')) {
+      if (raw.startsWith(base.pathname))
+        return { kind: 'path', path: decodeURIComponent(raw.slice(base.pathname.length)) };
+    }
+  }
+  for (const raw of link.targets) {
+    if (/^[a-z][a-z0-9+.-]*:/iu.test(raw) || raw.startsWith('/') || raw.startsWith('\\')) continue;
+    const parts = destinationFolder.split('/').filter(Boolean);
+    for (const piece of decodeURIComponent(raw).split(/[\\/]/u)) {
+      if (piece === '..') parts.pop();
+      else if (piece && piece !== '.') parts.push(piece);
+    }
+    if (parts.length) return { kind: 'path', path: parts.join('/') };
+  }
+  return null;
+}
+
+export function sourceKeyV1(ref: LinkSourceRefV1): string {
+  return ref.kind === 'item' ? `item:${ref.itemId}` : `path:${ref.path.toLowerCase()}`;
+}
+
+/**
+ * One destination: refresh every link cache it holds from the sources' saved values, exactly as
+ * Excel's "update links" with the sources closed, and ask Excel to recalculate when the file is
+ * next opened. Cells, formulas, VBA and protection are not touched. Nothing is produced when the
+ * cache already matches the sources, so a refresh never writes the same file twice.
+ */
+export async function refreshDestinationLinksV1(input: {
+  readonly bytes: Uint8Array;
+  readonly resolve: (link: LinkPartV1) => LinkSourceRefV1 | null;
+  /** null: the source cannot be read; 'skip': it did not change, the cache is kept as it is. */
+  readonly loadSource: (
+    ref: LinkSourceRefV1,
+    sheets: readonly string[],
+  ) => Promise<SourceValuesV1 | null | 'skip'>;
+}): Promise<RefreshOutcomeV1> {
+  const { pkg, format, links } = await readDestinationLinksV1(input.bytes);
+  if (!format || links.length === 0)
+    return { outcome: 'no-links', bytes: null, changedCells: 0, parts: [] };
+  const replacements = new Map<string, Uint8Array>();
+  const parts: RefreshOutcomeV1['parts'][number][] = [];
+  let changedCells = 0;
+  for (const link of links) {
+    const source = input.resolve(link);
+    const sheets = [...new Set(link.cache.cells.map((cell) => cell.sheet))];
+    if (!source || sheets.length === 0) {
+      parts.push({
+        part: link.part,
+        source,
+        status: source ? 'same' : 'source-unavailable',
+        changed: 0,
+      });
+      continue;
+    }
+    const values = await input.loadSource(source, sheets);
+    if (values === 'skip') {
+      parts.push({ part: link.part, source, status: 'same', changed: 0 });
+      continue;
+    }
+    if (!values) {
+      parts.push({ part: link.part, source, status: 'source-unavailable', changed: 0 });
+      continue;
+    }
+    let missingSheet = false;
+    const lookup = (cell: { sheet: string; row: number; col: number }) => {
+      const value = values.valueAt(cell.sheet, cell.row, cell.col);
+      if (value === undefined) missingSheet = true;
+      return value;
+    };
+    const content = await readZipEntryV1(pkg, link.part);
+    if (!content) continue;
+    const rewritten =
+      format === 'xlsb' && link.part.endsWith('.bin')
+        ? rewriteXlsbLinkCacheV1(content, lookup)
+        : (() => {
+            const xml = rewriteXlsxLinkCacheV1(new TextDecoder().decode(content), lookup);
+            return { bytes: new TextEncoder().encode(xml.xml), changed: xml.changed };
+          })();
+    const changed = rewritten.changed;
+    if (changed) replacements.set(link.part, rewritten.bytes);
+    changedCells += changed;
+    parts.push({
+      part: link.part,
+      source,
+      status: missingSheet ? 'sheet-missing' : changed ? 'updated' : 'same',
+      changed,
+    });
+  }
+  if (replacements.size === 0) return { outcome: 'unchanged', bytes: null, changedCells: 0, parts };
+  if (format === 'xlsb') {
+    const workbook = await readZipEntryV1(pkg, 'xl/workbook.bin');
+    if (workbook) replacements.set('xl/workbook.bin', forceXlsbRecalcOnOpenV1(workbook));
+  } else {
+    const workbook = await readZipEntryV1(pkg, 'xl/workbook.xml');
+    if (workbook)
+      replacements.set(
+        'xl/workbook.xml',
+        new TextEncoder().encode(forceXlsxRecalcOnOpenV1(new TextDecoder().decode(workbook))),
+      );
+  }
+  return {
+    outcome: 'changed',
+    bytes: await rewriteZipPackageV1(pkg, replacements),
+    changedCells,
+    parts,
+  };
+}

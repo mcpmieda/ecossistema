@@ -40,6 +40,19 @@ export const oneDriveSyncRequestSchemaV1 = z.discriminatedUnion('action', [
   z.object({ action: z.literal('remove-source'), itemId: graphIdV1 }).strict(),
   // A Relação was applied elsewhere (manual import): the year's teacher workbooks are read again.
   z.object({ action: z.literal('reread-year'), year: yearV1 }).strict(),
+  // Links between workbooks (#1541): the refresh is switched on/off, checked whole, and works on
+  // the folders or workbooks chosen here (destinations); their sources are found in the links.
+  z.object({ action: z.enum(['links-on', 'links-off', 'links-check-all']) }).strict(),
+  z
+    .object({
+      action: z.literal('links-add-target'),
+      itemId: graphIdV1,
+      kind: z.enum(['folder', 'file']),
+      path: z.string().min(1).max(400),
+    })
+    .strict(),
+  z.object({ action: z.literal('links-remove-target'), itemId: graphIdV1 }).strict(),
+  z.object({ action: z.literal('links-refresh-now'), fileId: graphIdV1 }).strict(),
 ]);
 export type OneDriveSyncRequestV1 = z.infer<typeof oneDriveSyncRequestSchemaV1>;
 export type OneDriveSyncCommandV1 = Exclude<
@@ -74,6 +87,48 @@ export const oneDriveSyncFileSchemaV1 = z.object({
   lastAppliedAt: z.number().nullable().optional(),
   /** Students the last read held by the Relação checks (absent when none). */
   heldStudents: z.number().int().min(0).optional(),
+});
+
+export const oneDriveLinkOutcomeSchemaV1 = z.enum([
+  'unchanged',
+  'written',
+  'no-links',
+  'locked',
+  'changed-meanwhile',
+  'settling',
+  'too-large',
+  'gone',
+  'failed',
+]);
+
+/** One workbook whose links the sync keeps up to date. Counts and dates only. */
+export const oneDriveLinkFileSchemaV1 = z.object({
+  id: z.string(),
+  name: z.string(),
+  state: z.enum(['idle', 'pending', 'working']),
+  removed: z.boolean(),
+  dueAt: z.number().nullable(),
+  lastOutcome: oneDriveLinkOutcomeSchemaV1.nullable(),
+  lastCode: z.string().nullable(),
+  lastCheckedAt: z.number().nullable(),
+  lastWrittenAt: z.number().nullable(),
+  changedCells: z.number().int().min(0).nullable(),
+  unavailableLinks: z.number().int().min(0).nullable(),
+  sources: z.number().int().min(0),
+});
+
+export const oneDriveLinksStatusSchemaV1 = z.object({
+  enabled: z.boolean(),
+  targets: z.array(
+    z.object({
+      itemId: z.string(),
+      kind: z.enum(['folder', 'file']),
+      path: z.string(),
+      setBy: z.string(),
+      setAt: z.number(),
+    }),
+  ),
+  files: z.array(oneDriveLinkFileSchemaV1),
 });
 
 export const oneDriveSyncStatusSchemaV1 = z.object({
@@ -113,6 +168,8 @@ export const oneDriveSyncStatusSchemaV1 = z.object({
   webhook: z.object({ active: z.boolean(), expiresAt: z.string().nullable() }),
   lastDeltaAt: z.number().nullable(),
   files: z.array(oneDriveSyncFileSchemaV1),
+  /** Links between workbooks (#1541); absent in older records. */
+  links: oneDriveLinksStatusSchemaV1.optional(),
   events: z.array(
     z.object({
       at: z.number(),

@@ -5,6 +5,7 @@ import {
   CloudCog,
   FileSpreadsheet,
   FolderOpen,
+  Link2,
   Pause,
   Play,
   Plus,
@@ -70,12 +71,19 @@ const ACTION_LABELS: Record<string, string> = {
   'set-folder': 'escolheu a pasta',
   'add-source': 'adicionou uma fonte',
   'remove-source': 'removeu uma fonte',
+  'links-on': 'ligou a atualização de vínculos',
+  'links-off': 'desligou a atualização de vínculos',
+  'links-add-target': 'adicionou uma pasta aos vínculos',
+  'links-remove-target': 'removeu uma pasta dos vínculos',
+  'links-check-all': 'pediu para conferir todos os vínculos',
+  'links-refresh-now': 'pediu para atualizar os vínculos de um arquivo',
 };
 
 /** What each control change shows after its label. */
 const CONTROL_DETAILS: Readonly<Record<string, (detail: Record<string, unknown>) => string>> = {
   'set-folder': (detail) => ` (${String(detail.year)}: ${String(detail.folderPath)})`,
   'add-source': (detail) => ` (${String(detail.year)}: ${String(detail.path)})`,
+  'links-add-target': (detail) => ` (${String(detail.path)})`,
   'set-wait': (detail) => ` (${String(detail.seconds)} s)`,
   'set-parallel': (detail) => ` (${String(detail.count)})`,
 };
@@ -127,6 +135,12 @@ function eventText(event: OneDriveSyncStatusV1['events'][number]): string {
     return `leituras ao mesmo tempo: ${String(detail.from)} → ${String(detail.to)}`;
   if (event.kind === 'relation-changed')
     return `Relação mudou: ${String(detail.reread)} planilha(s) lidas de novo`;
+  if (event.kind === 'links-written')
+    return `vínculos atualizados em ${String(detail.file)} (${String(detail.cells)} célula(s))`;
+  if (event.kind === 'links-failed')
+    return `não foi possível atualizar os vínculos de ${String(detail.file)}`;
+  if (event.kind === 'links-listing')
+    return `vínculos: ${String(detail.files)} planilha(s) conferida(s)`;
   return event.kind;
 }
 
@@ -232,12 +246,12 @@ function PreviewSummary({ preview }: Readonly<{ preview: PreviewV1 }>) {
 /** The workbooks of the folder shown, each one can be chosen as a source on its own (e.g. the Relação). */
 function WorkbookChoices({
   workbooks,
-  year,
+  label,
   disabled,
   onChoose,
 }: Readonly<{
   workbooks: readonly WorkbookEntryV1[];
-  year: number;
+  label: string;
   disabled: boolean;
   onChoose: (workbook: WorkbookEntryV1) => void;
 }>) {
@@ -258,7 +272,7 @@ function WorkbookChoices({
             isDisabled={disabled}
             onPress={() => onChoose(workbook)}
           >
-            Ler só este arquivo em {year}
+            {label}
           </Button>
         </li>
       ))}
@@ -266,13 +280,20 @@ function WorkbookChoices({
   );
 }
 
-/** Navigates the secretaria's OneDrive and chooses a source: the folder shown or one of its workbooks. */
+/**
+ * Navigates the secretaria's OneDrive and chooses the folder shown or one of its workbooks: a
+ * source of the reading (after a preview) or a folder whose links are kept up to date.
+ */
 function SourcePicker({
-  year,
+  folderLabel,
+  fileLabel,
+  previewRequired,
   onChosen,
   onCancel,
 }: Readonly<{
-  year: number;
+  folderLabel: string;
+  fileLabel: string;
+  previewRequired: boolean;
   onChosen: (source: ChosenSourceV1) => Promise<void>;
   onCancel: () => void;
 }>) {
@@ -373,7 +394,7 @@ function SourcePicker({
           ))}
           <WorkbookChoices
             workbooks={workbooks}
-            year={year}
+            label={fileLabel}
             disabled={busy !== null}
             onChoose={(workbook) => {
               setBusy('save');
@@ -398,17 +419,19 @@ function SourcePicker({
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button
-          variant="secondary"
-          isDisabled={!current || busy !== null}
-          isPending={busy === 'preview'}
-          onPress={() => void runPreview()}
-        >
-          Ver prévia desta pasta
-        </Button>
+        {previewRequired ? (
+          <Button
+            variant="secondary"
+            isDisabled={!current || busy !== null}
+            isPending={busy === 'preview'}
+            onPress={() => void runPreview()}
+          >
+            Ver prévia desta pasta
+          </Button>
+        ) : null}
         <Button
           variant="primary"
-          isDisabled={!current || !preview || busy !== null}
+          isDisabled={!current || (previewRequired && !preview) || busy !== null}
           isPending={busy === 'save'}
           onPress={() => {
             if (current) {
@@ -419,7 +442,7 @@ function SourcePicker({
             }
           }}
         >
-          Ler esta pasta inteira em {year}
+          {folderLabel}
         </Button>
         <Button variant="ghost" onPress={onCancel}>
           Cancelar
@@ -594,7 +617,9 @@ function SourcesSection({
       )}
       {picking && year !== null ? (
         <SourcePicker
-          year={year}
+          folderLabel={`Ler esta pasta inteira em ${year}`}
+          fileLabel={`Ler só este arquivo em ${year}`}
+          previewRequired
           onCancel={() => setPicking(false)}
           onChosen={async (source) => {
             await send({
@@ -626,10 +651,213 @@ function SettingsSection({ status }: Readonly<{ status: OneDriveSyncStatusV1 }>)
   );
 }
 
-/** A status with a file being read. */
+type LinksV1 = NonNullable<OneDriveSyncStatusV1['links']>;
+type LinkFileV1 = LinksV1['files'][number];
+
+const LINK_OUTCOME_LABELS: Record<NonNullable<LinkFileV1['lastOutcome']>, [string, ChipColor]> = {
+  unchanged: ['Em dia', 'success'],
+  written: ['Atualizado', 'success'],
+  'no-links': ['Sem vínculos', 'default'],
+  locked: ['Aberto por alguém — nova tentativa automática', 'warning'],
+  'changed-meanwhile': ['Salvo durante a atualização — nova tentativa', 'accent'],
+  settling: ['Aguardando o salvamento terminar', 'accent'],
+  'too-large': ['Arquivo grande demais', 'warning'],
+  gone: ['Removido', 'default'],
+  failed: ['Falhou', 'danger'],
+};
+
+function linkChipV1(file: LinkFileV1): [string, ChipColor] {
+  if (file.state === 'working') return ['Atualizando', 'accent'];
+  const outcome = file.lastOutcome;
+  if (file.state === 'pending') {
+    if (outcome === 'failed') return ['Falhou — nova tentativa automática', 'danger'];
+    if (outcome === 'locked' || outcome === 'changed-meanwhile' || outcome === 'settling')
+      return LINK_OUTCOME_LABELS[outcome];
+    return ['Aguardando', 'accent'];
+  }
+  return outcome ? LINK_OUTCOME_LABELS[outcome] : ['Ainda não conferido', 'default'];
+}
+
+function LinkFileRow({
+  file,
+  busy,
+  onRefresh,
+}: Readonly<{ file: LinkFileV1; busy: boolean; onRefresh: () => void }>) {
+  const [label, color] = linkChipV1(file);
+  const detail = [
+    file.lastCheckedAt ? `Conferido ${time(file.lastCheckedAt)}` : null,
+    file.lastWrittenAt ? `atualizado ${time(file.lastWrittenAt)}` : null,
+    file.unavailableLinks ? `${file.unavailableLinks} vínculo(s) sem origem acessível` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <li className="flex items-center gap-3 border-b border-border/60 px-4 py-2.5 last:border-b-0">
+      <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="truncate text-sm font-medium" title={file.name}>
+            {file.name}
+          </span>
+          <Chip size="sm" variant="soft" color={color}>
+            <Chip.Label>{label}</Chip.Label>
+          </Chip>
+        </div>
+        {detail ? <p className="mt-0.5 text-xs text-muted">{detail}</p> : null}
+      </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        isIconOnly
+        aria-label={`Atualizar os vínculos de ${file.name}`}
+        isDisabled={busy || file.state === 'working'}
+        onPress={onRefresh}
+      >
+        <RotateCw className="size-4" aria-hidden="true" />
+      </Button>
+    </li>
+  );
+}
+
+/**
+ * Links between workbooks (#1541): the sync keeps the copy of the source cells that Excel stores
+ * for each link up to date, in the folders (or workbooks) chosen here; Excel recalculates when the
+ * file is opened.
+ */
+function LinksSection({
+  status,
+  busy,
+  send,
+}: Readonly<{ status: OneDriveSyncStatusV1; busy: boolean; send: SendV1 }>) {
+  const [picking, setPicking] = useState(false);
+  const links: LinksV1 = status.links ?? { enabled: false, targets: [], files: [] };
+  const stopped = links.enabled && (!status.settings.enabled || status.settings.paused);
+  let chip: [string, ChipColor] = ['Desligada', 'default'];
+  if (stopped) chip = ['Parada — leitura automática desligada ou pausada', 'warning'];
+  else if (links.enabled) chip = ['Ligada', 'success'];
+  return (
+    <Surface className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+            <Link2 className="size-5" aria-hidden="true" />
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold">Vínculos entre planilhas</h3>
+            <Chip size="sm" variant="soft" color={chip[1]}>
+              <Chip.Label>{chip[0]}</Chip.Label>
+            </Chip>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant={links.enabled ? 'secondary' : 'primary'}
+            isDisabled={busy}
+            onPress={() => void send({ action: links.enabled ? 'links-off' : 'links-on' })}
+          >
+            <Power className="size-4" aria-hidden="true" />
+            {links.enabled ? 'Desligar' : 'Ligar'}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={busy || !links.enabled}
+            onPress={() => void send({ action: 'links-check-all' })}
+          >
+            <RefreshCcw className="size-4" aria-hidden="true" />
+            Conferir tudo
+          </Button>
+        </div>
+      </div>
+      <div className="grid min-w-0 grid-cols-1 gap-4 px-5 py-4">
+        <section className="grid min-w-0 grid-cols-1 gap-2" aria-labelledby="onedrive-links-title">
+          <div className="flex items-center justify-between gap-2">
+            <h4 id="onedrive-links-title" className="text-sm font-semibold">
+              Pastas e planilhas
+            </h4>
+            {picking ? null : (
+              <Button size="sm" variant="ghost" isDisabled={busy} onPress={() => setPicking(true)}>
+                <Plus className="size-4" aria-hidden="true" />
+                Adicionar
+              </Button>
+            )}
+          </div>
+          {links.targets.length === 0 ? (
+            <p className="text-sm text-muted">Nenhuma pasta escolhida.</p>
+          ) : (
+            <ul className="min-w-0 divide-y divide-border/60 rounded-xl border border-border/70">
+              {links.targets.map((target) => (
+                <li
+                  key={target.itemId}
+                  className="flex items-center gap-2 py-1 pl-3 pr-1 text-sm"
+                  title={`${target.setBy} em ${time(target.setAt)}`}
+                >
+                  {target.kind === 'folder' ? (
+                    <FolderOpen className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                  ) : (
+                    <FileSpreadsheet className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                  )}
+                  <span className="min-w-0 flex-1 truncate">{target.path}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    isIconOnly
+                    isDisabled={busy}
+                    aria-label={`Remover ${target.path}`}
+                    onPress={() =>
+                      void send({ action: 'links-remove-target', itemId: target.itemId })
+                    }
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {picking ? (
+            <SourcePicker
+              folderLabel="Usar esta pasta"
+              fileLabel="Usar só este arquivo"
+              previewRequired={false}
+              onCancel={() => setPicking(false)}
+              onChosen={async (target) => {
+                await send({
+                  action: 'links-add-target',
+                  itemId: target.itemId,
+                  kind: target.kind,
+                  path: target.path.slice(0, 400),
+                });
+                setPicking(false);
+              }}
+            />
+          ) : null}
+        </section>
+      </div>
+      {links.files.length > 0 ? (
+        <ul className="border-t border-border">
+          {links.files.map((file) => (
+            <LinkFileRow
+              key={file.id}
+              file={file}
+              busy={busy}
+              onRefresh={() => void send({ action: 'links-refresh-now', fileId: file.id })}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </Surface>
+  );
+}
+
+/** A status with a file being read, or a workbook's links being refreshed. */
 function statusMovingV1(answer: OneDriveSyncResponseV1): boolean {
   // A file waiting for a later retry is not moving: only a read in progress asks every 10 s.
-  return answer.state !== 'status' || answer.status.files.some((file) => file.state === 'reading');
+  return (
+    answer.state !== 'status' ||
+    answer.status.files.some((file) => file.state === 'reading') ||
+    (answer.status.links?.files.some((file) => file.state === 'working') ?? false)
+  );
 }
 
 /**
@@ -800,6 +1028,8 @@ export function OneDriveSyncPageV1({ isActive = true }: { isActive?: boolean } =
           </ul>
         )}
       </Surface>
+
+      <LinksSection status={status} busy={busy} send={send} />
 
       <details className="group overflow-hidden rounded-2xl border border-border bg-surface">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-semibold">
