@@ -5,25 +5,35 @@
  */
 export type Biff12RecordV1 = { readonly type: number; readonly data: Uint8Array };
 
+/** The record header at `at`: its type, its data size and where the data starts. */
+function readHeaderV1(
+  bytes: Uint8Array,
+  at: number,
+): { type: number; size: number; start: number } {
+  let next = at;
+  const byteAt = (what: string) => {
+    if (next >= bytes.length) throw new Error(`BIFF12 record ${what} is truncated`);
+    return bytes[next++]!;
+  };
+  let type = byteAt('type');
+  if (type & 0x80) type = (type & 0x7f) | (byteAt('type') << 7);
+  let size = 0;
+  for (let shift = 0; shift < 28; shift += 7) {
+    const byte = byteAt('size');
+    size |= (byte & 0x7f) << shift;
+    if (!(byte & 0x80)) break;
+  }
+  return { type, size, start: next };
+}
+
 export function readBiff12RecordsV1(bytes: Uint8Array): Biff12RecordV1[] {
   const records: Biff12RecordV1[] = [];
   let at = 0;
   while (at < bytes.length) {
-    let type = bytes[at++]!;
-    if (type & 0x80) {
-      if (at >= bytes.length) throw new Error('BIFF12 record type is truncated');
-      type = (type & 0x7f) | (bytes[at++]! << 7);
-    }
-    let size = 0;
-    for (let shift = 0; shift < 28; shift += 7) {
-      if (at >= bytes.length) throw new Error('BIFF12 record size is truncated');
-      const byte = bytes[at++]!;
-      size |= (byte & 0x7f) << shift;
-      if (!(byte & 0x80)) break;
-    }
-    if (at + size > bytes.length) throw new Error('BIFF12 record data is truncated');
-    records.push({ type, data: bytes.subarray(at, at + size) });
-    at += size;
+    const { type, size, start } = readHeaderV1(bytes, at);
+    if (start + size > bytes.length) throw new Error('BIFF12 record data is truncated');
+    records.push({ type, data: bytes.subarray(start, start + size) });
+    at = start + size;
   }
   return records;
 }

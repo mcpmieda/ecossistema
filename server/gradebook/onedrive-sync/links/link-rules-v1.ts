@@ -96,12 +96,17 @@ export function newLinkFileV1(
   };
 }
 
+/** Graph ids, once each, in a stable order. */
+function unionIdsV1(...lists: ReadonlyArray<readonly string[]>): string[] {
+  return [...new Set(lists.flat())].sort((a, b) => a.localeCompare(b));
+}
+
 function mergeChangedV1(
   current: readonly string[] | null | undefined,
   more: readonly string[] | null,
 ): readonly string[] | null {
   if (current === null || more === null) return null;
-  return [...new Set([...(current ?? []), ...more])].sort();
+  return unionIdsV1(current ?? [], more);
 }
 
 /** Every workbook whose links use `sourceIds` (or every one, for null) is refreshed after the settle. */
@@ -117,9 +122,7 @@ export function requestLinkRefreshV1(
     return {
       ...file,
       changedWhileWorking:
-        sourceIds === null || waiting === 'all'
-          ? 'all'
-          : [...new Set([...(waiting ?? []), ...sourceIds])].sort(),
+        sourceIds === null || waiting === 'all' ? 'all' : unionIdsV1(waiting ?? [], sourceIds),
     };
   }
   const pending = file.state === 'pending';
@@ -165,6 +168,14 @@ export function expiredLinkLeasesV1(files: readonly LinkFileV1[], now: number): 
   );
 }
 
+/** Sources saved while the refresh ran: null is every link, undefined is nothing. */
+function savedWhileWorkingV1(file: LinkFileV1): readonly string[] | null | undefined {
+  const waiting = file.changedWhileWorking;
+  if (waiting === 'all') return null;
+  if (waiting && waiting.length > 0) return waiting;
+  return undefined;
+}
+
 /** Outcomes that come from reading the links (the source list they report is complete). */
 const READ_LINKS_V1: ReadonlySet<LinkRefreshOutcomeV1> = new Set([
   'unchanged',
@@ -199,13 +210,7 @@ export function finishLinkRefreshV1(
     lastWrittenAt: result.outcome === 'written' ? now : file.lastWrittenAt,
     changedCells: result.outcome === 'written' ? result.changedCells : file.changedCells,
   };
-  // Saved while this refresh ran: null is every link, undefined is nothing.
-  const waiting =
-    file.changedWhileWorking === 'all'
-      ? null
-      : file.changedWhileWorking && file.changedWhileWorking.length > 0
-        ? file.changedWhileWorking
-        : undefined;
+  const waiting = savedWhileWorkingV1(file);
   const retry = (delay: number, attempts: number): LinkFileV1 => ({
     ...base,
     state: 'pending',
@@ -294,6 +299,59 @@ export function linkFilesByRecentV1<
     }
     return compareNames(left.name, right.name);
   });
+}
+
+/**
+ * A workbook OneDrive reports: a deleted one leaves the list, a new one of a chosen folder joins it
+ * (its links are read at once), a renamed one keeps its record. Null when nothing changes.
+ */
+export function observedLinkFileV1(
+  current: LinkFileV1 | null,
+  item: {
+    readonly id: string;
+    readonly name: string;
+    readonly quickXorHash: string | null;
+    readonly lastModifiedDateTime: string;
+    readonly deleted: boolean;
+  },
+  target: LinkTargetV1 | null,
+  now: number,
+): LinkFileV1 | null {
+  if (item.deleted) {
+    if (!current || current.removed) return null;
+    return {
+      ...current,
+      removed: true,
+      state: current.state === 'working' ? 'working' : 'idle',
+      dueAt: null,
+    };
+  }
+  if (!target) return null;
+  if (!current || current.removed)
+    return newLinkFileV1(
+      {
+        id: item.id,
+        name: item.name,
+        hash: item.quickXorHash,
+        modifiedAt: item.lastModifiedDateTime,
+      },
+      target.itemId,
+      now,
+    );
+  return current.name === item.name ? null : { ...current, name: item.name };
+}
+
+/** When the coordinator must wake for links: a refresh due, or a running one whose lease ends. */
+export function nextLinkWakeV1(files: readonly LinkFileV1[]): number | null {
+  let next: number | null = null;
+  for (const file of files) {
+    if (file.removed) continue;
+    let at: number | null = null;
+    if (file.state === 'pending') at = file.dueAt;
+    else if (file.state === 'working') at = file.leaseUntil;
+    if (at !== null && (next === null || at < next)) next = at;
+  }
+  return next;
 }
 
 /** The chosen folder or file a workbook belongs to: itself, or its folder (direct children only). */

@@ -140,6 +140,55 @@ function uploadUrlV1(raw: unknown): URL {
   return url;
 }
 
+type ReplaceInputV1 = {
+  readonly driveId: string;
+  readonly itemId: string;
+  readonly eTag: string;
+  readonly bytes: Uint8Array;
+};
+
+/** 423: someone has it open; 409/412: it changed after the version read. Anything else: null. */
+function refusedOutcomeV1(status: number): ReplaceOutcomeV1 | null {
+  if (status === 423) return { outcome: 'locked' };
+  if (status === 409 || status === 412) return { outcome: 'changed' };
+  return null;
+}
+
+/** The upload session, created only while the file is still at `eTag` (if-match). */
+async function createUploadSessionV1(
+  env: GraphAppEnvV1,
+  input: ReplaceInputV1,
+  dependencies: GraphDependencies,
+): Promise<URL | ReplaceOutcomeV1> {
+  try {
+    const { data } = await graphRequest<{ uploadUrl?: unknown }>({
+      env: asEnvV1(env),
+      method: 'POST',
+      path: `/drives/${encodeURIComponent(input.driveId)}/items/${encodeURIComponent(input.itemId)}/createUploadSession`,
+      body: { item: { '@microsoft.graph.conflictBehavior': 'replace' } },
+      etag: input.eTag,
+      dependencies,
+    });
+    return uploadUrlV1(data?.uploadUrl);
+  } catch (cause) {
+    const refused = cause instanceof GraphError ? refusedOutcomeV1(cause.status) : null;
+    if (refused) return refused;
+    throw cause;
+  }
+}
+
+async function writtenOutcomeV1(response: Response): Promise<ReplaceOutcomeV1> {
+  const item = (await response.json().catch(() => null)) as GraphLinkItemV1 | null;
+  const hash = item?.file?.hashes?.quickXorHash;
+  return {
+    outcome: 'written',
+    eTag: typeof item?.eTag === 'string' ? item.eTag : null,
+    quickXorHash: typeof hash === 'string' && hash ? hash : null,
+    lastModifiedDateTime:
+      typeof item?.lastModifiedDateTime === 'string' ? item.lastModifiedDateTime : null,
+  };
+}
+
 /**
  * Replaces the workbook's content only if it is still at `eTag` (documented `if-match` of the
  * upload session: 412 when someone saved meanwhile) and nobody holds it open (423). The lock is
@@ -147,37 +196,17 @@ function uploadUrlV1(raw: unknown): URL {
  */
 export async function graphReplaceWorkbookV1(
   env: GraphAppEnvV1,
-  input: {
-    readonly driveId: string;
-    readonly itemId: string;
-    readonly eTag: string;
-    readonly bytes: Uint8Array;
-  },
+  input: ReplaceInputV1,
   dependencies: GraphDependencies = graphDefaultsV1,
 ): Promise<ReplaceOutcomeV1> {
-  let session: { uploadUrl?: unknown };
-  try {
-    ({ data: session } = await graphRequest<{ uploadUrl?: unknown }>({
-      env: asEnvV1(env),
-      method: 'POST',
-      path: `/drives/${encodeURIComponent(input.driveId)}/items/${encodeURIComponent(input.itemId)}/createUploadSession`,
-      body: { item: { '@microsoft.graph.conflictBehavior': 'replace' } },
-      etag: input.eTag,
-      dependencies,
-    }));
-  } catch (cause) {
-    if (cause instanceof GraphError && cause.status === 423) return { outcome: 'locked' };
-    if (cause instanceof GraphError && (cause.status === 412 || cause.status === 409))
-      return { outcome: 'changed' };
-    throw cause;
-  }
-  const url = uploadUrlV1(session?.uploadUrl);
+  const session = await createUploadSessionV1(env, input, dependencies);
+  if (!(session instanceof URL)) return session;
   const size = input.bytes.length;
   let response: Response;
   try {
     // No Authorization header: the session address carries its own (documented 401 otherwise).
     // The body has a known length, so the runtime sends Content-Length itself.
-    response = await dependencies.fetch(url.href, {
+    response = await dependencies.fetch(session.href, {
       method: 'PUT',
       redirect: 'manual',
       headers: { 'Content-Range': `bytes 0-${size - 1}/${size}` },
@@ -185,25 +214,15 @@ export async function graphReplaceWorkbookV1(
       signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS_V1),
     });
   } catch {
-    await cancelSessionV1(url, dependencies);
+    await cancelSessionV1(session, dependencies);
     // The content may or may not have been committed: the caller re-reads the item.
     throw new GraphError(503, crypto.randomUUID());
   }
-  if (response.ok) {
-    const item = (await response.json().catch(() => null)) as GraphLinkItemV1 | null;
-    const hash = item?.file?.hashes?.quickXorHash;
-    return {
-      outcome: 'written',
-      eTag: typeof item?.eTag === 'string' ? item.eTag : null,
-      quickXorHash: typeof hash === 'string' && hash ? hash : null,
-      lastModifiedDateTime:
-        typeof item?.lastModifiedDateTime === 'string' ? item.lastModifiedDateTime : null,
-    };
-  }
+  if (response.ok) return writtenOutcomeV1(response);
   await response.body?.cancel().catch(() => undefined);
-  await cancelSessionV1(url, dependencies);
-  if (response.status === 423) return { outcome: 'locked' };
-  if (response.status === 409 || response.status === 412) return { outcome: 'changed' };
+  await cancelSessionV1(session, dependencies);
+  const refused = refusedOutcomeV1(response.status);
+  if (refused) return refused;
   throw new GraphError(response.status, crypto.randomUUID());
 }
 

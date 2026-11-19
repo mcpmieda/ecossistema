@@ -144,6 +144,32 @@ const workbooksIn: Record<string, Array<{ id: string; name: string; size: number
   'folder-lt-2026': [{ id: 'file-relacao-2026', name: 'RELAÇÃO 2026.xlsb', size: 1_136_663 }],
 };
 
+/** The links card of the preview (#1541): switched, its folders, and a refresh asked. */
+function controlLinks(
+  links: NonNullable<OneDriveSyncStatusV1['links']>,
+  action: string,
+  command: Record<string, unknown>,
+): void {
+  if (action === 'links-on') links.enabled = true;
+  if (action === 'links-off') links.enabled = false;
+  if (action === 'links-add-target')
+    links.targets = [
+      ...links.targets.filter((item) => item.itemId !== command.itemId),
+      {
+        itemId: String(command.itemId),
+        kind: command.kind === 'file' ? 'file' : 'folder',
+        path: String(command.path),
+        setBy: 'Preview Local',
+        setAt: Date.now(),
+      },
+    ];
+  if (action === 'links-remove-target')
+    links.targets = links.targets.filter((item) => item.itemId !== command.itemId);
+  const asked = (file: { id: string }) =>
+    action === 'links-check-all' || (action === 'links-refresh-now' && file.id === command.fileId);
+  for (const file of links.files) if (asked(file)) file.state = 'pending';
+}
+
 function control(command: Record<string, unknown>): void {
   const action = String(command.action);
   if (action === 'enable') status.settings.enabled = true;
@@ -177,27 +203,7 @@ function control(command: Record<string, unknown>): void {
   }
   if (action === 'remove-source')
     status.sources = (status.sources ?? []).filter((item) => item.itemId !== command.itemId);
-  const links = status.links;
-  if (links) {
-    if (action === 'links-on') links.enabled = true;
-    if (action === 'links-off') links.enabled = false;
-    if (action === 'links-add-target')
-      links.targets = [
-        ...links.targets.filter((item) => item.itemId !== command.itemId),
-        {
-          itemId: String(command.itemId),
-          kind: command.kind === 'file' ? 'file' : 'folder',
-          path: String(command.path),
-          setBy: 'Preview Local',
-          setAt: Date.now(),
-        },
-      ];
-    if (action === 'links-remove-target')
-      links.targets = links.targets.filter((item) => item.itemId !== command.itemId);
-    if (action === 'links-refresh-now' || action === 'links-check-all')
-      for (const file of links.files)
-        if (action === 'links-check-all' || file.id === command.fileId) file.state = 'pending';
-  }
+  if (status.links) controlLinks(status.links, action, command);
   status.events = [
     { at: Date.now(), kind: 'control', actor: 'Preview Local', detail: JSON.stringify(command) },
     ...status.events,

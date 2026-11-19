@@ -13,6 +13,7 @@ import {
   readZipPackageV1,
   rewriteZipPackageV1,
   zipEntryNamesV1,
+  type ZipPackageV1,
 } from './zip-package-v1';
 
 /** Where a link points: the Graph item, or a path inside the same drive. */
@@ -54,17 +55,19 @@ function relsTargetsV1(xml: string): string[] {
     .filter((match) => /Type="[^"]*\/externalLinkPath"/u.test(match[1]!))
     .map((match) => /\sTarget="([^"]*)"/u.exec(match[1]!)?.[1] ?? '')
     .filter(Boolean)
-    .map((target) => target.replace(/&amp;/gu, '&'));
+    .map((target) => target.replaceAll('&amp;', '&'));
+}
+
+function packageFormatV1(names: readonly string[]): 'xlsb' | 'xlsx' | null {
+  if (names.includes('xl/workbook.bin')) return 'xlsb';
+  if (names.includes('xl/workbook.xml')) return 'xlsx';
+  return null;
 }
 
 export async function readDestinationLinksV1(bytes: Uint8Array) {
   const pkg = readZipPackageV1(bytes);
   const names = zipEntryNamesV1(pkg);
-  const format = names.includes('xl/workbook.bin')
-    ? 'xlsb'
-    : names.includes('xl/workbook.xml')
-      ? 'xlsx'
-      : null;
+  const format = packageFormatV1(names);
   if (!format) return { pkg, format: null, links: [] as LinkPartV1[] };
   const links: LinkPartV1[] = [];
   for (const part of names.filter((name) => LINK_PART_V1.test(name))) {
@@ -77,7 +80,44 @@ export async function readDestinationLinksV1(bytes: Uint8Array) {
     const rels = await readZipEntryV1(pkg, relsName);
     links.push({ part, cache, targets: rels ? relsTargetsV1(new TextDecoder().decode(rels)) : [] });
   }
-  return { pkg, format: format as 'xlsb' | 'xlsx', links };
+  return { pkg, format, links };
+}
+
+/** A percent-encoded piece of an address; null when it is malformed. */
+function decodedV1(text: string): string | null {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return null;
+  }
+}
+
+/** "https://host/personal/x/Documents/A/B.xlsb" (or the same without the host) → "A/B.xlsb". */
+function pathFromAddressV1(raw: string, base: URL): string | null {
+  if (/^https?:\/\//iu.test(raw)) {
+    const url = URL.canParse(raw) ? new URL(raw) : null;
+    if (
+      !url ||
+      url.host.toLowerCase() !== base.host.toLowerCase() ||
+      !url.pathname.startsWith(base.pathname)
+    )
+      return null;
+    return decodedV1(url.pathname.slice(base.pathname.length));
+  }
+  return raw.startsWith(base.pathname) ? decodedV1(raw.slice(base.pathname.length)) : null;
+}
+
+/** "../X/Y.xlsb" next to the destination's folder → "A/X/Y.xlsb"; null for anything absolute. */
+function pathFromRelativeV1(raw: string, folder: string): string | null {
+  if (/^[a-z][a-z0-9+.-]*:/iu.test(raw) || raw.startsWith('/') || raw.startsWith('\\')) return null;
+  const decoded = decodedV1(raw);
+  if (decoded === null) return null;
+  const parts = folder.split('/').filter(Boolean);
+  for (const piece of decoded.split(/[\\/]/u)) {
+    if (piece === '..') parts.pop();
+    else if (piece && piece !== '.') parts.push(piece);
+  }
+  return parts.length ? parts.join('/') : null;
 }
 
 /**
@@ -94,26 +134,12 @@ export function resolveLinkSourceV1(
     return { kind: 'item', driveId: drive.driveId, itemId: link.cache.itemId };
   const base = new URL(drive.webUrl.endsWith('/') ? drive.webUrl : `${drive.webUrl}/`);
   for (const raw of link.targets) {
-    if (/^https?:\/\//iu.test(raw)) {
-      const url = new URL(raw);
-      if (
-        url.host.toLowerCase() === base.host.toLowerCase() &&
-        url.pathname.startsWith(base.pathname)
-      )
-        return { kind: 'path', path: decodeURIComponent(url.pathname.slice(base.pathname.length)) };
-    } else if (raw.startsWith('/')) {
-      if (raw.startsWith(base.pathname))
-        return { kind: 'path', path: decodeURIComponent(raw.slice(base.pathname.length)) };
-    }
+    const path = pathFromAddressV1(raw, base);
+    if (path) return { kind: 'path', path };
   }
   for (const raw of link.targets) {
-    if (/^[a-z][a-z0-9+.-]*:/iu.test(raw) || raw.startsWith('/') || raw.startsWith('\\')) continue;
-    const parts = destinationFolder.split('/').filter(Boolean);
-    for (const piece of decodeURIComponent(raw).split(/[\\/]/u)) {
-      if (piece === '..') parts.pop();
-      else if (piece && piece !== '.') parts.push(piece);
-    }
-    if (parts.length) return { kind: 'path', path: parts.join('/') };
+    const path = pathFromRelativeV1(raw, destinationFolder);
+    if (path) return { kind: 'path', path };
   }
   return null;
 }
@@ -146,65 +172,77 @@ export async function refreshDestinationLinksV1(input: {
   for (const link of links) {
     const source = input.resolve(link);
     const sheets = [...new Set(link.cache.cells.map((cell) => cell.sheet))];
-    if (!source || sheets.length === 0) {
-      parts.push({
-        part: link.part,
-        source,
-        status: source ? 'same' : 'source-unavailable',
-        changed: 0,
-      });
+    const values = source && sheets.length > 0 ? await input.loadSource(source, sheets) : null;
+    if (!source || sheets.length === 0 || values === 'skip' || values === null) {
+      const status = unreadStatusV1(source, sheets.length, values);
+      parts.push({ part: link.part, source, status, changed: 0 });
       continue;
     }
-    const values = await input.loadSource(source, sheets);
-    if (values === 'skip') {
-      parts.push({ part: link.part, source, status: 'same', changed: 0 });
-      continue;
-    }
-    if (!values) {
-      parts.push({ part: link.part, source, status: 'source-unavailable', changed: 0 });
-      continue;
-    }
-    let missingSheet = false;
-    const lookup = (cell: { sheet: string; row: number; col: number }) => {
-      const value = values.valueAt(cell.sheet, cell.row, cell.col);
-      if (value === undefined) missingSheet = true;
-      return value;
-    };
-    const content = await readZipEntryV1(pkg, link.part);
-    if (!content) continue;
-    const rewritten =
-      format === 'xlsb' && link.part.endsWith('.bin')
-        ? rewriteXlsbLinkCacheV1(content, lookup)
-        : (() => {
-            const xml = rewriteXlsxLinkCacheV1(new TextDecoder().decode(content), lookup);
-            return { bytes: new TextEncoder().encode(xml.xml), changed: xml.changed };
-          })();
-    const changed = rewritten.changed;
-    if (changed) replacements.set(link.part, rewritten.bytes);
-    changedCells += changed;
-    parts.push({
-      part: link.part,
-      source,
-      status: missingSheet ? 'sheet-missing' : changed ? 'updated' : 'same',
-      changed,
-    });
+    const refreshed = await refreshLinkPartV1(pkg, format, link.part, values);
+    if (refreshed.bytes) replacements.set(link.part, refreshed.bytes);
+    changedCells += refreshed.changed;
+    parts.push({ part: link.part, source, status: refreshed.status, changed: refreshed.changed });
   }
   if (replacements.size === 0) return { outcome: 'unchanged', bytes: null, changedCells: 0, parts };
-  if (format === 'xlsb') {
-    const workbook = await readZipEntryV1(pkg, 'xl/workbook.bin');
-    if (workbook) replacements.set('xl/workbook.bin', forceXlsbRecalcOnOpenV1(workbook));
-  } else {
-    const workbook = await readZipEntryV1(pkg, 'xl/workbook.xml');
-    if (workbook)
-      replacements.set(
-        'xl/workbook.xml',
-        new TextEncoder().encode(forceXlsxRecalcOnOpenV1(new TextDecoder().decode(workbook))),
-      );
-  }
+  const recalc = await recalcOnOpenPartV1(pkg, format);
+  if (recalc) replacements.set(recalc.name, recalc.bytes);
   return {
     outcome: 'changed',
     bytes: await rewriteZipPackageV1(pkg, replacements),
     changedCells,
     parts,
   };
+}
+
+/** A link not read: no source in reach, or a source that did not change (or a cache without cells). */
+function unreadStatusV1(
+  source: LinkSourceRefV1 | null,
+  sheetCount: number,
+  values: SourceValuesV1 | null | 'skip',
+): LinkPartStatusV1 {
+  if (!source) return 'source-unavailable';
+  if (sheetCount === 0 || values === 'skip') return 'same';
+  return 'source-unavailable';
+}
+
+/** One link part rewritten from the source's values; bytes only when a cell changed. */
+async function refreshLinkPartV1(
+  pkg: ZipPackageV1,
+  format: 'xlsb' | 'xlsx',
+  part: string,
+  values: SourceValuesV1,
+): Promise<{ status: LinkPartStatusV1; changed: number; bytes: Uint8Array | null }> {
+  let missingSheet = false;
+  const lookup = (cell: { sheet: string; row: number; col: number }) => {
+    const value = values.valueAt(cell.sheet, cell.row, cell.col);
+    if (value === undefined) missingSheet = true;
+    return value;
+  };
+  const content = await readZipEntryV1(pkg, part);
+  if (!content) return { status: 'same', changed: 0, bytes: null };
+  let rewritten: { bytes: Uint8Array; changed: number };
+  if (format === 'xlsb' && part.endsWith('.bin'))
+    rewritten = rewriteXlsbLinkCacheV1(content, lookup);
+  else {
+    const xml = rewriteXlsxLinkCacheV1(new TextDecoder().decode(content), lookup);
+    rewritten = { bytes: new TextEncoder().encode(xml.xml), changed: xml.changed };
+  }
+  let status: LinkPartStatusV1 = rewritten.changed ? 'updated' : 'same';
+  if (missingSheet) status = 'sheet-missing';
+  return { status, changed: rewritten.changed, bytes: rewritten.changed ? rewritten.bytes : null };
+}
+
+/** The workbook part with "recalculate everything when opened" switched on. */
+async function recalcOnOpenPartV1(
+  pkg: ZipPackageV1,
+  format: 'xlsb' | 'xlsx',
+): Promise<{ name: string; bytes: Uint8Array } | null> {
+  const name = format === 'xlsb' ? 'xl/workbook.bin' : 'xl/workbook.xml';
+  const workbook = await readZipEntryV1(pkg, name);
+  if (!workbook) return null;
+  const bytes =
+    format === 'xlsb'
+      ? forceXlsbRecalcOnOpenV1(workbook)
+      : new TextEncoder().encode(forceXlsxRecalcOnOpenV1(new TextDecoder().decode(workbook)));
+  return { name, bytes };
 }

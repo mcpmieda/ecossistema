@@ -149,14 +149,27 @@ function xlsbCellRecordV1(col: number, value: LinkValueV1): Biff12RecordV1 {
       return join(CELL_ERROR_V1, Uint8Array.of(value.code));
     case 'string': {
       if (value.value === '') return join(CELL_STRING_V1, Uint8Array.of(0xff, 0xff, 0xff, 0xff));
-      const units = value.value.length;
-      const tail = new Uint8Array(4 + units * 2);
+      const units = utf16UnitsV1(value.value);
+      const tail = new Uint8Array(4 + units.length * 2);
       const dv = new DataView(tail.buffer);
-      dv.setUint32(0, units, true);
-      for (let i = 0; i < units; i++) dv.setUint16(4 + i * 2, value.value.charCodeAt(i), true);
+      dv.setUint32(0, units.length, true);
+      units.forEach((unit, index) => dv.setUint16(4 + index * 2, unit, true));
       return join(CELL_STRING_V1, tail);
     }
   }
+}
+
+/** The UTF-16 code units of a text (what Excel stores), surrogate pairs included. */
+function utf16UnitsV1(text: string): number[] {
+  const units: number[] = [];
+  for (const char of text) {
+    const point = char.codePointAt(0)!;
+    if (point > 0xffff) {
+      const offset = point - 0x10000;
+      units.push(0xd800 + (offset >> 10), 0xdc00 + (offset & 0x3ff));
+    } else units.push(point);
+  }
+  return units;
 }
 
 const DRIVE_ID_V1 = /b![A-Za-z0-9_-]{20,}/u;
@@ -179,41 +192,68 @@ type XlsbWalkV1 = (
   cell: { sheet: string; row: number; col: number } | null,
 ) => Biff12RecordV1;
 
-function walkXlsbV1(bytes: Uint8Array, visit: XlsbWalkV1) {
-  const records = readBiff12RecordsV1(bytes);
-  const sheetNames: string[] = [];
-  let driveId: string | null = null;
-  let itemId: string | null = null;
-  let table: number | null = null;
-  let row: number | null = null;
-  const out: Biff12RecordV1[] = [];
-  for (const record of records) {
-    if (record.type === SUP_TABS_V1) {
-      const count = u32(record.data, 0);
-      let at = 4;
-      for (let i = 0; i < count; i++) {
-        const name = wideStringV1(record.data, at);
-        sheetNames.push(name.value);
-        at = name.end;
-      }
-    } else if (record.type === ALTERNATE_URLS_V1) {
-      ({ driveId, itemId } = idsFromWideTextV1(record.data));
-    } else if (record.type === TABLE_START_V1) {
-      table = u32(record.data, 0);
-      row = null;
-    } else if (record.type === ROW_HEADER_V1) {
-      row = u32(record.data, 0);
-    }
-    if (CELL_TYPES_V1.has(record.type)) {
-      const sheet = table === null ? undefined : sheetNames[table];
-      if (sheet === undefined || row === null)
-        throw new UnsupportedLinkValueError('cell outside a sheet table');
-      out.push(visit(record, { sheet, row, col: u32(record.data, 0) }));
-    } else {
-      out.push(visit(record, null));
-    }
+type XlsbStateV1 = {
+  sheetNames: string[];
+  driveId: string | null;
+  itemId: string | null;
+  table: number | null;
+  row: number | null;
+};
+
+function sheetNamesV1(data: Uint8Array): string[] {
+  const names: string[] = [];
+  const count = u32(data, 0);
+  let at = 4;
+  for (let i = 0; i < count; i++) {
+    const name = wideStringV1(data, at);
+    names.push(name.value);
+    at = name.end;
   }
-  return { out, sheetNames, driveId, itemId };
+  return names;
+}
+
+/** What a record that is not a cell tells about the cells that follow. */
+function trackXlsbRecordV1(state: XlsbStateV1, record: Biff12RecordV1): void {
+  switch (record.type) {
+    case SUP_TABS_V1:
+      state.sheetNames.push(...sheetNamesV1(record.data));
+      break;
+    case ALTERNATE_URLS_V1:
+      Object.assign(state, idsFromWideTextV1(record.data));
+      break;
+    case TABLE_START_V1:
+      state.table = u32(record.data, 0);
+      state.row = null;
+      break;
+    case ROW_HEADER_V1:
+      state.row = u32(record.data, 0);
+      break;
+    default:
+      break;
+  }
+}
+
+function walkXlsbV1(bytes: Uint8Array, visit: XlsbWalkV1) {
+  const state: XlsbStateV1 = {
+    sheetNames: [],
+    driveId: null,
+    itemId: null,
+    table: null,
+    row: null,
+  };
+  const out: Biff12RecordV1[] = [];
+  for (const record of readBiff12RecordsV1(bytes)) {
+    if (!CELL_TYPES_V1.has(record.type)) {
+      trackXlsbRecordV1(state, record);
+      out.push(visit(record, null));
+      continue;
+    }
+    const sheet = state.table === null ? undefined : state.sheetNames[state.table];
+    if (sheet === undefined || state.row === null)
+      throw new UnsupportedLinkValueError('cell outside a sheet table');
+    out.push(visit(record, { sheet, row: state.row, col: u32(record.data, 0) }));
+  }
+  return { out, sheetNames: state.sheetNames, driveId: state.driveId, itemId: state.itemId };
 }
 
 export function readXlsbLinkCacheV1(bytes: Uint8Array): ExternalLinkCacheV1 {
@@ -250,19 +290,26 @@ function decodeXmlV1(text: string): string {
     if (body === 'gt') return '>';
     if (body === 'quot') return '"';
     if (body === 'apos') return "'";
-    const code = body.startsWith('#x') ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+    const code = body.startsWith('#x')
+      ? Number.parseInt(body.slice(2), 16)
+      : Number.parseInt(body.slice(1), 10);
     return Number.isFinite(code) ? String.fromCodePoint(code) : entity;
   });
 }
 
+const XML_ESCAPES_V1: Readonly<Record<string, string>> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+};
+
 function encodeXmlV1(text: string): string {
-  return text.replace(/[&<>"]/gu, (char) =>
-    char === '&' ? '&amp;' : char === '<' ? '&lt;' : char === '>' ? '&gt;' : '&quot;',
-  );
+  return text.replace(/[&<>"]/gu, (char) => XML_ESCAPES_V1[char] ?? char);
 }
 
 function attributeV1(tag: string, name: string): string | null {
-  const match = new RegExp(`\\s${name}="([^"]*)"`, 'u').exec(tag);
+  const match = new RegExp(String.raw`\s${name}="([^"]*)"`, 'u').exec(tag);
   return match ? decodeXmlV1(match[1]!) : null;
 }
 
@@ -271,7 +318,7 @@ export function parseA1V1(ref: string): { row: number; col: number } {
   const match = /^([A-Z]{1,3})(\d+)$/u.exec(ref);
   if (!match) throw new UnsupportedLinkValueError(`cell reference ${ref}`);
   let col = 0;
-  for (const char of match[1]!) col = col * 26 + (char.charCodeAt(0) - 64);
+  for (const char of match[1]!) col = col * 26 + (char.codePointAt(0)! - 64);
   return { row: Number(match[2]) - 1, col: col - 1 };
 }
 
@@ -344,7 +391,7 @@ function xlsxHeaderV1(xml: string) {
   const sheetNames = [...xml.matchAll(/<sheetName\b([^>]*?)\/?>/gu)].map(
     (match) => attributeV1(match[1]!, 'val') ?? '',
   );
-  const alternate = /<[\w]*:?alternateUrls\b([^>]*)>/u.exec(xml);
+  const alternate = /<\w*:?alternateUrls\b([^>]*)>/u.exec(xml);
   return {
     sheetNames,
     driveId: alternate ? attributeV1(alternate[1]!, 'driveId') : null,

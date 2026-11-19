@@ -97,7 +97,7 @@ export async function runLinkRefreshV1(
   ): LinkRefreshResultV1 => ({
     outcome,
     code,
-    sources: [...sources].sort(),
+    sources: [...sources].sort((a, b) => a.localeCompare(b)),
     sourceHashes,
     unavailableLinks,
     changedCells: extra.changedCells ?? 0,
@@ -136,7 +136,7 @@ export async function runLinkRefreshV1(
       sources.add(item.id);
       sourceHashes[item.id] = item.quickXorHash;
       if (input.onlySources && !input.onlySources.includes(item.id)) return 'skip';
-      const key = `${item.id}|${[...sheets].sort().join('|')}`;
+      const key = `${item.id}|${[...sheets].sort((a, b) => a.localeCompare(b)).join('|')}`;
       let values = loaded.get(key);
       if (!values) {
         values = (async () => {

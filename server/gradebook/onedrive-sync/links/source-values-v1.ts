@@ -17,8 +17,15 @@ export type SourceValuesV1 = {
 export function columnLettersV1(col: number): string {
   let letters = '';
   for (let n = col + 1; n > 0; n = Math.floor((n - 1) / 26))
-    letters = String.fromCharCode(65 + ((n - 1) % 26)) + letters;
+    letters = String.fromCodePoint(65 + ((n - 1) % 26)) + letters;
   return letters;
+}
+
+/** The text of a string cell; a number or boolean stored as one is written as text. */
+function cellTextV1(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
 }
 
 function cellValueV1(sheet: Worksheet, row: number, col: number): LinkValueV1 {
@@ -29,7 +36,7 @@ function cellValueV1(sheet: Worksheet, row: number, col: number): LinkValueV1 {
       return typeof cell.v === 'number' ? { kind: 'number', value: cell.v } : BLANK_V1;
     case 's':
     case 'str':
-      return { kind: 'string', value: typeof cell.v === 'string' ? cell.v : String(cell.v ?? '') };
+      return { kind: 'string', value: cellTextV1(cell.v) };
     case 'b':
       return { kind: 'boolean', value: cell.v === true };
     case 'e':

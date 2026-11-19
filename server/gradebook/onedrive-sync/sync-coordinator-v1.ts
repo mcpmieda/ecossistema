@@ -32,7 +32,8 @@ import {
   linkFilesByRecentV1,
   linkFilesToStartV1,
   linkTargetOfV1,
-  newLinkFileV1,
+  nextLinkWakeV1,
+  observedLinkFileV1,
   requestLinkRefreshV1,
   startLinkRefreshV1,
   type LinkFileV1,
@@ -601,47 +602,33 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     if (!settings.enabled || items.length === 0) return;
     const files = new Map(this.linkFiles().map((file) => [file.id, file]));
     for (const item of items) {
-      const current = files.get(item.id);
-      if (item.deleted) {
-        if (current && !current.removed)
-          this.saveLinkFile({
-            ...current,
-            removed: true,
-            state: current.state === 'working' ? 'working' : 'idle',
-            dueAt: null,
-          });
-        continue;
-      }
       const target = linkTargetOfV1(item, settings.targets);
-      if (!target) continue;
-      if (!current || current.removed) {
-        const added = newLinkFileV1(
-          {
-            id: item.id,
-            name: item.name,
-            hash: item.quickXorHash,
-            modifiedAt: item.lastModifiedDateTime,
-          },
-          target.itemId,
-          now,
-        );
-        this.saveLinkFile(added);
-        files.set(added.id, added);
-      } else if (current.name !== item.name) this.saveLinkFile({ ...current, name: item.name });
+      const next = observedLinkFileV1(files.get(item.id) ?? null, item, target, now);
+      if (!next) continue;
+      this.saveLinkFile(next);
+      files.set(next.id, next);
     }
-    const all = [...files.values()];
-    const used = new Set(all.flatMap((file) => file.sources));
+    this.observeLinkSources(items, [...files.values()], now);
+  }
+
+  /** A saved source refreshes the workbooks whose links use it. */
+  private observeLinkSources(
+    items: readonly DriveWorkbookV1[],
+    files: readonly LinkFileV1[],
+    now: number,
+  ): void {
+    const used = new Set(files.flatMap((file) => file.sources));
     const relevant = items.filter((item) => used.has(item.id));
     if (relevant.length === 0) return;
     const known = this.meta<Record<string, string | null>>('linkSourceHashes', {});
     const { changed, seen } = changedSourcesV1(
       relevant.map((item) => ({ id: item.id, hash: item.quickXorHash, deleted: item.deleted })),
       known,
-      new Map(all.map((file) => [file.id, file.ownHash])),
+      new Map(files.map((file) => [file.id, file.ownHash])),
     );
     this.setMeta('linkSourceHashes', { ...known, ...seen });
     if (changed.length === 0) return;
-    for (const file of this.linkFiles())
+    for (const file of files)
       if (file.sources.some((source) => changed.includes(source)))
         this.saveLinkFile(requestLinkRefreshV1(file, changed, now, LINK_SOURCE_SETTLE_MS_V1));
   }
@@ -1312,20 +1299,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         ? Math.max(now + 1_000, (this.meta<number | null>('lastDeltaAt', null) ?? 0) + POLL_MS)
         : null;
     // A link refresh due (or a refresh whose lease may run out) wakes it too, while switched on.
-    const linkAt =
-      active && this.linkSettings().enabled
-        ? this.linkFiles()
-            .filter((file) => !file.removed)
-            .map((file) =>
-              file.state === 'pending'
-                ? file.dueAt
-                : file.state === 'working'
-                  ? file.leaseUntil
-                  : null,
-            )
-            .filter((value): value is number => value !== null)
-            .reduce<number | null>((min, at) => (min === null || at < min ? at : min), null)
-        : null;
+    const linkAt = active && this.linkSettings().enabled ? nextLinkWakeV1(this.linkFiles()) : null;
     const candidates = [
       next,
       pendingWork && this.settings().enabled ? graphReadyAt : null,
