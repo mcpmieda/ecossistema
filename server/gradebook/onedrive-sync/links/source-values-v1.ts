@@ -2,7 +2,7 @@ import type {
   SheetJs,
   Worksheet,
 } from '../../../../src/features/gradebook/import/spreadsheet-recognizer';
-import { BLANK_V1, type LinkValueV1 } from './external-link-cache-v1';
+import { BLANK_V1, type LinkAreaV1, type LinkValueV1 } from './external-link-cache-v1';
 
 /**
  * The values saved in a source workbook, as Excel's "update links" reads them from a closed file:
@@ -11,8 +11,19 @@ import { BLANK_V1, type LinkValueV1 } from './external-link-cache-v1';
 export type SourceValuesV1 = {
   /** undefined when the sheet does not exist in the source (renamed or removed). */
   readonly valueAt: (sheet: string, row: number, col: number) => LinkValueV1 | undefined;
+  /** The cells the source holds inside an area (a large one is walked through these only). */
+  readonly cellsIn: (sheet: string, area: LinkAreaV1) => Iterable<{ row: number; col: number }>;
   readonly sheetNames: readonly string[];
 };
+
+/** "AB12" → zero-based row 11 and column 27; null for a sheet's "!ref" and other keys. */
+function addressV1(key: string): { row: number; col: number } | null {
+  const match = /^([A-Z]{1,3})(\d+)$/u.exec(key);
+  if (!match) return null;
+  let col = 0;
+  for (const char of match[1]!) col = col * 26 + (char.codePointAt(0)! - 64);
+  return { row: Number(match[2]) - 1, col: col - 1 };
+}
 
 export function columnLettersV1(col: number): string {
   let letters = '';
@@ -73,13 +84,25 @@ export function readSourceValuesV1(
   const byLowerName = new Map(
     Object.keys(workbook.Sheets).map((name) => [name.toLocaleLowerCase('pt-BR'), name]),
   );
+  const worksheetOf = (sheet: string) => {
+    const name =
+      sheet in workbook.Sheets ? sheet : byLowerName.get(sheet.toLocaleLowerCase('pt-BR'));
+    return name === undefined ? undefined : workbook.Sheets[name];
+  };
   return {
     sheetNames: workbook.SheetNames,
     valueAt: (sheet, row, col) => {
-      const name =
-        sheet in workbook.Sheets ? sheet : byLowerName.get(sheet.toLocaleLowerCase('pt-BR'));
-      const worksheet = name === undefined ? undefined : workbook.Sheets[name];
+      const worksheet = worksheetOf(sheet);
       return worksheet ? cellValueV1(worksheet, row, col) : undefined;
+    },
+    cellsIn: (sheet, area) => {
+      const cells: { row: number; col: number }[] = [];
+      for (const key of Object.keys(worksheetOf(sheet) ?? {})) {
+        const at = addressV1(key);
+        if (at && at.row >= area.r1 && at.row <= area.r2 && at.col >= area.c1 && at.col <= area.c2)
+          cells.push(at);
+      }
+      return cells;
     },
   };
 }

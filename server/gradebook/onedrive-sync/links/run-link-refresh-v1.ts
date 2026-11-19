@@ -96,7 +96,7 @@ function permanentSourceErrorV1(cause: unknown): boolean {
 }
 
 /**
- * The sources of one refresh: found by id or path, read once each, and counted. A source that
+ * The sources of one refresh: found by id or path, read and counted. A source that
  * cannot be read as it is gives null; a passing failure (throttling, a network error) throws, so
  * the refresh fails and the changed sources are kept for the next try.
  */
@@ -104,7 +104,11 @@ class SourceLoaderV1 {
   readonly sources = new Set<string>();
   readonly hashes: Record<string, string | null> = {};
   unavailable = 0;
-  private readonly loaded = new Map<string, Promise<SourceValuesV1 | null>>();
+  /**
+   * Only the last source read is kept: the Banco reads 19 sources one after the other, and keeping
+   * every one (about 40 MB) would crowd the Worker's 128 MB.
+   */
+  private last: { key: string; values: Promise<SourceValuesV1 | null> } | null = null;
 
   constructor(
     private readonly input: LinkRefreshInputV1,
@@ -149,12 +153,8 @@ class SourceLoaderV1 {
     }
     if (this.input.onlySources && !this.input.onlySources.includes(item.id)) return 'skip';
     const key = `${item.id}|${[...sheets].sort((a, b) => a.localeCompare(b)).join('|')}`;
-    let values = this.loaded.get(key);
-    if (!values) {
-      values = this.read(item, sheets);
-      this.loaded.set(key, values);
-    }
-    const read = await values;
+    if (this.last?.key !== key) this.last = { key, values: this.read(item, sheets) };
+    const read = await this.last.values;
     if (!read) {
       this.unavailable++;
       return null;
@@ -230,7 +230,8 @@ export async function runLinkRefreshV1(
       loadSource: loader.load,
     });
     loader.unavailable += refreshed.parts.filter(
-      (part) => part.source === null || part.status === 'sheet-missing',
+      (part) =>
+        part.source === null || part.status === 'sheet-missing' || part.status === 'unsupported',
     ).length;
     if (refreshed.outcome === 'no-links') return result('no-links');
     if (refreshed.outcome === 'unchanged' || !refreshed.bytes) return result('unchanged');

@@ -6,11 +6,18 @@ import {
   rewriteXlsbLinkCacheV1,
   rewriteXlsxLinkCacheV1,
   type ExternalLinkCacheV1,
+  type ExternalNameV1,
   type LinkAdditionsV1,
   type LinkCellV1,
   type LinkValueV1,
 } from './external-link-cache-v1';
-import { cellKeyV1, MAX_COLUMNS_V1, readLinkUseV1, type SheetUseV1 } from './formula-references-v1';
+import {
+  cellKeyV1,
+  MAX_COLUMNS_V1,
+  readLinkUseV1,
+  type LinkUseV1,
+  type SheetUseV1,
+} from './formula-references-v1';
 import type { SourceValuesV1 } from './source-values-v1';
 import {
   readZipEntryV1,
@@ -190,8 +197,37 @@ export function missingLinkCellsV1(
   return additions;
 }
 
-/** Areas larger than this are left to the column holes (a whole column is not walked). */
+/** Areas larger than this are walked through the source's own cells (a whole column, a PROCV). */
 const MAX_AREA_CELLS_V1 = 20_000;
+/**
+ * More new cells than this in one link means something is not as expected: none is added (the
+ * cached ones are still refreshed) and the link shows as one without an accessible source.
+ */
+export const MAX_NEW_CELLS_PER_LINK_V1 = 50_000;
+
+/**
+ * What the destination uses of one link: what its formulas point to plus the areas of the source's
+ * names they use (the simulados' "SEXTOA" = RELAÇÃO!$J$3:$J$48), which Excel also caches.
+ */
+export function linkUseWithNamesV1(
+  use: ReadonlyMap<string, SheetUseV1> | undefined,
+  names: readonly ExternalNameV1[],
+): Map<string, SheetUseV1> {
+  const merged = new Map<string, SheetUseV1>();
+  for (const [sheet, used] of use ?? [])
+    merged.set(sheet, { cells: new Set(used.cells), areas: new Map(used.areas) });
+  for (const { sheet, area } of names) {
+    if (sheet === null || !area) continue;
+    let used = merged.get(sheet);
+    if (!used) {
+      used = { cells: new Set(), areas: new Map() };
+      merged.set(sheet, used);
+    }
+    if (area.r1 === area.r2 && area.c1 === area.c2) used.cells.add(cellKeyV1(area.r1, area.c1));
+    else used.areas.set(`${area.r1}:${area.r2}:${area.c1}:${area.c2}`, area);
+  }
+  return merged;
+}
 
 /**
  * Cells the destination's formulas use that the cache does not hold and the source now has: Excel
@@ -222,13 +258,43 @@ export function usedLinkCellsV1(
       if (value && value.kind !== 'blank') list.push({ row, col, value });
     };
     for (const key of used.cells) take(Math.floor(key / MAX_COLUMNS_V1), key % MAX_COLUMNS_V1);
-    for (const area of used.areas.values())
-      if ((area.r2 - area.r1 + 1) * (area.c2 - area.c1 + 1) <= MAX_AREA_CELLS_V1)
+    for (const area of used.areas.values()) {
+      if ((area.r2 - area.r1 + 1) * (area.c2 - area.c1 + 1) <= MAX_AREA_CELLS_V1) {
         for (let row = area.r1; row <= area.r2; row++)
           for (let col = area.c1; col <= area.c2; col++) take(row, col);
+      } else for (const cell of values.cellsIn(sheet, area)) take(cell.row, cell.col);
+    }
     if (list.length > 0) additions.set(sheet, list);
   }
   return additions;
+}
+
+/**
+ * Whether what the formulas use explains this link: every formula was read to the end and every
+ * cell the cache holds is among the used ones. Otherwise the reading misses something, and the
+ * holes of each cached column are filled too (a cell between two used rows is likely used).
+ */
+export function useCoversCacheV1(
+  use: Pick<LinkUseV1, 'complete'> | null,
+  cells: readonly LinkCellV1[],
+  partUse: ReadonlyMap<string, SheetUseV1>,
+): boolean {
+  if (!use?.complete) return false;
+  return cells.every((cell) => {
+    const used = partUse.get(cell.sheet);
+    if (!used) return false;
+    if (used.cells.has(cellKeyV1(cell.row, cell.col))) return true;
+    for (const area of used.areas.values())
+      if (cell.row >= area.r1 && cell.row <= area.r2 && cell.col >= area.c1 && cell.col <= area.c2)
+        return true;
+    return false;
+  });
+}
+
+function additionCountV1(additions: LinkAdditionsV1): number {
+  let count = 0;
+  for (const list of additions.values()) count += list.length;
+  return count;
 }
 
 /** Both kinds of new cells; a cell found twice is put in once by the rewrite. */
@@ -269,7 +335,7 @@ export async function refreshDestinationLinksV1(input: {
   for (const link of links) {
     const candidates = input.resolve(link);
     const source = candidates[0] ?? null;
-    const partUse = use?.byPart.get(link.part);
+    const partUse = linkUseWithNamesV1(use?.byPart.get(link.part), link.cache.names);
     const sheets = [
       ...new Set([...link.cache.cells.map((cell) => cell.sheet), ...(partUse?.keys() ?? [])]),
     ];
@@ -279,14 +345,21 @@ export async function refreshDestinationLinksV1(input: {
       parts.push({ part: link.part, source, status, changed: 0 });
       continue;
     }
-    const additions = mergeAdditionsV1(
-      usedLinkCellsV1(link.cache.cells, partUse, values),
-      missingLinkCellsV1(link.cache.cells, values),
-    );
+    const used = usedLinkCellsV1(link.cache.cells, partUse, values);
+    const found = useCoversCacheV1(use, link.cache.cells, partUse)
+      ? used
+      : mergeAdditionsV1(used, missingLinkCellsV1(link.cache.cells, values));
+    const tooMany = additionCountV1(found) > MAX_NEW_CELLS_PER_LINK_V1;
+    const additions: LinkAdditionsV1 = tooMany ? new Map() : found;
     const refreshed = await refreshLinkPartV1(pkg, format, link, values, additions);
     if (refreshed.bytes) replacements.set(link.part, refreshed.bytes);
     changedCells += refreshed.changed;
-    parts.push({ part: link.part, source, status: refreshed.status, changed: refreshed.changed });
+    parts.push({
+      part: link.part,
+      source,
+      status: tooMany ? 'unsupported' : refreshed.status,
+      changed: refreshed.changed,
+    });
   }
   if (replacements.size === 0) return { outcome: 'unchanged', bytes: null, changedCells: 0, parts };
   const recalc = await recalcOnOpenPartV1(pkg, format);

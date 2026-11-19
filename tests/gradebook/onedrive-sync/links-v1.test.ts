@@ -35,10 +35,14 @@ import {
   type LinkFileV1,
 } from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
 import {
+  linkUseWithNamesV1,
+  MAX_NEW_CELLS_PER_LINK_V1,
   missingLinkCellsV1,
   readDestinationLinksV1,
   refreshDestinationLinksV1,
   resolveLinkSourcesV1,
+  usedLinkCellsV1,
+  useCoversCacheV1,
   type LinkPartV1,
 } from '../../../server/gradebook/onedrive-sync/links/refresh-links-v1';
 import {
@@ -46,7 +50,10 @@ import {
   type LinkRefreshPortsV1,
   type LinkRefreshResultV1,
 } from '../../../server/gradebook/onedrive-sync/links/run-link-refresh-v1';
-import { readSourceValuesV1 } from '../../../server/gradebook/onedrive-sync/links/source-values-v1';
+import {
+  readSourceValuesV1,
+  type SourceValuesV1,
+} from '../../../server/gradebook/onedrive-sync/links/source-values-v1';
 import {
   crc32V1,
   readZipEntryV1,
@@ -188,13 +195,29 @@ const DRIVE = {
   webUrl: 'https://synthetic-my.sharepoint.com/personal/escola/Documents',
 };
 
-function sourceValues(values: Record<string, LinkValueV1>, sheets = ['Dados', 'Outra']) {
+function sourceValues(
+  values: Record<string, LinkValueV1>,
+  sheets = ['Dados', 'Outra'],
+): SourceValuesV1 {
   return {
     sheetNames: sheets,
     valueAt: (sheet: string, row: number, col: number) =>
       sheets.includes(sheet)
         ? (values[`${sheet}!${row},${col}`] ?? { kind: 'blank' as const })
         : undefined,
+    cellsIn: (sheet, area) =>
+      Object.keys(values)
+        .filter((key) => key.startsWith(`${sheet}!`))
+        .map((key) =>
+          key
+            .slice(sheet.length + 1)
+            .split(',')
+            .map(Number),
+        )
+        .map(([row, col]) => ({ row: row!, col: col! }))
+        .filter(
+          ({ row, col }) => row >= area.r1 && row <= area.r2 && col >= area.c1 && col <= area.c2,
+        ),
   };
 }
 
@@ -460,6 +483,11 @@ describe('workbook package', () => {
     expect(values.valueAt('DADOS', 0, 1)).toEqual({ kind: 'number', value: 7 });
     expect(values.valueAt('Dados', 5, 5)).toEqual({ kind: 'blank' });
     expect(values.valueAt('Sumiu', 0, 0)).toBeUndefined();
+    // The cells a large area holds are the ones the source has.
+    expect([...values.cellsIn('Dados', { r1: 0, r2: 1_048_575, c1: 1, c2: 1 })]).toEqual([
+      { row: 0, col: 1 },
+    ]);
+    expect([...values.cellsIn('Sumiu', { r1: 0, r2: 9, c1: 0, c2: 9 })]).toEqual([]);
   });
 });
 
@@ -473,6 +501,7 @@ describe('refresh of one workbook', () => {
       cells: [],
       driveId: ids ? DRIVE_ID : null,
       itemId: ids ? SOURCE_ID : null,
+      names: [],
     },
     targets,
   });
@@ -547,6 +576,267 @@ describe('refresh of one workbook', () => {
       expect(result.outcome).toBe('unchanged');
       expect(result.parts[0]!.status).toBe(answer === 'skip' ? 'same' : 'source-unavailable');
     }
+  });
+});
+
+/* ------------------------------------------------------------------ used cells the cache lacks */
+
+const hex = (text: string) =>
+  Uint8Array.from(text.match(/../gu)!.map((pair) => Number.parseInt(pair, 16)));
+
+/** An external name as Excel 365 writes it in .xlsb: BrtSupNameStart, BrtSupNameFmla, bits, end. */
+const externalName = (name: string, formula: string) => [
+  record(0x241, wide(name)),
+  record(0x249, hex(formula)),
+  record(0x24a, new Uint8Array(7)),
+  record(0x24b),
+];
+
+/**
+ * A simulado link like the teachers' (19/11/2026): the destination reads it through the source's
+ * names, one per class, each a block of column J; Excel caches the block cells that had a value.
+ */
+function simuladoLinkBin(): Uint8Array {
+  return writeBiff12RecordsV1([
+    record(0x167, u32(2), wide('RELAÇÃO'), wide('Planilha1')),
+    // SEXTOA = RELAÇÃO!$J$3:$J$4 and SEXTOB = RELAÇÃO!$J$7:$J$8 (ExtPtgArea3D, rows of 2 bytes).
+    ...externalName('SEXTOA', '0d0000003b000000000200030009000900'),
+    ...externalName('SEXTOB', '0d0000003b000000000600070009000900'),
+    record(0x16b, u32(0), Uint8Array.of(0)),
+    record(0x16e, u32(2)),
+    record(0x170, u32(9), real(7)),
+    record(0x16e, u32(3)),
+    record(0x170, u32(9), real(8)),
+    // J8 was empty when Excel last updated: not in the cache.
+    record(0x16e, u32(6)),
+    record(0x173, u32(9), wide('FALTOU')),
+    record(0x16c),
+    record(0x16b, u32(1), Uint8Array.of(0)),
+    record(0x16c),
+    record(0x24c),
+  ]);
+}
+
+describe('used cells the cache lacks (#1541)', () => {
+  it('reads where each external name points, as Excel 365 writes it (.xlsb)', () => {
+    const bytes = writeBiff12RecordsV1([
+      record(0x167, u32(2), wide('A'), wide('B')),
+      // Bytes written by Excel 365 for =A!$C$3:$D$5, =A!$F$1 and =B!$J$70000:$J$70002 (beyond
+      // what the format holds: an error), and a name the source no longer defines.
+      ...externalName('NOMEDOIS', '0d0000003b000000000200040002000300'),
+      ...externalName('NOMETRES', '090000003a0000000000000500'),
+      ...externalName('NOMEUM', '0d0000003d010001006f11711109000900'),
+      ...externalName('SUMIU', '00000000'),
+      record(0x24c),
+    ]);
+    expect(readXlsbLinkCacheV1(bytes).names).toEqual([
+      { name: 'NOMEDOIS', sheet: 'A', area: { r1: 2, r2: 4, c1: 2, c2: 3 } },
+      { name: 'NOMETRES', sheet: 'A', area: { r1: 0, r2: 0, c1: 5, c2: 5 } },
+      { name: 'NOMEUM', sheet: null, area: null },
+      { name: 'SUMIU', sheet: null, area: null },
+    ]);
+  });
+
+  it('reads where each external name points (.xlsx)', () => {
+    const xml =
+      '<externalLink><externalBook r:id="rId1"><sheetNames><sheetName val="RELAÇÃO"/>' +
+      '<sheetName val="Nota d\'ouro"/></sheetNames><definedNames>' +
+      '<definedName name="SEXTOA" refersTo="=\'relação\'!$J$3:$J$48"/>' +
+      '<definedName name="UMA" refersTo="=\'Nota d\'\'ouro\'!$B$2"/>' +
+      '<definedName name="QUEBRADO" refersTo="=#REF!"/>' +
+      '</definedNames><sheetDataSet><sheetData sheetId="0"/><sheetData sheetId="1"/>' +
+      '</sheetDataSet></externalBook></externalLink>';
+    expect(readXlsxLinkCacheV1(xml).names).toEqual([
+      { name: 'SEXTOA', sheet: 'RELAÇÃO', area: { r1: 2, r2: 47, c1: 9, c2: 9 } },
+      { name: 'UMA', sheet: "Nota d'ouro", area: { r1: 1, r2: 1, c1: 1, c2: 1 } },
+      { name: 'QUEBRADO', sheet: null, area: null },
+    ]);
+  });
+
+  it('a grade typed in a name’s empty cell comes in; the gap between two names stays out', async () => {
+    const values = sourceValues(
+      {
+        'RELAÇÃO!2,9': num(7),
+        'RELAÇÃO!3,9': num(8),
+        // Between the two classes: no formula uses it.
+        'RELAÇÃO!4,9': { kind: 'string', value: 'TURMA B' },
+        'RELAÇÃO!6,9': { kind: 'string', value: 'FALTOU' },
+        'RELAÇÃO!7,9': num(9.5),
+      },
+      ['RELAÇÃO', 'Planilha1'],
+    );
+    const result = await refreshDestinationLinksV1({
+      bytes: syntheticDestination(simuladoLinkBin()),
+      resolve: (item) => resolveLinkSourcesV1(item, DRIVE, ''),
+      loadSource: async () => values,
+    });
+    expect(result).toMatchObject({ outcome: 'changed', changedCells: 1 });
+    const { links } = await readDestinationLinksV1(result.bytes!);
+    expect(links[0]!.cache.cells.map((cell) => [cell.row, cell.col, cell.value])).toEqual([
+      [2, 9, num(7)],
+      [3, 9, num(8)],
+      [6, 9, { kind: 'string', value: 'FALTOU' }],
+      [7, 9, num(9.5)],
+    ]);
+  });
+
+  it('a simulado link already in step is not written again (no gap filling)', async () => {
+    const values = sourceValues(
+      {
+        'RELAÇÃO!2,9': num(7),
+        'RELAÇÃO!3,9': num(8),
+        'RELAÇÃO!4,9': { kind: 'string', value: 'TURMA B' },
+        'RELAÇÃO!5,9': num(1),
+        'RELAÇÃO!6,9': { kind: 'string', value: 'FALTOU' },
+      },
+      ['RELAÇÃO', 'Planilha1'],
+    );
+    const result = await refreshDestinationLinksV1({
+      bytes: syntheticDestination(simuladoLinkBin()),
+      resolve: (item) => resolveLinkSourcesV1(item, DRIVE, ''),
+      loadSource: async () => values,
+    });
+    expect(result).toMatchObject({ outcome: 'unchanged', bytes: null, changedCells: 0 });
+  });
+
+  it('fills the holes only when the formulas do not explain every cached cell', () => {
+    const cells = readXlsbLinkCacheV1(simuladoLinkBin()).cells;
+    const names = readXlsbLinkCacheV1(simuladoLinkBin()).names;
+    const use = linkUseWithNamesV1(undefined, names);
+    expect(useCoversCacheV1({ complete: true }, cells, use)).toBe(true);
+    // A formula not read to the end, or the formulas not read at all.
+    expect(useCoversCacheV1({ complete: false }, cells, use)).toBe(false);
+    expect(useCoversCacheV1(null, cells, use)).toBe(false);
+    // A cached cell no formula or name explains.
+    expect(useCoversCacheV1({ complete: true }, cells, linkUseWithNamesV1(undefined, []))).toBe(
+      false,
+    );
+  });
+
+  it('a large area (a whole column, a PROCV) is walked through the source’s own cells', () => {
+    const use = new Map([
+      [
+        'Dados',
+        {
+          cells: new Set<number>(),
+          areas: new Map([['c', { r1: 0, r2: 1_048_575, c1: 2, c2: 3 }]]),
+        },
+      ],
+    ]);
+    const values = sourceValues(
+      {
+        'Dados!2,2': { kind: 'string', value: 'x3' },
+        'Dados!4,2': { kind: 'string', value: 'x5' },
+        'Dados!4,3': num(15),
+        'Dados!4,7': num(99),
+      },
+      ['Dados'],
+    );
+    const cached = readXlsbLinkCacheV1(
+      writeBiff12RecordsV1([
+        record(0x167, u32(1), wide('Dados')),
+        record(0x16b, u32(0), Uint8Array.of(0)),
+        record(0x16e, u32(2)),
+        record(0x173, u32(2), wide('x3')),
+        record(0x16c),
+      ]),
+    ).cells;
+    expect(usedLinkCellsV1(cached, use, values).get('Dados')).toEqual([
+      { row: 4, col: 2, value: { kind: 'string', value: 'x5' } },
+      { row: 4, col: 3, value: num(15) },
+    ]);
+  });
+
+  it('.xlsb: a sheet without a table gets one, in sheet order, before the end of the link', () => {
+    const bytes = writeBiff12RecordsV1([
+      record(0x167, u32(3), wide('A'), wide('B'), wide('C')),
+      record(0x16b, u32(0), Uint8Array.of(0)),
+      record(0x16e, u32(0)),
+      record(0x170, u32(0), real(1)),
+      record(0x16c),
+      record(0x24c),
+    ]);
+    const result = rewriteXlsbLinkCacheV1(
+      bytes,
+      () => undefined,
+      new Map([
+        ['C', [{ row: 4, col: 1, value: num(3) }]],
+        ['B', [{ row: 0, col: 0, value: { kind: 'string', value: 'novo' } }]],
+      ]),
+    );
+    expect(result.changed).toBe(2);
+    const records = readBiff12RecordsV1(result.bytes);
+    expect(records.map((item) => item.type.toString(16))).toEqual([
+      '167',
+      ...['16b', '16e', '170', '16c'],
+      ...['16b', '16e', '173', '16c'],
+      ...['16b', '16e', '170', '16c'],
+      '24c',
+    ]);
+    expect(records.filter((item) => item.type === 0x16b).map((item) => [...item.data])).toEqual([
+      [0, 0, 0, 0, 0],
+      [1, 0, 0, 0, 0],
+      [2, 0, 0, 0, 0],
+    ]);
+    expect(
+      readXlsbLinkCacheV1(result.bytes).cells.map((cell) => [cell.sheet, cell.row, cell.col]),
+    ).toEqual([
+      ['A', 0, 0],
+      ['B', 0, 0],
+      ['C', 4, 1],
+    ]);
+  });
+
+  it('.xlsx: a sheet written as <sheetData/> or left out gets its cells; a failed one does not', () => {
+    const xml =
+      '<externalLink><externalBook r:id="rId1"><sheetNames><sheetName val="A"/>' +
+      '<sheetName val="B"/><sheetName val="C"/><sheetName val="D"/></sheetNames><sheetDataSet>' +
+      '<sheetData sheetId="0"><row r="1"><cell r="A1"><v>1</v></cell></row></sheetData>' +
+      '<sheetData sheetId="1"/><sheetData sheetId="3" refreshError="1"/>' +
+      '</sheetDataSet></externalBook></externalLink>';
+    const result = rewriteXlsxLinkCacheV1(
+      xml,
+      () => undefined,
+      new Map([
+        ['B', [{ row: 1, col: 1, value: num(2) }]],
+        ['C', [{ row: 0, col: 2, value: { kind: 'string', value: 'novo' } }]],
+        ['D', [{ row: 0, col: 0, value: num(4) }]],
+      ]),
+    );
+    expect(result.changed).toBe(2);
+    expect(result.xml).toContain(
+      '<sheetData sheetId="1"><row r="2"><cell r="B2"><v>2</v></cell></row></sheetData>' +
+        '<sheetData sheetId="2"><row r="1"><cell r="C1" t="str"><v>novo</v></cell></row></sheetData>' +
+        '<sheetData sheetId="3" refreshError="1"/>',
+    );
+    expect(
+      readXlsxLinkCacheV1(result.xml).cells.map((cell) => [cell.sheet, cell.row, cell.col]),
+    ).toEqual([
+      ['A', 0, 0],
+      ['B', 1, 1],
+      ['C', 0, 2],
+    ]);
+  });
+
+  it('too many new cells in one link: none is added and the link shows as not accessible', async () => {
+    const many: Record<string, LinkValueV1> = {};
+    for (let row = 0; row <= MAX_NEW_CELLS_PER_LINK_V1; row++) many[`RELAÇÃO!${row},0`] = num(row);
+    const link = writeBiff12RecordsV1([
+      record(0x167, u32(1), wide('RELAÇÃO')),
+      // TUDO = RELAÇÃO!$A$1:$A$60011
+      ...externalName('TUDO', '0d0000003b0000000000006aea00000000'),
+      record(0x16b, u32(0), Uint8Array.of(0)),
+      record(0x16c),
+      record(0x24c),
+    ]);
+    expect(readXlsbLinkCacheV1(link).names[0]!.area).toEqual({ r1: 0, r2: 60_010, c1: 0, c2: 0 });
+    const result = await refreshDestinationLinksV1({
+      bytes: syntheticDestination(link),
+      resolve: (item) => resolveLinkSourcesV1(item, DRIVE, ''),
+      loadSource: async () => sourceValues(many, ['RELAÇÃO']),
+    });
+    expect(result).toMatchObject({ outcome: 'unchanged', changedCells: 0 });
+    expect(result.parts[0]!.status).toBe('unsupported');
   });
 });
 

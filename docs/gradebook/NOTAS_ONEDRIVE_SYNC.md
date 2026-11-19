@@ -102,7 +102,13 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 - Uma origem salva (conteúdo novo, não a própria gravação do Worker) agenda as planilhas que dependem dela para 1 min depois do último salvamento.
 - A planilha de destino só é gravada se estiver sem salvar há 1 min e se o cache realmente mudar.
 - Cada vez só os vínculos das origens que mudaram são relidos. Relêem todos: a conferência das 03:00 (marca própria, separada da conferência das notas), "Conferir tudo", ligar os vínculos e religar a leitura automática.
-- Uma célula da origem que estava vazia na última atualização não fica no cache do Excel; quando ganha valor, entra no cache (só entre a primeira e a última linha que o vínculo já guarda em cada coluna).
+- O Excel não guarda no cache uma célula usada que estava vazia na última atualização. Quando ela ganha valor na origem, o Worker a acrescenta, como o Excel faria. Quais células são usadas sai do próprio destino:
+  - das fórmulas e dos nomes definidos que apontam para a origem;
+  - dos nomes da origem usados pelo destino. As planilhas dos professores leem os simulados por nomes, um por turma, como `SEXTOA` = `RELAÇÃO!$J$3:$J$48`.
+- Uma área grande, como coluna inteira ou `PROCV`, é percorrida pelas células que a origem tem.
+- Uma aba sem nenhuma célula no cache ganha a sua tabela: no `.xlsb`, o par de registros de início e fim; no `.xlsx`, abre o `<sheetData/>`.
+- Se as fórmulas não explicam todas as células do cache, também se preenchem os buracos de cada coluna, entre a primeira e a última linha guardada. Isso acontece com fórmula não lida até o fim ou com célula guardada que nenhuma fórmula usa. Fora disso, o preenchimento não roda: entre os blocos de turmas dos simulados ele acrescentaria células que nenhuma fórmula usa e regravaria à toa as planilhas dos professores.
+- Mais de 50.000 células novas num vínculo é tratado como algo fora do esperado. Nenhuma célula nova entra, as já guardadas continuam atualizadas, e o vínculo aparece como sem origem acessível.
 - A origem é procurada pelos ids que o Excel guarda e, se tiver sido apagada e enviada de novo, pelo endereço.
 - No máximo 2 planilhas são atualizadas ao mesmo tempo, cada uma numa invocação própria (`SELF` → `/vinculos`, sem banco). Falha da Graph nos vínculos espera pelo menos 1 min sem atrasar a leitura de notas.
 
@@ -133,8 +139,22 @@ A atualização só roda com a leitura automática ligada e não pausada.
 **Validação.**
 - Medido nas planilhas reais, só leitura: as 18 de professores estavam em dia, e o Banco tinha 4.998 células atrasadas, confirmadas uma a uma no Excel (88.082 células iguais).
 - O Excel abre os arquivos remontados sem reparo, com macros e vínculos.
+- Conferência de 19/11/2026 à tarde, feita em cópias e só com leitura:
+  - Nos 88 vínculos das 19 planilhas, toda célula do cache está entre as usadas pelas fórmulas e pelos nomes. As exceções são 2 células antigas de uma planilha, que nenhuma fórmula usa mais.
+  - Banco: o cache montado pelo Worker é igual ao gravado pelo próprio Excel ao atualizar os vínculos, em 88.082 de 88.082 células, com 6.402 mudanças.
+  - Banco: os valores recalculados das 10 abas são iguais em 139.382 células.
+  - Uma planilha de professor atualizada pelo Excel não muda, e o Worker também não a regrava.
+- Arquivos sintéticos feitos no Excel, em `.xlsb` e `.xlsx`, deram resultado idêntico ao do Excel nestes casos:
+  - célula nova num nome;
+  - nome de uma célula só;
+  - aba sem células no cache;
+  - `PROCV` em coluna inteira;
+  - célula vazia preenchida depois.
+- Ler as 18 origens do Banco leva cerca de 6 s de processamento. Só a última origem lida fica na memória, porque guardar todas ocuparia cerca de 40 MB.
 
 **Limites.**
 - Origem fora do OneDrive da secretaria ou maior que 8 MiB fica como está e aparece como "vínculo sem origem acessível".
 - Cópia de conflito numa pasta de fontes ainda seria lida como mais uma planilha (regra própria, fora desta entrega).
 - A escola não reorganiza a Relação; reordenar a lista desalinharia nomes e notas, como no próprio Excel.
+- No `.xlsb`, um nome da origem que passe da linha 65.536 é gravado pelo Excel como erro, sem a área. As células dele só são atualizadas se já estiverem no cache.
+- No `.xlsx`, uma referência a várias abas de outra pasta (`[1]A:C!B2`) não é lida. Então vale o preenchimento de buracos.
