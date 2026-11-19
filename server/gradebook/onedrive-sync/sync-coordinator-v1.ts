@@ -595,20 +595,23 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     }
     const present = new Set(listed.map((item) => item.id));
     this.observeLinks(listed, now);
-    for (const file of this.linkFiles()) {
-      if (!present.has(file.id)) {
-        if (!file.removed)
-          this.saveLinkFile({
-            ...file,
-            removed: true,
-            state: file.state === 'working' ? 'working' : 'idle',
-            dueAt: null,
-          });
-        continue;
-      }
-      if (everything) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0, true));
-    }
+    this.applyLinkListing(present, everything, now);
     this.event('links-listing', { files: present.size, everything });
+  }
+
+  /** Workbooks no longer listed leave; the listed ones get a whole refresh when asked. */
+  private applyLinkListing(present: ReadonlySet<string>, everything: boolean, now: number): void {
+    for (const file of this.linkFiles()) {
+      if (present.has(file.id)) {
+        if (everything) this.saveLinkFile(requestLinkRefreshV1(file, null, now, 0, true));
+      } else if (!file.removed)
+        this.saveLinkFile({
+          ...file,
+          removed: true,
+          state: file.state === 'working' ? 'working' : 'idle',
+          dueAt: null,
+        });
+    }
   }
 
   /** Graph refused or failed: the links wait (Retry-After honoured), the grades go on. */

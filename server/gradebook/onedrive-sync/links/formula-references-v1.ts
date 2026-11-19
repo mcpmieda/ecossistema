@@ -113,6 +113,11 @@ async function relationshipsV1(pkg: ZipPackageV1, owner: string): Promise<Map<st
 const u16 = (data: Uint8Array, at: number): number => data[at]! | (data[at + 1]! << 8);
 const u32 = (data: Uint8Array, at: number): number =>
   (data[at]! | (data[at + 1]! << 8) | (data[at + 2]! << 16)) + data[at + 3]! * 0x1000000;
+/** Signed: a sheet index of -1 is a reference to a deleted sheet. */
+const i32 = (data: Uint8Array, at: number): number => {
+  const value = u32(data, at);
+  return value > 0x7fffffff ? value - 0x100000000 : value;
+};
 
 /** Size of each token (with its first byte) whose size does not depend on its content. */
 const PTG_SIZE_V1 = new Map<number, number>([
@@ -143,21 +148,30 @@ const PTG_SIZE_V1 = new Map<number, number>([
 ]);
 const ATTRIBUTE_TOKENS_V1 = new Set([0x00, 0x01, 0x02, 0x08, 0x10, 0x20, 0x21, 0x40, 0x41, 0x80]);
 
+/** The token without its class bits (reference, value or array). */
+const baseTokenV1 = (ptg: number): number => (ptg >= 0x20 ? (ptg & 0x1f) | 0x20 : ptg);
+
+/** After 0x18: PtgList (a table) and PtgSxName; anything else there is not read. */
+function extendedTokenSizeV1(kind: number | undefined): number | null {
+  if (kind === 0x19) return 14;
+  return kind === 0x1d ? 6 : null;
+}
+
+/** PtgAttr: 4 bytes, except Choose, which carries its jump table. */
+function attributeTokenSizeV1(rgce: Uint8Array, at: number): number | null {
+  const kind = rgce[at + 1];
+  if (kind === 0x04) return at + 4 <= rgce.length ? 4 + 2 * (u16(rgce, at + 2) + 1) : null;
+  return kind !== undefined && ATTRIBUTE_TOKENS_V1.has(kind) ? 4 : null;
+}
+
 function tokenSizeV1(rgce: Uint8Array, at: number): number | null {
   const ptg = rgce[at]!;
   if (ptg >= 0x03 && ptg <= 0x16) return 1;
   if (ptg === 0x17) return at + 3 <= rgce.length ? 3 + 2 * u16(rgce, at + 1) : null;
-  if (ptg === 0x18) {
-    if (rgce[at + 1] === 0x19) return 14;
-    return rgce[at + 1] === 0x1d ? 6 : null;
-  }
-  if (ptg === 0x19) {
-    const kind = rgce[at + 1];
-    if (kind === 0x04) return at + 4 <= rgce.length ? 4 + 2 * (u16(rgce, at + 2) + 1) : null;
-    return kind !== undefined && ATTRIBUTE_TOKENS_V1.has(kind) ? 4 : null;
-  }
+  if (ptg === 0x18) return extendedTokenSizeV1(rgce[at + 1]);
+  if (ptg === 0x19) return attributeTokenSizeV1(rgce, at);
   if (ptg >= 0x80) return null;
-  return PTG_SIZE_V1.get(ptg >= 0x20 ? (ptg & 0x1f) | 0x20 : ptg) ?? null;
+  return PTG_SIZE_V1.get(baseTokenV1(ptg)) ?? null;
 }
 
 type XlsbRefV1 = { readonly ixti: number; readonly area: CellAreaV1 };
@@ -169,8 +183,7 @@ export function xlsbFormulaRefsV1(rgce: Uint8Array): { refs: XlsbRefV1[]; comple
   while (at < rgce.length) {
     const size = tokenSizeV1(rgce, at);
     if (size === null || at + size > rgce.length) return { refs, complete: false };
-    const ptg = rgce[at]!;
-    const base = ptg >= 0x20 ? (ptg & 0x1f) | 0x20 : ptg;
+    const base = baseTokenV1(rgce[at]!);
     if (base === 0x3a) {
       const row = u32(rgce, at + 3);
       const col = u16(rgce, at + 7) & 0x3fff;
@@ -229,8 +242,8 @@ function xlsbBooksV1(workbook: Uint8Array, rels: Map<string, string>): XlsbBooks
       for (let i = 0; i < count && 16 + i * 12 <= data.length; i++)
         out.xti.push({
           book: u32(data, 4 + i * 12),
-          first: u32(data, 8 + i * 12) | 0,
-          last: u32(data, 12 + i * 12) | 0,
+          first: i32(data, 8 + i * 12),
+          last: i32(data, 12 + i * 12),
         });
     } else if (type === 0x0027) {
       const tokens = nameTokensV1(data);
@@ -310,8 +323,9 @@ function columnNumberV1(letters: string): number {
 }
 
 /** "$B$7", "B", "7" → its row and column (null when the part has none). */
-function a1PartV1(text: string): A1RefV1 {
-  const match = /^(\$?)([A-Z]{1,3})?(\$?)(\d+)?$/u.exec(text)!;
+function a1PartV1(text: string): A1RefV1 | null {
+  const match = /^(\$?)([A-Z]{1,3})?(\$?)(\d+)?$/u.exec(text);
+  if (!match || (!match[2] && !match[4])) return null;
   return {
     col: match[2] ? columnNumberV1(match[2]) : null,
     row: match[4] ? Number(match[4]) - 1 : null,
@@ -344,19 +358,38 @@ type XlsxRefV1 = {
   readonly end: A1RefV1;
 };
 
-const EXTERNAL_A1_V1 =
-  /(?:'\[(\d+)\]((?:[^']|'')+)'|\[(\d+)\]([^\s!'"()[\],;:&=<>*/+^%{}-]+))!(\$?[A-Z]{1,3}\$?\d+|\$?[A-Z]{1,3}|\$?\d+)(?::(\$?[A-Z]{1,3}\$?\d+|\$?[A-Z]{1,3}|\$?\d+))?/gu;
+/** "'[2]Nota final'!" and "[1]Notas!": the workbook number and the sheet before a reference. */
+const QUOTED_BOOK_SHEET_V1 = /'\[(\d+)\]((?:[^']|'')+)'!/gu;
+const PLAIN_BOOK_SHEET_V1 = /\[(\d+)\]([^\s!'"()[\],;:&=<>*/+^%{}-]+)!/gu;
+const A1_PART_V1 = /\$?[A-Z]{0,3}\$?\d*/uy;
+
+function a1AtV1(text: string, at: number): { ref: A1RefV1; end: number } | null {
+  A1_PART_V1.lastIndex = at;
+  const part = A1_PART_V1.exec(text)?.[0] ?? '';
+  const ref = part ? a1PartV1(part) : null;
+  return ref ? { ref, end: at + part.length } : null;
+}
+
+/** "B7", "A:C", "3:5" or "B7:D9" at `at`; null for anything else (a sheet-level name). */
+function a1RangeAtV1(text: string, at: number): { start: A1RefV1; end: A1RefV1 } | null {
+  const start = a1AtV1(text, at);
+  if (!start) return null;
+  const end = text[start.end] === ':' ? a1AtV1(text, start.end + 1) : null;
+  if (/[\w.]/u.test(text[end?.end ?? start.end] ?? '')) return null;
+  return { start: start.ref, end: end?.ref ?? start.ref };
+}
 
 /** The references to other workbooks in a formula's text ("[1]Notas!B7", "'[2]Nota final'!A:A"). */
 export function xlsxFormulaRefsV1(formula: string): XlsxRefV1[] {
   const text = formula.replaceAll(/"(?:[^"]|"")*"/gu, '""');
   const refs: XlsxRefV1[] = [];
-  for (const match of text.matchAll(EXTERNAL_A1_V1)) {
-    const book = Number(match[1] ?? match[3]);
-    const sheet = match[2] === undefined ? match[4]! : match[2].replaceAll("''", "'");
-    const start = a1PartV1(match[5]!);
-    const end = match[6] === undefined ? start : a1PartV1(match[6]);
-    refs.push({ book, sheet, start, end });
+  for (const match of [
+    ...text.matchAll(QUOTED_BOOK_SHEET_V1),
+    ...text.matchAll(PLAIN_BOOK_SHEET_V1),
+  ]) {
+    const sheet = match[0].startsWith("'") ? match[2]!.replaceAll("''", "'") : match[2]!;
+    const range = a1RangeAtV1(text, match.index + match[0].length);
+    if (range) refs.push({ book: Number(match[1]), sheet, ...range });
   }
   return refs;
 }
@@ -389,27 +422,40 @@ function collectXlsxSheetV1(
   books: readonly (string | null)[],
   xml: string,
 ): void {
-  // A shared formula is written once, in its first cell; the others repeat it moved.
-  const shared = new Map<string, { formula: string; row: number; col: number }>();
+  const shared: SharedFormulasV1 = new Map();
   for (const cell of xml.matchAll(CELL_V1)) {
     const formula = FORMULA_V1.exec(cell[2]!);
     if (!formula) continue;
-    const attrs = formula[1]!;
     const text = formula[2] === undefined ? '' : decodeXmlTextV1(formula[2]);
-    const at = cellPositionV1(attributeOfV1(cell[1]!, 'r'));
-    const group = attributeOfV1(attrs, 'si');
-    if (attributeOfV1(attrs, 't') === 'shared' && group !== null && at) {
-      const master = shared.get(group);
-      if (text) shared.set(group, { formula: text, row: at.row, col: at.col });
-      else if (master)
-        collectXlsxV1(collector, books, master.formula, {
-          rows: at.row - master.row,
-          cols: at.col - master.col,
-        });
-      if (!text) continue;
-    }
-    if (text) collectXlsxV1(collector, books, text);
+    const moved = sharedFormulaV1(shared, formula[1]!, cell[1]!, text);
+    if (moved) collectXlsxV1(collector, books, moved.formula, moved.shift);
+    else if (text) collectXlsxV1(collector, books, text);
   }
+}
+
+type SharedFormulasV1 = Map<string, { formula: string; row: number; col: number }>;
+
+/**
+ * A shared formula is written once, in its first cell (remembered here); another cell of the group
+ * has no text and gets that formula moved to it.
+ */
+function sharedFormulaV1(
+  shared: SharedFormulasV1,
+  formulaAttrs: string,
+  cellAttrs: string,
+  text: string,
+): { formula: string; shift: { rows: number; cols: number } } | null {
+  const group = attributeOfV1(formulaAttrs, 'si');
+  const at = cellPositionV1(attributeOfV1(cellAttrs, 'r'));
+  if (attributeOfV1(formulaAttrs, 't') !== 'shared' || group === null || !at) return null;
+  if (text) {
+    shared.set(group, { formula: text, row: at.row, col: at.col });
+    return null;
+  }
+  const master = shared.get(group);
+  return master
+    ? { formula: master.formula, shift: { rows: at.row - master.row, cols: at.col - master.col } }
+    : null;
 }
 
 async function readXlsxUseV1(pkg: ZipPackageV1, collector: UseCollectorV1): Promise<void> {
