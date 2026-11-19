@@ -392,7 +392,7 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
             onBlur={navigation.onBlur}
             onKeyDown={navigation.onKeyDown}
           >
-            <thead role="rowgroup" data-slot="table-header" className="table__header">
+            <thead data-slot="table-header" className="table__header">
               <tr role="row">
                 {headers.map((header, index) => {
                   const column = columns.find((item) => `value-${item.key}` === header.id);
@@ -435,7 +435,7 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
                 })}
               </tr>
             </thead>
-            <tbody role="rowgroup" data-slot="table-body" className="table__body">
+            <tbody data-slot="table-body" className="table__body">
               {ordered.length === 0 ? (
                 <tr role="row">
                   <td role="rowheader" colSpan={headers.length}>

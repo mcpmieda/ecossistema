@@ -19,6 +19,7 @@ function placeOfV1(table: HTMLTableElement, from: Element): GridPlaceV1 | null {
   if (!cell) return null;
   return { kind: 'cell', row, cell, head: row.parentElement === table.tHead };
 }
+const itemOfV1 = (place: GridPlaceV1) => (place.kind === 'cell' ? place.cell : place.row);
 
 /** React Aria's platform rule: on a Mac, Option moves like the plain key and Ctrl is left to the
  * page; elsewhere Ctrl moves like the plain key and, with Home/End, reaches the whole grid. */
@@ -28,6 +29,63 @@ const isMacV1 = () => {
   return /^Mac/i.test(data?.platform ?? '') || /Macintosh/.test(navigator.userAgent);
 };
 
+/** Where the focus is when a key is pressed, with the grid's rows and header around it. */
+interface GridSpotV1 {
+  readonly rows: readonly HTMLTableRowElement[];
+  readonly head: readonly HTMLTableCellElement[];
+  readonly row: HTMLTableRowElement;
+  /** The cell's column, or -1 on a row. */
+  readonly column: number;
+  /** Ctrl (outside a Mac): Home/End reach the whole grid. */
+  readonly ctrl: boolean;
+}
+type GridMoveV1 = (spot: GridSpotV1) => HTMLElement | null;
+
+const cellAtV1 = (row: HTMLTableRowElement | undefined, column: number) =>
+  row?.cells[column] ?? null;
+const lastCellV1 = (row: HTMLTableRowElement | undefined) =>
+  row ? cellAtV1(row, row.cells.length - 1) : null;
+const rowAtV1 = (rows: readonly HTMLTableRowElement[], index: number) => rows[index] ?? null;
+
+/** React Aria's table keyboard delegate, by where the focus is: a row, a header cell or a cell. */
+const ROW_MOVES_V1 = new Map<string, GridMoveV1>([
+  ['ArrowDown', ({ rows, row }) => rowAtV1(rows, rows.indexOf(row) + 1)],
+  ['ArrowUp', ({ rows, row, head }) => rows[rows.indexOf(row) - 1] ?? head[0] ?? null],
+  ['ArrowRight', ({ row }) => cellAtV1(row, 0)],
+  ['ArrowLeft', ({ row }) => lastCellV1(row)],
+  ['Home', ({ rows }) => rowAtV1(rows, 0)],
+  ['End', ({ rows }) => rowAtV1(rows, rows.length - 1)],
+  ['PageDown', ({ rows }) => rowAtV1(rows, rows.length - 1)],
+  ['PageUp', ({ head }) => head[0] ?? null],
+]);
+const HEAD_MOVES_V1 = new Map<string, GridMoveV1>([
+  ['ArrowRight', ({ head, column }) => head[column + 1] ?? head[0] ?? null],
+  ['ArrowLeft', ({ head, column }) => head[column - 1] ?? head.at(-1) ?? null],
+  ['ArrowDown', ({ rows, column }) => cellAtV1(rows[0], column)],
+  ['PageDown', ({ rows, column }) => cellAtV1(rows.at(-1), column)],
+  ['Home', ({ rows, head, ctrl }) => (ctrl ? cellAtV1(rows[0], 0) : (head[0] ?? null))],
+  ['End', ({ rows, head, ctrl }) => (ctrl ? lastCellV1(rows.at(-1)) : (head.at(-1) ?? null))],
+]);
+const CELL_MOVES_V1 = new Map<string, GridMoveV1>([
+  ['ArrowRight', ({ row, column }) => row.cells[column + 1] ?? row],
+  ['ArrowLeft', ({ row, column }) => (column > 0 ? cellAtV1(row, column - 1) : row)],
+  ['ArrowDown', ({ rows, row, column }) => cellAtV1(rows[rows.indexOf(row) + 1], column)],
+  [
+    'ArrowUp',
+    ({ rows, row, head, column }) => {
+      const index = rows.indexOf(row);
+      return index > 0 ? cellAtV1(rows[index - 1], column) : (head[column] ?? null);
+    },
+  ],
+  [
+    'PageDown',
+    ({ rows, row, column }) => (row === rows.at(-1) ? null : cellAtV1(rows.at(-1), column)),
+  ],
+  ['PageUp', ({ head, column }) => head[column] ?? null],
+  ['Home', ({ rows, row, ctrl }) => (ctrl ? cellAtV1(rows[0], 0) : cellAtV1(row, 0))],
+  ['End', ({ rows, row, ctrl }) => (ctrl ? lastCellV1(rows.at(-1)) : lastCellV1(row))],
+]);
+
 /** Where a key takes the focus, following React Aria's table keyboard delegate. */
 function targetOfV1(
   table: HTMLTableElement,
@@ -35,73 +93,18 @@ function targetOfV1(
   key: string,
   ctrl: boolean,
 ): HTMLElement | null {
-  const rows = bodyRowsV1(table);
-  const head = headCellsV1(table);
-  const first = rows[0];
-  const last = rows.at(-1);
-  if (place.kind === 'row') {
-    const index = rows.indexOf(place.row);
-    switch (key) {
-      case 'ArrowDown':
-        return rows[index + 1] ?? null;
-      case 'ArrowUp':
-        return index > 0 ? rows[index - 1]! : (head[0] ?? null);
-      case 'ArrowRight':
-        return place.row.cells[0] ?? null;
-      case 'ArrowLeft':
-        return place.row.cells[place.row.cells.length - 1] ?? null;
-      case 'Home':
-        return first ?? null;
-      case 'End':
-      case 'PageDown':
-        return last ?? null;
-      case 'PageUp':
-        return head[0] ?? null;
-      default:
-        return null;
-    }
-  }
-  const column = place.cell.cellIndex;
-  const cells = [...place.row.cells];
-  if (place.head) {
-    switch (key) {
-      case 'ArrowRight':
-        return head[column + 1] ?? head[0] ?? null;
-      case 'ArrowLeft':
-        return head[column - 1] ?? head.at(-1) ?? null;
-      case 'ArrowDown':
-        return first?.cells[column] ?? null;
-      case 'PageDown':
-        return last?.cells[column] ?? null;
-      case 'Home':
-        return ctrl ? (first?.cells[0] ?? null) : (head[0] ?? null);
-      case 'End':
-        return ctrl ? (last?.cells[last.cells.length - 1] ?? null) : (head.at(-1) ?? null);
-      default:
-        return null;
-    }
-  }
-  const index = rows.indexOf(place.row);
-  switch (key) {
-    case 'ArrowRight':
-      return cells[column + 1] ?? place.row;
-    case 'ArrowLeft':
-      return column > 0 ? cells[column - 1]! : place.row;
-    case 'ArrowDown':
-      return rows[index + 1]?.cells[column] ?? null;
-    case 'ArrowUp':
-      return index > 0 ? (rows[index - 1]!.cells[column] ?? null) : (head[column] ?? null);
-    case 'PageDown':
-      return place.row === last ? null : (last?.cells[column] ?? null);
-    case 'PageUp':
-      return head[column] ?? null;
-    case 'Home':
-      return ctrl ? (first?.cells[0] ?? null) : (cells[0] ?? null);
-    case 'End':
-      return ctrl ? (last?.cells[last.cells.length - 1] ?? null) : (cells.at(-1) ?? null);
-    default:
-      return null;
-  }
+  let moves = CELL_MOVES_V1;
+  if (place.kind === 'row') moves = ROW_MOVES_V1;
+  else if (place.head) moves = HEAD_MOVES_V1;
+  const move = moves.get(key);
+  if (!move) return null;
+  return move({
+    rows: bodyRowsV1(table),
+    head: headCellsV1(table),
+    row: place.row,
+    column: place.kind === 'cell' ? place.cell.cellIndex : -1,
+    ctrl,
+  });
 }
 
 /** A cell takes the focus through its control, when it has one (React Aria's focusMode "child"). */
@@ -109,6 +112,10 @@ const focusTargetV1 = (item: HTMLElement) =>
   item instanceof HTMLTableCellElement
     ? (item.querySelector<HTMLElement>(FOCUSABLE_V1) ?? item)
     : item;
+
+/** Whether the focus came from somewhere after the grid in the page (Shift+Tab from below). */
+const fromBelowV1 = (table: HTMLTableElement, from: Node | null) =>
+  !!from && (table.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
 
 /** React Aria's scrollIntoViewport: the least scroll that shows the item and, when the page had to
  * move, the table centred first so the item appears in context. */
@@ -122,6 +129,14 @@ function scrollIntoViewportV1(item: HTMLElement, table: HTMLElement) {
     item.scrollIntoView({ block: 'nearest' });
   }
 }
+
+/** React Aria let the page keep these keys only where its cells did not: Up/Down at the grid's
+ * edges and Space on a header cell itself are held, so the page does not scroll. */
+const holdsKeyV1 = (place: GridPlaceV1, key: string, target: EventTarget) =>
+  place.kind === 'cell' &&
+  (key === 'ArrowUp' ||
+    key === 'ArrowDown' ||
+    (key === ' ' && place.head && target === place.cell));
 
 /**
  * Keyboard and focus of a native `<table role="grid">`, as React Aria's Table gives them: a single
@@ -142,6 +157,7 @@ export function useGridNavigationV1() {
   const spot = useRef({ row: -1, cell: -1, rows: 0 });
   /** Whether the grid holds the focus; React sends no blur when the focused node is removed. */
   const inside = useRef(false);
+
   const note = (element: HTMLTableElement, target: HTMLElement) => {
     const rows = bodyRowsV1(element);
     const place = placeOfV1(element, target);
@@ -165,56 +181,86 @@ export function useGridNavigationV1() {
     active.current = target;
     element.tabIndex = -1;
   };
+  /** The focus the grid had, lost with a removed node, goes to `target`. */
+  const keepFocus = (target: HTMLElement) => {
+    const current = document.activeElement;
+    if (inside.current && (current === null || current === document.body))
+      target.focus({ preventScroll: true });
+  };
+  /** React Aria's empty table: no remembered place; the header's own buttons, when there are any,
+   * take Tab, else the table, which also keeps the focus the grid had. */
+  const settleEmpty = (element: HTMLTableElement) => {
+    if (active.current && active.current.tagName !== 'BUTTON') active.current.tabIndex = -1;
+    active.current = null;
+    dropBackStop();
+    element.tabIndex = element.tHead?.querySelector('button') ? -1 : 0;
+    keepFocus(element);
+  };
+  /** The remembered item left with its row or column: as in React Aria, the item now in its place
+   * takes the stop, and the focus when the grid had it. */
+  const replaceRemoved = (element: HTMLTableElement, rows: readonly HTMLTableRowElement[]) => {
+    active.current = null;
+    const { row, cell, rows: before } = spot.current;
+    const gone = before - rows.length;
+    const index = Math.min(gone > 1 ? Math.max(row - gone + 1, 0) : row, rows.length - 1);
+    const line = rows[index];
+    if (!line) return;
+    const target = focusTargetV1(cell < 0 ? line : (line.cells[cell] ?? line));
+    remember(element, target);
+    keepFocus(target);
+  };
+  /** Before any focus: Tab from above reaches the table, Shift+Tab from below the last control. */
+  const offerEntries = (element: HTMLTableElement) => {
+    element.tabIndex = 0;
+    const controls = element.querySelectorAll<HTMLElement>('button');
+    const lastControl = controls[controls.length - 1] ?? null;
+    if (backStop.current === lastControl) return;
+    dropBackStop();
+    if (lastControl) lastControl.tabIndex = 0;
+    backStop.current = lastControl;
+  };
   useLayoutEffect(() => {
     const element = table.current;
     if (!element) return;
     const rows = bodyRowsV1(element);
     if (rows.length === 0) {
-      // React Aria's empty table: no remembered place; the header's own buttons, when there are
-      // any, take Tab, else the table, which also keeps the focus the grid had.
-      if (active.current && active.current.tagName !== 'BUTTON') active.current.tabIndex = -1;
-      active.current = null;
-      dropBackStop();
-      element.tabIndex = element.tHead?.querySelector('button') ? -1 : 0;
-      const current = document.activeElement;
-      if (inside.current && (current === null || current === document.body))
-        element.focus({ preventScroll: true });
+      settleEmpty(element);
       return;
     }
-    if (active.current && !element.contains(active.current)) {
-      // The remembered item left with its row or column: as in React Aria, the item now in its
-      // place takes the stop, and the focus when the grid had it.
-      active.current = null;
-      const { row, cell, rows: before } = spot.current;
-      const gone = before - rows.length;
-      const index = Math.min(gone > 1 ? Math.max(row - gone + 1, 0) : row, rows.length - 1);
-      const line = index >= 0 ? rows[index] : undefined;
-      if (line) {
-        const target = focusTargetV1(cell < 0 ? line : (line.cells[cell] ?? line));
-        remember(element, target);
-        const current = document.activeElement;
-        if (inside.current && (current === null || current === document.body))
-          target.focus({ preventScroll: true });
-      }
-    }
-    if (active.current) {
-      element.tabIndex = -1;
-      note(element, active.current);
+    if (active.current && !element.contains(active.current)) replaceRemoved(element, rows);
+    if (!active.current) {
+      offerEntries(element);
       return;
     }
-    element.tabIndex = 0;
-    const controls = element.querySelectorAll<HTMLElement>('button');
-    const lastControl = controls[controls.length - 1] ?? null;
-    if (backStop.current !== lastControl) {
-      dropBackStop();
-      if (lastControl) lastControl.tabIndex = 0;
-      backStop.current = lastControl;
-    }
+    element.tabIndex = -1;
+    note(element, active.current);
   });
+
   /** Moves the focus to an item as React Aria does: no jump on focus, then the least scroll. */
   const enter = (element: HTMLTableElement, item: HTMLElement) => {
     focusTargetV1(item).focus({ preventScroll: true });
     scrollIntoViewportV1(item, element);
+  };
+  /** Tab reached the grid itself: back to the last place, else the first (from below, last) row. */
+  const enterGrid = (element: HTMLTableElement, rows: HTMLTableRowElement[], below: boolean) => {
+    const place = active.current ? placeOfV1(element, active.current) : null;
+    if (!active.current || !place) {
+      enter(element, below ? rows.at(-1)! : rows[0]!);
+      return;
+    }
+    active.current.focus({ preventScroll: true });
+    scrollIntoViewportV1(itemOfV1(place), element);
+  };
+  /** Focus that lands inside the grid: a cell focused by a click on its padding or photo hands it
+   * to its control, unless it came out of that control (React Aria's focusMode "child"). */
+  const settleInside = (element: HTMLTableElement, target: HTMLElement, from: Node | null) => {
+    if (!placeOfV1(element, target)) return;
+    const control = focusTargetV1(target);
+    if (control !== target && !target.contains(from)) {
+      control.focus({ preventScroll: true });
+      return;
+    }
+    remember(element, target);
   };
   const onFocus = (event: FocusEvent<HTMLTableElement>) => {
     const element = event.currentTarget;
@@ -223,36 +269,18 @@ export function useGridNavigationV1() {
     const rows = bodyRowsV1(element);
     if (rows.length === 0) return;
     const from = event.relatedTarget as Node | null;
-    const outside = !from || !element.contains(from);
-    const below =
-      !!from && (element.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    const below = fromBelowV1(element, from);
     if (target === element) {
-      // Tab reached the grid: back to the last place, else the first (or, from below, last) row.
-      const place = active.current ? placeOfV1(element, active.current) : null;
-      if (active.current && place) {
-        active.current.focus({ preventScroll: true });
-        scrollIntoViewportV1(place.kind === 'cell' ? place.cell : place.row, element);
-      } else enter(element, below ? rows.at(-1)! : rows[0]!);
+      enterGrid(element, rows, below);
       return;
     }
-    if (
-      !active.current &&
-      outside &&
-      target === backStop.current &&
-      target.matches(':focus-visible')
-    ) {
+    // Shift+Tab from below lands on the last control: as in React Aria, the last row takes it.
+    const entering = !active.current && target === backStop.current && !element.contains(from);
+    if (entering && target.matches(':focus-visible')) {
       enter(element, below ? rows.at(-1)! : rows[0]!);
       return;
     }
-    if (!placeOfV1(element, target)) return;
-    // A cell focused by a click on its padding or photo hands the focus to its control, unless the
-    // focus came out of that control (React Aria's focusMode "child").
-    const control = focusTargetV1(target);
-    if (control !== target && !target.contains(from)) {
-      control.focus({ preventScroll: true });
-      return;
-    }
-    remember(element, target);
+    settleInside(element, target, from);
   };
   const onBlur = (event: FocusEvent<HTMLTableElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) inside.current = false;
@@ -265,18 +293,10 @@ export function useGridNavigationV1() {
     const place = placeOfV1(element, event.target as Element);
     if (!place) return;
     const item = targetOfV1(element, place, event.key, !mac && event.ctrlKey);
-    if (!item) {
-      // React Aria kept Up/Down at the grid's edges and Space on a header cell: the page stays.
-      const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
-      if (
-        place.kind === 'cell' &&
-        (vertical || (event.key === ' ' && place.head && event.target === place.cell))
-      )
-        event.preventDefault();
-      return;
-    }
-    event.preventDefault();
-    enter(element, item);
+    if (item) {
+      event.preventDefault();
+      enter(element, item);
+    } else if (holdsKeyV1(place, event.key, event.target)) event.preventDefault();
   };
   return { ref: table, onFocus, onBlur, onKeyDown };
 }
