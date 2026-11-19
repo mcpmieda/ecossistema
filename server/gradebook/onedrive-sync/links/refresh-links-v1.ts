@@ -241,32 +241,49 @@ export function usedLinkCellsV1(
 ): LinkAdditionsV1 {
   const additions = new Map<string, Array<{ row: number; col: number; value: LinkValueV1 }>>();
   if (!use) return additions;
+  const cached = cachedKeysV1(cells);
+  for (const [sheet, used] of use) {
+    const have = cached.get(sheet) ?? new Set<number>();
+    const list: Array<{ row: number; col: number; value: LinkValueV1 }> = [];
+    for (const { row, col } of usedPositionsV1(sheet, used, values)) {
+      const key = cellKeyV1(row, col);
+      if (have.has(key)) continue;
+      have.add(key);
+      const value = values.valueAt(sheet, row, col);
+      if (value && value.kind !== 'blank') list.push({ row, col, value });
+    }
+    if (list.length > 0) additions.set(sheet, list);
+  }
+  return additions;
+}
+
+/** The cells each sheet's cache holds (row × 16384 + column). */
+function cachedKeysV1(cells: readonly LinkCellV1[]): Map<string, Set<number>> {
   const cached = new Map<string, Set<number>>();
   for (const cell of cells) {
     const keys = cached.get(cell.sheet) ?? new Set<number>();
     keys.add(cellKeyV1(cell.row, cell.col));
     cached.set(cell.sheet, keys);
   }
-  for (const [sheet, used] of use) {
-    const have = cached.get(sheet) ?? new Set<number>();
-    const list: Array<{ row: number; col: number; value: LinkValueV1 }> = [];
-    const take = (row: number, col: number) => {
-      const key = cellKeyV1(row, col);
-      if (have.has(key)) return;
-      have.add(key);
-      const value = values.valueAt(sheet, row, col);
-      if (value && value.kind !== 'blank') list.push({ row, col, value });
-    };
-    for (const key of used.cells) take(Math.floor(key / MAX_COLUMNS_V1), key % MAX_COLUMNS_V1);
-    for (const area of used.areas.values()) {
-      if ((area.r2 - area.r1 + 1) * (area.c2 - area.c1 + 1) <= MAX_AREA_CELLS_V1) {
-        for (let row = area.r1; row <= area.r2; row++)
-          for (let col = area.c1; col <= area.c2; col++) take(row, col);
-      } else for (const cell of values.cellsIn(sheet, area)) take(cell.row, cell.col);
+  return cached;
+}
+
+/** Every cell one sheet's use points to; a large area only through the cells the source has. */
+function* usedPositionsV1(
+  sheet: string,
+  used: SheetUseV1,
+  values: SourceValuesV1,
+): Generator<{ row: number; col: number }> {
+  for (const key of used.cells)
+    yield { row: Math.floor(key / MAX_COLUMNS_V1), col: key % MAX_COLUMNS_V1 };
+  for (const area of used.areas.values()) {
+    if ((area.r2 - area.r1 + 1) * (area.c2 - area.c1 + 1) > MAX_AREA_CELLS_V1) {
+      yield* values.cellsIn(sheet, area);
+      continue;
     }
-    if (list.length > 0) additions.set(sheet, list);
+    for (let row = area.r1; row <= area.r2; row++)
+      for (let col = area.c1; col <= area.c2; col++) yield { row, col };
   }
-  return additions;
 }
 
 /**
@@ -333,33 +350,10 @@ export async function refreshDestinationLinksV1(input: {
   const parts: RefreshOutcomeV1['parts'][number][] = [];
   let changedCells = 0;
   for (const link of links) {
-    const candidates = input.resolve(link);
-    const source = candidates[0] ?? null;
-    const partUse = linkUseWithNamesV1(use?.byPart.get(link.part), link.cache.names);
-    const sheets = [
-      ...new Set([...link.cache.cells.map((cell) => cell.sheet), ...(partUse?.keys() ?? [])]),
-    ];
-    const values = source && sheets.length > 0 ? await input.loadSource(candidates, sheets) : null;
-    if (!source || sheets.length === 0 || values === 'skip' || values === null) {
-      const status = unreadStatusV1(source, sheets.length, values);
-      parts.push({ part: link.part, source, status, changed: 0 });
-      continue;
-    }
-    const used = usedLinkCellsV1(link.cache.cells, partUse, values);
-    const found = useCoversCacheV1(use, link.cache.cells, partUse)
-      ? used
-      : mergeAdditionsV1(used, missingLinkCellsV1(link.cache.cells, values));
-    const tooMany = additionCountV1(found) > MAX_NEW_CELLS_PER_LINK_V1;
-    const additions: LinkAdditionsV1 = tooMany ? new Map() : found;
-    const refreshed = await refreshLinkPartV1(pkg, format, link, values, additions);
+    const refreshed = await refreshOneLinkV1({ ...input, pkg, format, use }, link);
     if (refreshed.bytes) replacements.set(link.part, refreshed.bytes);
-    changedCells += refreshed.changed;
-    parts.push({
-      part: link.part,
-      source,
-      status: tooMany ? 'unsupported' : refreshed.status,
-      changed: refreshed.changed,
-    });
+    changedCells += refreshed.part.changed;
+    parts.push(refreshed.part);
   }
   if (replacements.size === 0) return { outcome: 'unchanged', bytes: null, changedCells: 0, parts };
   const recalc = await recalcOnOpenPartV1(pkg, format);
@@ -370,6 +364,62 @@ export async function refreshDestinationLinksV1(input: {
     changedCells,
     parts,
   };
+}
+
+type LinkRunV1 = Parameters<typeof refreshDestinationLinksV1>[0] & {
+  readonly pkg: ZipPackageV1;
+  readonly format: 'xlsb' | 'xlsx';
+  readonly use: LinkUseV1 | null;
+};
+
+/** One link part: read from its source and rewritten; bytes only when a cell changed. */
+async function refreshOneLinkV1(
+  run: LinkRunV1,
+  link: LinkPartV1,
+): Promise<{ part: RefreshOutcomeV1['parts'][number]; bytes: Uint8Array | null }> {
+  const candidates = run.resolve(link);
+  const source = candidates[0] ?? null;
+  const partUse = linkUseWithNamesV1(run.use?.byPart.get(link.part), link.cache.names);
+  const sheets = [...new Set([...link.cache.cells.map((cell) => cell.sheet), ...partUse.keys()])];
+  const values = source && sheets.length > 0 ? await run.loadSource(candidates, sheets) : null;
+  if (!source || sheets.length === 0 || values === 'skip' || values === null) {
+    const status = unreadStatusV1(source, sheets.length, values);
+    return { part: { part: link.part, source, status, changed: 0 }, bytes: null };
+  }
+  const additions = linkAdditionsV1(run.use, link, partUse, values);
+  const refreshed = await refreshLinkPartV1(
+    run.pkg,
+    run.format,
+    link,
+    values,
+    additions ?? new Map(),
+  );
+  return {
+    part: {
+      part: link.part,
+      source,
+      status: additions ? refreshed.status : 'unsupported',
+      changed: refreshed.changed,
+    },
+    bytes: refreshed.bytes,
+  };
+}
+
+/**
+ * The new cells of one link: the used ones, plus the holes of each column when the formulas do not
+ * explain the cache. Null when there are more than MAX_NEW_CELLS_PER_LINK_V1.
+ */
+function linkAdditionsV1(
+  use: LinkUseV1 | null,
+  link: LinkPartV1,
+  partUse: ReadonlyMap<string, SheetUseV1>,
+  values: SourceValuesV1,
+): LinkAdditionsV1 | null {
+  const used = usedLinkCellsV1(link.cache.cells, partUse, values);
+  const found = useCoversCacheV1(use, link.cache.cells, partUse)
+    ? used
+    : mergeAdditionsV1(used, missingLinkCellsV1(link.cache.cells, values));
+  return additionCountV1(found) > MAX_NEW_CELLS_PER_LINK_V1 ? null : found;
 }
 
 /** A link not read: no source in reach, or a source that did not change (or a cache without cells). */

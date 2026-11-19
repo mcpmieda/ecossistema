@@ -653,20 +653,30 @@ function xlsxSheetRangesV1(xml: string, sheetNames: readonly string[]): XmlSheet
 }
 
 /** "='Nota final'!$B$2:$C$9" or "=RELAÇÃO!$J$3" → the sheet (as the link lists it) and the area. */
+/** "'Nota d''ouro'" or "RELAÇÃO" (before the "!") → the sheet name. */
+function sheetOfReferenceV1(text: string): string {
+  return text.startsWith("'") && text.endsWith("'") && text.length > 1
+    ? text.slice(1, -1).replaceAll("''", "'")
+    : text;
+}
+
+const A1_CELL_V1 = /^\$?([A-Z]{1,3})\$?(\d+)$/u;
+
 function xlsxNameTargetV1(
   refersTo: string | null,
   sheetNames: readonly string[],
 ): { sheet: string; area: LinkAreaV1 } | null {
-  const match =
-    /^=?(?:'((?:[^']|'')+)'|([^'!]+))!\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$/u.exec(
-      refersTo?.trim() ?? '',
-    );
-  if (!match) return null;
-  const wanted = (match[1]?.replaceAll("''", "'") ?? match[2]!).toLocaleLowerCase('pt-BR');
+  const text = (refersTo?.trim() ?? '').replace(/^=/u, '');
+  const bang = text.lastIndexOf('!');
+  if (bang <= 0) return null;
+  const wanted = sheetOfReferenceV1(text.slice(0, bang)).toLocaleLowerCase('pt-BR');
   const sheet = sheetNames.find((name) => name.toLocaleLowerCase('pt-BR') === wanted);
-  if (sheet === undefined) return null;
-  const start = parseA1V1(`${match[3]}${match[4]}`);
-  const end = match[5] ? parseA1V1(`${match[5]}${match[6]}`) : start;
+  const [first, last, ...rest] = text.slice(bang + 1).split(':');
+  const a = A1_CELL_V1.exec(first ?? '');
+  const b = last === undefined ? a : A1_CELL_V1.exec(last);
+  if (sheet === undefined || !a || !b || rest.length > 0) return null;
+  const start = parseA1V1(`${a[1]}${a[2]}`);
+  const end = parseA1V1(`${b[1]}${b[2]}`);
   return {
     sheet,
     area: {
