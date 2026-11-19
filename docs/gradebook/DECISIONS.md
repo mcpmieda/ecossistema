@@ -388,5 +388,9 @@ Não altera células, fórmulas, macros nem proteção. Grava só se o cache mud
 
 A importação continua sem alterar a planilha original (BN-DEC-022). Esta decisão não muda regra acadêmica, schema, migration nem publicação do Portal; acrescenta campos opcionais ao contrato `onedrive-sync`.
 
-**Validação real pendente.** Teste na pasta sintética e depois nas planilhas reais com o responsável.
+**Validação (19/11/2026).**
+- O teste na pasta sintética foi feito e passou: gravação, espera com o arquivo aberto (423) e gravação sobre a versão de uma pessoa.
+- Com o responsável, os vínculos foram ligados só nas planilhas dos professores (`CONTROLE DE NOTAS 2026`), que recebem a Relação e os simulados.
+- O Banco de Notas 2026 (`.xlsb`) deixou de ser usado, porque o Ecossistema o substituiu.
+- O Atualizador de Planilhas do PC não atualiza mais essas planilhas.
 

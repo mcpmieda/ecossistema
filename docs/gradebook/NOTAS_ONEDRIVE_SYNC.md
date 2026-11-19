@@ -91,7 +91,7 @@ Uma publicação nem sempre reinicia o Durable Object coordenador: em 14/11 ele 
 
 ## Vínculos entre planilhas (19/11/2026, #1541)
 
-O Worker também mantém em dia os vínculos entre planilhas do OneDrive da secretaria: Relação e simulados → planilhas dos professores → Banco de Notas. Faz o mesmo que o "Atualizar vínculos" do Excel com as origens fechadas:
+O Worker também mantém em dia os vínculos entre planilhas do OneDrive da secretaria: Relação e simulados → planilhas dos professores. Faz o mesmo que o "Atualizar vínculos" do Excel com as origens fechadas:
 
 - regrava só a cópia das células da origem que o Excel guarda em cada vínculo (`xl/externalLinks/externalLinkN.bin` ou `.xml`), com os valores salvos na origem;
 - marca "recalcular tudo ao abrir" (BrtCalcProp `recalcID=0` + `fFullCalcOnLoad`; no `.xlsx`, `calcPr fullCalcOnLoad="1"`).
@@ -121,7 +121,7 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 **Depois.**
 - Ao abrir, o Excel (PC ou Web) recalcula com os valores novos, sem pedir para atualizar vínculos.
 - O Excel para a Web salva o recálculo ao fechar, mesmo sem edição (testado em 19/11/2026).
-- Até alguém abrir, quem lê a planilha fechada (o Banco de Notas.xlsb e a leitura automática) vê os resultados do último salvamento.
+- Até alguém abrir, quem lê a planilha fechada (por exemplo, a leitura automática) vê os resultados do último salvamento.
 - Por isso a gravação do Worker não faz a leitura automática reler uma planilha de professor cujas notas já tinham sido lidas na versão sobrescrita; o salvamento do recálculo, ao abrir, é lido normalmente.
 
 **Painel.** Banco de notas › Importação › OneDrive › **Vínculos entre planilhas**:
@@ -131,6 +131,17 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 - por planilha: situação, hora da última conferência e da última atualização, e "Atualizar agora".
 
 A atualização só roda com a leitura automática ligada e não pausada.
+
+**Em uso (19/11/2026).**
+- Os vínculos estão ligados só na pasta `PEDAGÓGICO/CONTROLE DE NOTAS/CONTROLE DE NOTAS 2026`, com as 18 planilhas dos professores. As origens delas são a Relação 2026 e os 3 simulados.
+- O Banco de Notas 2026 (`.xlsb`) não é mais usado: o Ecossistema o substituiu, e ele fica fora dos vínculos.
+- Na primeira conferência, as 18 planilhas ficaram sem mudança, como na previsão feita em cópias.
+
+**Teste em produção (19/11/2026), na pasta sintética já apagada:**
+- **Gravação:** cerca de 70 s depois de a origem ser salva, mudando só 2 partes do arquivo.
+- **Arquivo aberto:** 423 com o arquivo aberto no Excel para a Web e no Excel do PC (documento da nuvem, com AutoSave); o Worker tentou de novo depois de 2 e de 4 min.
+- **Versão de uma pessoa:** depois de o arquivo ser fechado, a gravação partiu da versão salva pelo Excel para a Web.
+- **"Atualizar agora" e "Conferir tudo":** esperaram o arquivo ficar 1 min sem salvar e terminaram sem mudança.
 
 **Escritor único.** Planilhas atualizadas por aqui não devem estar também numa tarefa do Atualizador de Planilhas do PC: os dois desfariam um ao outro.
 
@@ -150,7 +161,7 @@ A atualização só roda com a leitura automática ligada e não pausada.
   - aba sem células no cache;
   - `PROCV` em coluna inteira;
   - célula vazia preenchida depois.
-- Ler as 18 origens do Banco leva cerca de 6 s de processamento. Só a última origem lida fica na memória, porque guardar todas ocuparia cerca de 40 MB.
+- Ler as 18 origens do Banco leva cerca de 6 s de processamento. Só a última origem lida fica na memória, porque guardar todas ocuparia cerca de 40 MB. É o caso mais pesado, e o Banco já não é usado.
 
 **Limites.**
 - Origem fora do OneDrive da secretaria ou maior que 8 MiB fica como está e aparece como "vínculo sem origem acessível".
