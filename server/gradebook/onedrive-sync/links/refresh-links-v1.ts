@@ -1,10 +1,12 @@
 import {
+  BLANK_V1,
   forceXlsbRecalcOnOpenV1,
   forceXlsxRecalcOnOpenV1,
   readXlsbLinkCacheV1,
   readXlsxLinkCacheV1,
   rewriteXlsbLinkCacheV1,
   rewriteXlsxLinkCacheV1,
+  sameLinkValueV1,
   type ExternalLinkCacheV1,
   type ExternalNameV1,
   type LinkAdditionsV1,
@@ -65,7 +67,98 @@ export type RefreshOutcomeV1 = {
   }[];
   /** The recalculation of the cells that depend on the links; null when not asked for. */
   readonly recalc: RecalcReportV1 | null;
+  /** After a change: the link values still pending for Excel (null: results up to date). */
+  readonly pending?: PendingLinkValuesV1 | null;
 };
+
+/**
+ * Link values Excel last calculated with, for the cells whose link copy changed since without the
+ * recalculation (switched off, blocked, or a try that did not finish): Excel's saved results still
+ * follow these values, so the proof is made with them. They stop being pending when a
+ * recalculation brings the results up to date or when someone saves the workbook (Excel
+ * recalculates it when it is opened).
+ */
+export type PendingLinkValuesV1 = {
+  /** More cells changed than are kept: Excel's values are unknown until it recalculates. */
+  readonly overflow: boolean;
+  readonly cells: readonly ({ readonly part: string } & LinkCellV1)[];
+};
+
+/** Past this many pending cells (a reorganised source), only the overflow is kept. */
+const PENDING_MAX_CELLS_V1 = 2000;
+
+const pendingKeyV1 = (part: string, sheet: string, row: number, col: number): string =>
+  `${part}\u0000${sheet.toLocaleUpperCase('pt-BR')}\u0000${row}\u0000${col}`;
+
+function cacheValuesV1(part: string, cache: ExternalLinkCacheV1): Map<string, LinkCellV1> {
+  const values = new Map<string, LinkCellV1>();
+  for (const cell of cache.cells)
+    values.set(pendingKeyV1(part, cell.sheet, cell.row, cell.col), cell);
+  return values;
+}
+
+/** A link copy with the pending values put back: what Excel's saved results were calculated with. */
+function withPendingV1(
+  part: string,
+  cache: ExternalLinkCacheV1,
+  pending: PendingLinkValuesV1 | null,
+): ExternalLinkCacheV1 {
+  const own = pending?.cells.filter((cell) => cell.part === part) ?? [];
+  if (own.length === 0) return cache;
+  const cells = cacheValuesV1(part, cache);
+  for (const { sheet, row, col, value } of own)
+    cells.set(pendingKeyV1(part, sheet, row, col), { sheet, row, col, value });
+  return { ...cache, cells: [...cells.values()] };
+}
+
+type PendingCellV1 = { readonly part: string } & LinkCellV1;
+
+/** Adds to `kept` each cell a write changed, with the value it had before (unless already kept). */
+function keepChangedCellsV1(
+  kept: Map<string, PendingCellV1>,
+  part: string,
+  old: ReadonlyMap<string, LinkCellV1>,
+  now: ReadonlyMap<string, LinkCellV1>,
+): void {
+  for (const key of new Set([...old.keys(), ...now.keys()])) {
+    if (kept.has(key)) continue;
+    const was = old.get(key);
+    const is = now.get(key);
+    const { sheet, row, col } = (was ?? is)!;
+    const value = was?.value ?? BLANK_V1;
+    if (!sameLinkValueV1(value, is?.value ?? BLANK_V1))
+      kept.set(key, { part, sheet, row, col, value });
+  }
+}
+
+/**
+ * The values pending after a write that did not bring the results up to date: those already pending
+ * (the oldest value wins) and, for each cell this write changed, the value it had before. A cell
+ * back to the value Excel calculated with is no longer pending.
+ */
+function nextPendingV1(
+  pending: PendingLinkValuesV1 | null,
+  links: readonly LinkPartV1[],
+  after: ReadonlyMap<string, ExternalLinkCacheV1>,
+): PendingLinkValuesV1 | null {
+  if (pending?.overflow) return pending;
+  const kept = new Map<string, PendingCellV1>();
+  for (const cell of pending?.cells ?? [])
+    kept.set(pendingKeyV1(cell.part, cell.sheet, cell.row, cell.col), cell);
+  const now = new Map<string, LinkCellV1>();
+  for (const link of links) {
+    const next = after.get(link.part) ?? link.cache;
+    const values = cacheValuesV1(link.part, next);
+    for (const [key, cell] of values) now.set(key, cell);
+    if (next !== link.cache)
+      keepChangedCellsV1(kept, link.part, cacheValuesV1(link.part, link.cache), values);
+  }
+  for (const [key, cell] of kept)
+    if (sameLinkValueV1(cell.value, now.get(key)?.value ?? BLANK_V1)) kept.delete(key);
+  if (kept.size === 0) return null;
+  if (kept.size > PENDING_MAX_CELLS_V1) return { overflow: true, cells: [] };
+  return { overflow: false, cells: [...kept.values()] };
+}
 
 const LINK_PART_V1 = /^xl\/externalLinks\/externalLink\d+\.(bin|xml)$/u;
 
@@ -380,6 +473,8 @@ export async function refreshDestinationLinksV1(input: {
   ) => Promise<SourceValuesV1 | null | 'skip'>;
   /** Also recalculate the cells that depend on the links (#1541, off unless switched on). */
   readonly recalculate?: boolean;
+  /** Link values Excel's saved results still follow (a previous write did not recalculate). */
+  readonly pending?: PendingLinkValuesV1 | null;
 }): Promise<RefreshOutcomeV1> {
   const { pkg, format, links } = await readDestinationLinksV1(input.bytes);
   if (!format || links.length === 0)
@@ -401,8 +496,10 @@ export async function refreshDestinationLinksV1(input: {
   }
   if (replacements.size === 0)
     return { outcome: 'unchanged', bytes: null, changedCells: 0, parts, recalc: null };
+  const pending = input.pending ?? null;
+  const after = format === 'xlsb' ? linkCopiesAfterV1(links, replacements) : null;
   const report = input.recalculate
-    ? await recalculateCellsV1(pkg, format, links, replacements)
+    ? await recalculateCellsV1(pkg, format, links, after, replacements, pending)
     : null;
   const recalc = await recalcOnOpenPartV1(pkg, format);
   if (recalc) replacements.set(recalc.name, recalc.bytes);
@@ -412,7 +509,40 @@ export async function refreshDestinationLinksV1(input: {
     changedCells,
     parts,
     recalc: report,
+    pending: pendingAfterWriteV1(format, report, pending, links, after),
   };
+}
+
+/** The link copies after this write (.xlsb); null when one cannot be read back. */
+function linkCopiesAfterV1(
+  links: readonly LinkPartV1[],
+  replacements: ReadonlyMap<string, Uint8Array>,
+): Map<string, ExternalLinkCacheV1> | null {
+  try {
+    return new Map(
+      links.map((link) => {
+        const rewritten = replacements.get(link.part);
+        return [link.part, rewritten ? readXlsbLinkCacheV1(rewritten) : link.cache];
+      }),
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** What stays pending after this write (only .xlsb is recalculated, so only it keeps any). */
+function pendingAfterWriteV1(
+  format: 'xlsb' | 'xlsx',
+  report: RecalcReportV1 | null,
+  pending: PendingLinkValuesV1 | null,
+  links: readonly LinkPartV1[],
+  after: ReadonlyMap<string, ExternalLinkCacheV1> | null,
+): PendingLinkValuesV1 | null {
+  if (format !== 'xlsb') return null;
+  // Results brought up to date: nothing pending any more.
+  if (report?.blocked === null) return null;
+  if (!after) return { overflow: true, cells: [] };
+  return nextPendingV1(pending, links, after);
 }
 
 /**
@@ -424,16 +554,18 @@ async function recalculateCellsV1(
   pkg: ZipPackageV1,
   format: 'xlsb' | 'xlsx',
   links: readonly LinkPartV1[],
+  after: ReadonlyMap<string, ExternalLinkCacheV1> | null,
   replacements: Map<string, Uint8Array>,
+  pending: PendingLinkValuesV1 | null,
 ): Promise<RecalcReportV1> {
   if (format !== 'xlsb') return blockedRecalcReportV1('only .xlsb files are recalculated');
+  if (!after) return blockedRecalcReportV1('recalculation failed');
+  if (pending?.overflow)
+    return blockedRecalcReportV1('waiting for Excel to recalculate an earlier update');
   try {
-    const before = new Map(links.map((link) => [link.part, link.cache]));
-    const after = new Map(
-      links.map((link) => {
-        const rewritten = replacements.get(link.part);
-        return [link.part, rewritten ? readXlsbLinkCacheV1(rewritten) : link.cache];
-      }),
+    // What Excel's saved results were calculated with: the proof needs it.
+    const before = new Map(
+      links.map((link) => [link.part, withPendingV1(link.part, link.cache, pending)]),
     );
     const result = await recalculateLinkedCellsV1({ pkg, before, after });
     for (const [part, bytes] of result.replacements) replacements.set(part, bytes);

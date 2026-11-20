@@ -710,6 +710,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         // Still open since the last try: asked first, before any download.
         probeLockFirst: file.lastOutcome === 'locked',
         recalculate,
+        pending: file.pendingLinks ?? null,
       })
         .catch((cause: unknown): LinkRefreshResultV1 => {
           console.error(

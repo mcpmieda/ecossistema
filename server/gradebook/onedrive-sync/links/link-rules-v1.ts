@@ -1,4 +1,8 @@
-import type { LinkRefreshOutcomeV1, LinkRefreshResultV1 } from './run-link-refresh-v1';
+import type {
+  LinkRefreshOutcomeV1,
+  LinkRefreshResultV1,
+  StoredPendingLinkValuesV1,
+} from './run-link-refresh-v1';
 
 /**
  * State of the link refresh, kept by the coordinator: which workbooks hold links, which sources
@@ -54,7 +58,19 @@ export type LinkFileV1 = {
   readonly recalcCells?: number | null;
   readonly recalcSkipped?: number | null;
   readonly recalcNote?: string | null;
+  /** Link values Excel's saved results still follow, since a write that did not recalculate. */
+  readonly pendingLinks?: StoredPendingLinkValuesV1 | null;
 };
+
+/** What a finished refresh leaves pending: a new list (with the version written), none, or as before. */
+function pendingAfterV1(
+  file: LinkFileV1,
+  result: LinkRefreshResultV1,
+): StoredPendingLinkValuesV1 | null {
+  if (result.pending === undefined) return file.pendingLinks ?? null;
+  if (result.pending === null) return null;
+  return { ...result.pending, hash: result.written?.hash ?? null };
+}
 
 /** A source saved: its dependants wait this long for more saves of the same burst. */
 export const LINK_SOURCE_SETTLE_MS_V1 = 60_000;
@@ -244,6 +260,7 @@ export function finishLinkRefreshV1(
         : (file.recalcSkipped ?? null),
     recalcNote:
       result.outcome === 'written' ? (result.recalc?.note ?? null) : (file.recalcNote ?? null),
+    pendingLinks: pendingAfterV1(file, result),
   };
   const waiting = savedWhileWorkingV1(file);
   const retry = (delay: number, attempts: number): LinkFileV1 => ({

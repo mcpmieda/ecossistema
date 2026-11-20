@@ -18,8 +18,17 @@ import {
   type LinkCachesV1,
   type RecalcReportV1,
 } from '../../../server/gradebook/onedrive-sync/links/recalc/recalc-v1';
-import { recalculateOnThisTryV1 } from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
-import { recalcSummaryV1 } from '../../../server/gradebook/onedrive-sync/links/run-link-refresh-v1';
+import {
+  expiredLinkResultV1,
+  finishLinkRefreshV1,
+  newLinkFileV1,
+  recalculateOnThisTryV1,
+  startLinkRefreshV1,
+} from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
+import {
+  pendingForVersionV1,
+  recalcSummaryV1,
+} from '../../../server/gradebook/onedrive-sync/links/run-link-refresh-v1';
 import { readSourceValuesV1 } from '../../../server/gradebook/onedrive-sync/links/source-values-v1';
 import {
   readZipEntryV1,
@@ -322,5 +331,164 @@ describe('recalculation on each try', () => {
     expect(recalculateOnThisTryV1({ recalc: true }, { lastCode: 'FILE-OPEN' })).toBe(true);
     expect(recalculateOnThisTryV1({ recalc: false }, { lastCode: null })).toBe(false);
     expect(recalculateOnThisTryV1({}, { lastCode: null })).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------- link values pending for Excel */
+
+type SourceV1 = Awaited<ReturnType<typeof readSourceValuesV1>>;
+
+async function origemValues(sheets: readonly string[]): Promise<SourceV1> {
+  return readSourceValuesV1(await loadRealSheetJsV1(), RECALC_ORIGEM_V1.slice().buffer, sheets);
+}
+
+/** A source made of a link copy: what the link held when Excel last calculated. */
+function sourceFromCache(cache: ReturnType<typeof readXlsbLinkCacheV1>): SourceV1 {
+  const key = (sheet: string, row: number, col: number) => `${sheet.toUpperCase()}|${row}|${col}`;
+  const values = new Map(cache.cells.map((cell) => [key(cell.sheet, cell.row, cell.col), cell]));
+  const has = (sheet: string) =>
+    cache.sheetNames.some((name) => name.toUpperCase() === sheet.toUpperCase());
+  return {
+    sheetNames: cache.sheetNames,
+    valueAt: (sheet, row, col) =>
+      has(sheet) ? (values.get(key(sheet, row, col))?.value ?? { kind: 'blank' }) : undefined,
+    cellsIn: (sheet, area) =>
+      cache.cells
+        .filter(
+          (cell) =>
+            cell.sheet.toUpperCase() === sheet.toUpperCase() &&
+            cell.row >= area.r1 &&
+            cell.row <= area.r2 &&
+            cell.col >= area.c1 &&
+            cell.col <= area.c2,
+        )
+        .map(({ row, col }) => ({ row, col })),
+  };
+}
+
+async function refreshWith(
+  bytes: Uint8Array,
+  options: {
+    recalculate: boolean;
+    source: (sheets: readonly string[]) => Promise<SourceV1> | SourceV1;
+    pending?: Parameters<typeof refreshDestinationLinksV1>[0]['pending'];
+  },
+) {
+  return refreshDestinationLinksV1({
+    bytes,
+    resolve: () => [{ kind: 'path', path: 'origem.xlsb' }],
+    loadSource: async (_candidates, sheets) => options.source(sheets),
+    recalculate: options.recalculate,
+    pending: options.pending ?? null,
+  });
+}
+
+describe('link values pending for Excel (a write that did not recalculate)', () => {
+  it('a link changed and changed back: the proof uses what Excel calculated with, no warning', async () => {
+    const [excelCopy] = [...(await cachesOf(RECALC_DESTINO_V1)).values()];
+    // Recalculation off: only the link copy changes, the saved results stay Excel's.
+    const first = await refreshWith(RECALC_DESTINO_V1, {
+      recalculate: false,
+      source: origemValues,
+    });
+    expect(first.outcome).toBe('changed');
+    expect(first.pending?.cells.length).toBeGreaterThan(0);
+    // Back to the values Excel calculated with, now recalculating.
+    const back = await refreshWith(first.bytes!, {
+      recalculate: true,
+      source: () => sourceFromCache(excelCopy!),
+      pending: first.pending,
+    });
+    expect(back.outcome).toBe('changed');
+    expect(back.recalc).toMatchObject({ blocked: null, mismatches: 0, writtenCells: 0 });
+    expect(recalcSummaryV1(back.recalc)!.note).toBeNull();
+    expect(back.pending).toBeNull();
+    expect(await valuesOf(back.bytes!)).toEqual(await valuesOf(RECALC_DESTINO_V1));
+    // Without the pending values, the proof would refuse what depends on the change.
+    const blind = await refreshWith(first.bytes!, {
+      recalculate: true,
+      source: () => sourceFromCache(excelCopy!),
+    });
+    expect(blind.recalc!.mismatches).toBeGreaterThan(0);
+  });
+
+  it('a write without recalculation and then one with it give what a single one gives', async () => {
+    const changed = async (sheets: readonly string[]): Promise<SourceV1> => {
+      const values = await origemValues(sheets);
+      // One grade of the source changed again after the first write (Notas!B2).
+      return {
+        ...values,
+        valueAt: (sheet, row, col) =>
+          row === 1 && col === 1
+            ? { kind: 'number', value: 7.25 }
+            : values.valueAt(sheet, row, col),
+      };
+    };
+    const direct = await refreshWith(RECALC_DESTINO_V1, { recalculate: true, source: changed });
+    const first = await refreshWith(RECALC_DESTINO_V1, {
+      recalculate: false,
+      source: origemValues,
+    });
+    const second = await refreshWith(first.bytes!, {
+      recalculate: true,
+      source: changed,
+      pending: first.pending,
+    });
+    expect(second.recalc).toMatchObject({ blocked: null, mismatches: 0 });
+    expect(second.recalc!.writtenCells).toBeGreaterThan(0);
+    expect(second.pending).toBeNull();
+    expect(await valuesOf(second.bytes!)).toEqual(await valuesOf(direct.bytes!));
+  });
+
+  it('too many values pending: nothing recalculated until Excel saves the workbook', async () => {
+    const result = await refreshWith(RECALC_DESTINO_V1, {
+      recalculate: true,
+      source: origemValues,
+      pending: { overflow: true, cells: [] },
+    });
+    expect(result.recalc!.blocked).toBe('waiting for Excel to recalculate an earlier update');
+    expect(result.pending).toEqual({ overflow: true, cells: [] });
+    expect(recalcSummaryV1(result.recalc)!.note).toBe(
+      'Nada recalculado: a planilha espera o Excel recalcular uma atualização anterior',
+    );
+  });
+
+  it('pending values belong to the version written: a save by someone drops them', () => {
+    const pending = { overflow: false, cells: [], hash: 'written' };
+    expect(pendingForVersionV1(pending, 'written')).toEqual({ overflow: false, cells: [] });
+    expect(pendingForVersionV1(pending, 'saved-in-excel')).toBeNull();
+    expect(pendingForVersionV1({ ...pending, hash: null }, null)).toBeNull();
+    expect(pendingForVersionV1(null, 'written')).toBeNull();
+  });
+
+  it('the coordinator keeps them with the version written, and keeps them when nothing is written', () => {
+    const file = startLinkRefreshV1(
+      newLinkFileV1({ id: 'f', name: 'f.xlsb', hash: 'h0', modifiedAt: null }, 't', 0),
+      'lease',
+      0,
+    );
+    const cells = [
+      { part: 'p', sheet: 'Notas', row: 1, col: 1, value: { kind: 'blank' } as const },
+    ];
+    const written = finishLinkRefreshV1(
+      file,
+      'lease',
+      {
+        ...expiredLinkResultV1(),
+        outcome: 'written',
+        code: null,
+        written: { hash: 'h1', modifiedAt: null },
+        pending: { overflow: false, cells },
+      },
+      1,
+    )!;
+    expect(written.pendingLinks).toEqual({ overflow: false, cells, hash: 'h1' });
+    const again = finishLinkRefreshV1(
+      startLinkRefreshV1(written, 'lease2', 2),
+      'lease2',
+      { ...expiredLinkResultV1(), outcome: 'unchanged', code: null },
+      3,
+    )!;
+    expect(again.pendingLinks).toEqual(written.pendingLinks);
   });
 });

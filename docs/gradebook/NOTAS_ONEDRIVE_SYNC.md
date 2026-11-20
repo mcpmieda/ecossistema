@@ -200,11 +200,19 @@ Ao atualizar um vínculo, o Worker pode recalcular também as fórmulas que depe
 - **Resultado:** igual ao do motor anterior, byte a byte, nas 18 cópias e em 3 cenários.
 - **Proteção:** se uma tentativa com recálculo não terminar (CPU ou memória da invocação, ou sem resposta), a próxima tentativa daquela planilha atualiza só o vínculo e avisa no Histórico ("Nada recalculado: a tentativa anterior não terminou"). A mudança seguinte tenta o recálculo de novo.
 
+**Valores pendentes para o Excel (20/11/2026).** Às vezes uma gravação muda o vínculo sem recalcular: recálculo desligado, bloqueado ou com tentativa que não terminou. Nesse caso, os resultados salvos continuam sendo os da última conta do Excel. A gravação devolve, só para as células do vínculo que mudaram, o valor que o Excel usou, mantendo sempre o mais antigo. O coordenador guarda essa lista na planilha (`pendingLinks`), junto com a versão que gravou.
+- **Uso:** a próxima atualização com recálculo faz a prova com esses valores.
+- **Caso que motivou:** um nome incluído e depois tirado da Relação enquanto o recálculo estava desligado. Antes, a prova recusava tudo, com "N fórmula(s) não bateram com o Excel". Agora não há o que recalcular nem aviso.
+- **Descarte:** se alguém salvar a planilha, o Excel a recalculou ao abrir, e a lista é descartada pela versão. Ela também some quando um recálculo deixa os resultados em dia.
+- **Limite:** acima de 2.000 células pendentes, a planilha espera o Excel recalcular ("a planilha espera o Excel recalcular uma atualização anterior").
+- **Formato:** só vale para `.xlsb`.
+
 **Rastreamento (para desfazer, se não der certo).** Tudo o que esta entrega acrescentou:
 - Motor: pasta `server/gradebook/onedrive-sync/links/recalc/` (`workbook-model-v1.ts`, `formula-tokens-v1.ts`, `values-v1.ts`, `evaluate-v1.ts`, `functions-v1.ts`, `recalc-v1.ts`).
 - `links/refresh-links-v1.ts`: entrada `recalculate`, campo `recalc` do resultado e a função `recalculateCellsV1`.
 - `links/run-link-refresh-v1.ts`: entrada `recalculate`, campo `recalc` do resultado, `recalcSummaryV1` e os textos em português dos motivos.
-- `links/link-rules-v1.ts`: `LinkSettingsV1.recalc`, a regra `recalculateOnThisTryV1` (sem recálculo depois de uma tentativa que não terminou) e, em cada planilha, `recalcCells`, `recalcSkipped` e `recalcNote`.
+- `links/link-rules-v1.ts`: `LinkSettingsV1.recalc`, a regra `recalculateOnThisTryV1` (sem recálculo depois de uma tentativa que não terminou) e, em cada planilha, `recalcCells`, `recalcSkipped`, `recalcNote` e `pendingLinks` (valores pendentes para o Excel).
+- `links/refresh-links-v1.ts` e `links/run-link-refresh-v1.ts`: `PendingLinkValuesV1`, a prova com os valores pendentes e `pendingForVersionV1` (descarte quando outra pessoa salva).
 - `sync-coordinator-v1.ts`: ações `links-recalc-on`/`links-recalc-off`; a marca `linkSettings.recalc` no armazenamento do coordenador; o evento `links-recalc-skipped`; a regra de reler a planilha quando houve recálculo (`acknowledgeLinkWrite`); os campos `recalcCells`, `recalcSkipped` e `recalcMismatches` no log `notas-sync-links`.
 - `workers/notas-onedrive-sync/index.ts`: aceita `recalculate` na rota interna `/vinculos`.
 - Contrato `shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1.ts`: as duas ações, `links.recalc` e os três campos por planilha (todos opcionais).
