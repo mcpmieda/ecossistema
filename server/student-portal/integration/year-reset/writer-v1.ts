@@ -18,13 +18,7 @@ export async function lockResetWriterV1(
 export async function recordResetWriteV1(
   transaction: GradebookPostgresWritePortV1,
   year: number,
-  cause:
-    | 'diagnostics'
-    | 'audit-treatment'
-    | 'relation'
-    | 'marks'
-    | 'council'
-    | 'academic-policy',
+  cause: 'diagnostics' | 'audit-treatment' | 'relation' | 'marks' | 'council' | 'academic-policy',
   academic: AcademicChangeV1 = NO_ACADEMIC_CHANGE_V1,
 ): Promise<void> {
   const studentIds = [...new Set(academic.studentIds ?? [])].sort((a, b) => a - b);

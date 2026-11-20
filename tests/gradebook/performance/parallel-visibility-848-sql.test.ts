@@ -170,4 +170,3 @@ it('keeps unrecorded dispensed cells neutral and exposes a numeric exception wit
     ).rows,
   ).toEqual([{ valor: 5000 }]);
 });
-
