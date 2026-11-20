@@ -94,6 +94,9 @@ function reasonPtV1(reason: string): string {
   return reason;
 }
 
+/** The contract's limit for `recalcNote`: a longer one would make the whole status invalid. */
+const RECALC_NOTE_MAX_V1 = 500;
+
 export function recalcSummaryV1(report: RecalcReportV1 | null): LinkRecalcSummaryV1 | null {
   if (!report) return null;
   let note: string | null = report.blocked
@@ -109,7 +112,8 @@ export function recalcSummaryV1(report: RecalcReportV1 | null): LinkRecalcSummar
     cells: report.writtenCells,
     skipped: report.skipped,
     mismatches: report.mismatches,
-    note,
+    note:
+      note && note.length > RECALC_NOTE_MAX_V1 ? `${note.slice(0, RECALC_NOTE_MAX_V1 - 1)}…` : note,
   };
 }
 

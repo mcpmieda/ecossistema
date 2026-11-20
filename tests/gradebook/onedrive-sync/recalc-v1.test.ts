@@ -206,6 +206,22 @@ describe('recalculation of what depends on the links (#1541)', () => {
     );
   });
 
+  it('the note fits the status contract, even with a long sample', () => {
+    const long = `Turma!B2: Excel "${'x'.repeat(2000)}", motor "y"`;
+    const summary = recalcSummaryV1({
+      dependent: 1,
+      writtenCells: 0,
+      skipped: 0,
+      reasons: {},
+      reasonSamples: {},
+      mismatches: 1,
+      mismatchSamples: [long],
+      blocked: null,
+    })!;
+    expect(summary.note!.length).toBeLessThanOrEqual(500);
+    expect(summary.note!.endsWith('…')).toBe(true);
+  });
+
   it('one formula per function: the engine gives back each result Excel saved', async () => {
     const caches = await cachesOf(RECALC_FUNCOES_V1);
     const { report: proof } = await recalculateLinkedCellsV1({

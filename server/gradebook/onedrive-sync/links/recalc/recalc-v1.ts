@@ -14,7 +14,6 @@ import {
   isMissingV1,
   isRefV1,
   type EvalValueV1,
-  toTextV1,
   type RefV1,
 } from './values-v1';
 import {
@@ -642,12 +641,20 @@ const ERROR_TEXT_V1: Readonly<Record<number, string>> = {
   [ERR_V1.GETTING_DATA]: '#OBTENDO_DADOS',
 };
 
-/** A value as the Portuguese Excel shows it, for the audit samples in the panel. */
+/** Longest text shown in an audit sample (the panel's note has a size limit). */
+const SAMPLE_TEXT_V1 = 40;
+
+/**
+ * A value for the audit samples in the panel, close to how the Portuguese Excel shows it: a number
+ * in full (to show why it did not match), a long text cut.
+ */
 const describeV1 = (value: ScalarV1): string => {
   if (isErrorV1(value)) return ERROR_TEXT_V1[value.code] ?? `#${value.code}`;
   if (value === null) return 'vazio';
-  const text = toTextV1(value) as string;
-  return typeof value === 'string' ? `"${text}"` : text;
+  if (typeof value === 'boolean') return value ? 'VERDADEIRO' : 'FALSO';
+  if (typeof value === 'number') return String(value).replace('.', ',');
+  if (value.length <= SAMPLE_TEXT_V1) return `"${value}"`;
+  return `"${value.slice(0, SAMPLE_TEXT_V1)}…"`;
 };
 
 /** "AB12" from a zero-based row and column. */

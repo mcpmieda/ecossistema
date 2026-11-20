@@ -803,20 +803,13 @@ function LinksSection({
             className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 px-3 py-2"
             aria-labelledby="onedrive-links-recalc-title"
           >
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h4 id="onedrive-links-recalc-title" className="text-sm font-semibold">
-                  Recalcular células
-                </h4>
-                <Chip size="sm" variant="soft" color={links.recalc ? 'success' : 'default'}>
-                  <Chip.Label>{links.recalc ? 'Ligado (teste)' : 'Desligado'}</Chip.Label>
-                </Chip>
-              </div>
-              <p className="mt-0.5 text-xs text-muted">
-                Ao atualizar um vínculo, recalcula também as fórmulas que dependem dele, para a
-                leitura automática receber as notas sem ninguém abrir a planilha. Só grava o que
-                confere com o Excel; o resto fica como estava e aparece aqui e no Histórico.
-              </p>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h4 id="onedrive-links-recalc-title" className="text-sm font-semibold">
+                Recalcular células
+              </h4>
+              <Chip size="sm" variant="soft" color={links.recalc ? 'success' : 'default'}>
+                <Chip.Label>{links.recalc ? 'Ligado (teste)' : 'Desligado'}</Chip.Label>
+              </Chip>
             </div>
             <Button
               size="sm"
