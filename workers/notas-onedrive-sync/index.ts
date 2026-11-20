@@ -389,6 +389,18 @@ export function refreshLinksHereV1(
   });
 }
 
+/** The pending link values sent by the coordinator: absent, null, or a list with its version. */
+function pendingLinksInputV1(value: unknown): boolean {
+  if (value === undefined || value === null) return true;
+  if (typeof value !== 'object') return false;
+  const pending = value as Record<string, unknown>;
+  return (
+    typeof pending.overflow === 'boolean' &&
+    Array.isArray(pending.cells) &&
+    (pending.hash === null || typeof pending.hash === 'string')
+  );
+}
+
 function linkRefreshInputV1(value: unknown): LinkRefreshInputV1 | null {
   if (typeof value !== 'object' || value === null) return null;
   const input = value as Partial<Record<keyof LinkRefreshInputV1, unknown>>;
@@ -401,6 +413,7 @@ function linkRefreshInputV1(value: unknown): LinkRefreshInputV1 | null {
     typeof input.settleMs !== 'number' ||
     (input.probeLockFirst !== undefined && typeof input.probeLockFirst !== 'boolean') ||
     (input.recalculate !== undefined && typeof input.recalculate !== 'boolean') ||
+    !pendingLinksInputV1(input.pending) ||
     !(
       onlySources === null ||
       (Array.isArray(onlySources) && onlySources.every((id) => typeof id === 'string'))

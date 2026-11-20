@@ -6,6 +6,7 @@ import {
   refreshDestinationLinksV1,
   resolveLinkSourcesV1,
   type LinkSourceRefV1,
+  type PendingLinkValuesV1,
 } from './refresh-links-v1';
 import { readSourceValuesV1, type SourceValuesV1 } from './source-values-v1';
 
@@ -24,7 +25,24 @@ export type LinkRefreshInputV1 = {
   readonly probeLockFirst?: boolean;
   /** Also recalculate the cells that depend on the links (#1541, "Recalcular células"). */
   readonly recalculate?: boolean;
+  /** Link values Excel's saved results still follow, kept since the write of version `hash`. */
+  readonly pending?: StoredPendingLinkValuesV1 | null;
 };
+
+/** The pending link values and the version of the workbook they belong to (the refresh's write). */
+export type StoredPendingLinkValuesV1 = PendingLinkValuesV1 & { readonly hash: string | null };
+
+/**
+ * The pending values, while the workbook is still the version the refresh wrote. Saved by someone
+ * since, Excel recalculated it with the link copy it holds: nothing is pending any more.
+ */
+export function pendingForVersionV1(
+  pending: StoredPendingLinkValuesV1 | null | undefined,
+  hash: string | null,
+): PendingLinkValuesV1 | null {
+  if (!pending?.hash || pending.hash !== hash) return null;
+  return { overflow: pending.overflow, cells: pending.cells };
+}
 
 export type LinkRefreshOutcomeV1 =
   | 'unchanged'
@@ -58,6 +76,8 @@ export type LinkRefreshResultV1 = {
   readonly ms: number;
   /** What the recalculation did (written cells, cells left as they are and why); null when off. */
   readonly recalc?: LinkRecalcSummaryV1 | null;
+  /** The link values pending from now on (null: none); absent: kept as they were. */
+  readonly pending?: PendingLinkValuesV1 | null;
 };
 
 /** The recalculation in a few numbers and one note, for the panel and the Histórico. */
@@ -81,6 +101,10 @@ const REASONS_PT_V1: ReadonlyArray<readonly [RegExp, string]> = [
   [/^did not match Excel with the old values$/u, 'não bateu com o Excel nos valores antigos'],
   [/^only \.xlsb files are recalculated$/u, 'só arquivos .xlsb são recalculados'],
   [/^recalculation failed$/u, 'o recálculo falhou'],
+  [
+    /^waiting for Excel to recalculate an earlier update$/u,
+    'a planilha espera o Excel recalcular uma atualização anterior',
+  ],
   [/^too many formulas$/u, 'fórmulas demais'],
   [
     /^(\d+) formula\(s\) with INDIRECT\/OFFSET whose address cannot be checked$/u,
@@ -260,7 +284,9 @@ export async function runLinkRefreshV1(
   const result = (
     outcome: LinkRefreshOutcomeV1,
     code: string | null = null,
-    extra: Partial<Pick<LinkRefreshResultV1, 'changedCells' | 'written' | 'recalc'>> = {},
+    extra: Partial<
+      Pick<LinkRefreshResultV1, 'changedCells' | 'written' | 'recalc' | 'pending'>
+    > = {},
   ): LinkRefreshResultV1 => ({
     outcome,
     code,
@@ -272,6 +298,7 @@ export async function runLinkRefreshV1(
     seen,
     written: extra.written ?? null,
     ms: Math.round(ports.now() - started),
+    ...('pending' in extra ? { pending: extra.pending } : {}),
   });
   try {
     // The version (eTag) is taken before the download: content newer than it can never be sent
@@ -287,18 +314,23 @@ export async function runLinkRefreshV1(
     if (blocked) return result(...blocked);
     const bytes = new Uint8Array(await ports.download(input.driveId, input.itemId, input.maxBytes));
     const drive = { driveId: input.driveId, webUrl: input.driveWebUrl };
+    const pending = pendingForVersionV1(input.pending, destination.quickXorHash);
+    // Pending values of an older version: saved by someone since, so they are dropped.
+    const dropped = input.pending && !pending ? { pending: null } : {};
     const refreshed = await refreshDestinationLinksV1({
       bytes,
       resolve: (link) => resolveLinkSourcesV1(link, drive, destination.folderPath ?? ''),
       loadSource: loader.load,
       recalculate: input.recalculate === true,
+      pending,
     });
     loader.unavailable += refreshed.parts.filter(
       (part) =>
         part.source === null || part.status === 'sheet-missing' || part.status === 'unsupported',
     ).length;
-    if (refreshed.outcome === 'no-links') return result('no-links');
-    if (refreshed.outcome === 'unchanged' || !refreshed.bytes) return result('unchanged');
+    if (refreshed.outcome === 'no-links') return result('no-links', null, dropped);
+    if (refreshed.outcome === 'unchanged' || !refreshed.bytes)
+      return result('unchanged', null, dropped);
     const replaced = await ports.replace({
       driveId: input.driveId,
       itemId: input.itemId,
@@ -311,6 +343,7 @@ export async function runLinkRefreshV1(
       changedCells: refreshed.changedCells,
       recalc: recalcSummaryV1(refreshed.recalc),
       written: { hash: replaced.quickXorHash, modifiedAt: replaced.lastModifiedDateTime },
+      pending: refreshed.pending ?? null,
     });
   } catch (cause) {
     return result(cause instanceof WorkbookTooLargeError ? 'too-large' : 'failed', codeOfV1(cause));
