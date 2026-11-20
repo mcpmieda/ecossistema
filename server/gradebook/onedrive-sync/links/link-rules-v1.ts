@@ -14,6 +14,8 @@ export type LinkTargetV1 = {
 
 export type LinkSettingsV1 = {
   readonly enabled: boolean;
+  /** Recalculate the cells that depend on the links (#1541); off unless switched on. */
+  readonly recalc?: boolean;
   readonly targets: Readonly<Record<string, LinkTargetV1>>;
 };
 
@@ -48,6 +50,10 @@ export type LinkFileV1 = {
   readonly lastWrittenAt: number | null;
   readonly changedCells: number | null;
   readonly unavailableLinks: number | null;
+  /** Recalculation at the last write: cells rewritten, formulas left as they are, and why. */
+  readonly recalcCells?: number | null;
+  readonly recalcSkipped?: number | null;
+  readonly recalcNote?: string | null;
 };
 
 /** A source saved: its dependants wait this long for more saves of the same burst. */
@@ -216,6 +222,14 @@ export function finishLinkRefreshV1(
     ownHash: result.outcome === 'written' ? (result.written?.hash ?? null) : file.ownHash,
     lastWrittenAt: result.outcome === 'written' ? now : file.lastWrittenAt,
     changedCells: result.outcome === 'written' ? result.changedCells : file.changedCells,
+    recalcCells:
+      result.outcome === 'written' ? (result.recalc?.cells ?? null) : (file.recalcCells ?? null),
+    recalcSkipped:
+      result.outcome === 'written'
+        ? (result.recalc?.skipped ?? null)
+        : (file.recalcSkipped ?? null),
+    recalcNote:
+      result.outcome === 'written' ? (result.recalc?.note ?? null) : (file.recalcNote ?? null),
   };
   const waiting = savedWhileWorkingV1(file);
   const retry = (delay: number, attempts: number): LinkFileV1 => ({

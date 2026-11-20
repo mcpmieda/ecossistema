@@ -77,6 +77,8 @@ const ACTION_LABELS: Record<string, string> = {
   'links-remove-target': 'removeu uma pasta dos vínculos',
   'links-check-all': 'pediu para conferir todos os vínculos',
   'links-refresh-now': 'pediu para atualizar os vínculos de um arquivo',
+  'links-recalc-on': 'ligou o recálculo das células',
+  'links-recalc-off': 'desligou o recálculo das células',
 };
 
 /** What each control change shows after its label. */
@@ -139,6 +141,8 @@ function eventText(event: OneDriveSyncStatusV1['events'][number]): string {
     return `não foi possível atualizar os vínculos de ${String(detail.file)}`;
   if (event.kind === 'links-listing')
     return `vínculos: ${String(detail.files)} planilha(s) conferida(s)`;
+  if (event.kind === 'links-recalc-skipped')
+    return `recálculo de ${String(detail.file)}: ${String(detail.note)}`;
   return event.kind;
 }
 
@@ -689,6 +693,7 @@ function LinkFileRow({
   const detail = [
     shown,
     file.unavailableLinks ? `${file.unavailableLinks} vínculo(s) sem origem acessível` : null,
+    file.recalcCells ? `${file.recalcCells} célula(s) recalculada(s)` : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -705,6 +710,9 @@ function LinkFileRow({
           </Chip>
         </div>
         {detail ? <p className="mt-0.5 text-xs text-muted">{detail}</p> : null}
+        {file.recalcNote ? (
+          <p className="mt-0.5 text-xs text-warning">Recálculo: {file.recalcNote}</p>
+        ) : null}
       </div>
       <Button
         size="sm"
@@ -791,6 +799,30 @@ function LinksSection({
           </div>
         </div>
         <div className="grid min-w-0 grid-cols-1 gap-4 px-5 py-4">
+          <section
+            className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-border/70 px-3 py-2"
+            aria-labelledby="onedrive-links-recalc-title"
+          >
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h4 id="onedrive-links-recalc-title" className="text-sm font-semibold">
+                Recalcular células
+              </h4>
+              <Chip size="sm" variant="soft" color={links.recalc ? 'success' : 'default'}>
+                <Chip.Label>{links.recalc ? 'Ligado (teste)' : 'Desligado'}</Chip.Label>
+              </Chip>
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={busy}
+              onPress={() =>
+                void send({ action: links.recalc ? 'links-recalc-off' : 'links-recalc-on' })
+              }
+            >
+              <Power className="size-4" aria-hidden="true" />
+              {links.recalc ? 'Desligar recálculo' : 'Ligar recálculo'}
+            </Button>
+          </section>
           <section
             className="grid min-w-0 grid-cols-1 gap-2"
             aria-labelledby="onedrive-links-title"

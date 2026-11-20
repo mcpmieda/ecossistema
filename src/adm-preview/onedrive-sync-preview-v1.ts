@@ -67,6 +67,7 @@ const status: OneDriveSyncStatusV1 = {
   files: empty ? [] : syntheticFiles,
   links: {
     enabled: !empty,
+    recalc: false,
     targets: empty
       ? []
       : [
@@ -101,6 +102,13 @@ const status: OneDriveSyncStatusV1 = {
           changedCells: cells,
           unavailableLinks: 0,
           sources: 4,
+          // The first one shows a recalculation (#1541), with what was left as it was.
+          recalcCells: index === 0 ? 1_204 : null,
+          recalcSkipped: index === 0 ? 2 : null,
+          recalcNote:
+            index === 0
+              ? '2 fórmula(s) deixadas como estavam; principal motivo: função TEXT não calculada aqui (1, ex.: 6A1º!K1)'
+              : null,
         })),
   },
   events: empty
@@ -152,6 +160,8 @@ function controlLinks(
 ): void {
   if (action === 'links-on') links.enabled = true;
   if (action === 'links-off') links.enabled = false;
+  if (action === 'links-recalc-on') links.recalc = true;
+  if (action === 'links-recalc-off') links.recalc = false;
   if (action === 'links-add-target')
     links.targets = [
       ...links.targets.filter((item) => item.itemId !== command.itemId),

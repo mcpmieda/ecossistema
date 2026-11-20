@@ -123,6 +123,7 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 - O Excel para a Web salva o recálculo ao fechar, mesmo sem edição (testado em 19/11/2026).
 - Até alguém abrir, quem lê a planilha fechada (por exemplo, a leitura automática) vê os resultados do último salvamento.
 - Por isso a gravação do Worker não faz a leitura automática reler uma planilha de professor cujas notas já tinham sido lidas na versão sobrescrita; o salvamento do recálculo, ao abrir, é lido normalmente.
+- Com o **Recálculo das células** ligado (seção abaixo), a gravação que recalculou células é lida como qualquer salvamento.
 
 **Painel.** Banco de notas › Importação › OneDrive › **Vínculos entre planilhas**:
 - ligar e desligar;
@@ -169,3 +170,38 @@ A atualização só roda com a leitura automática ligada e não pausada.
 - A escola não reorganiza a Relação; reordenar a lista desalinharia nomes e notas, como no próprio Excel.
 - No `.xlsb`, um nome da origem que passe da linha 65.536 é gravado pelo Excel como erro, sem a área. As células dele só são atualizadas se já estiverem no cache.
 - No `.xlsx`, uma referência a várias abas de outra pasta (`[1]A:C!B2`) não é lida. Então vale o preenchimento de buracos.
+
+## Recálculo das células (19/11/2026, #1541) — em teste, começa desligado
+
+Ao atualizar um vínculo, o Worker pode recalcular também as fórmulas que dependem dele e gravar os resultados novos na planilha. Assim a leitura automática recebe as notas sem ninguém abrir o arquivo. Só grava o que tem certeza de que o Excel daria igual. As fórmulas nunca mudam: só o resultado guardado de cada uma.
+
+**Como decide (sem nenhum endereço de planilha no código).**
+- Parte das células do vínculo que mudaram e segue, pelas próprias fórmulas do arquivo, tudo o que depende delas, em qualquer aba e em qualquer planilha com vínculos.
+- **Prova:** antes de gravar, recalcula tudo com os valores antigos do vínculo. Cada resultado tem de ser igual ao que o Excel salvou. Fórmula que não bate fica como estava, e tudo o que a lê também.
+- Fica como estava, e aparece no painel e no Histórico: função que o motor não calcula (por exemplo `TEXTO`, `VALOR`, `PROCX`, `MÁXIMOSES`), função volátil (`HOJE`, `AGORA`), referência circular, matriz que mudaria de tamanho e o que depende de qualquer uma delas.
+- `INDIRETO` ou `DESLOC` com endereço calculado, fora da cadeia, pode ler uma célula que mudou: aí nada é recalculado naquele arquivo (o vínculo é atualizado como antes).
+- Só `.xlsb`. `.xlsx` e outros formatos ficam como antes, e o painel avisa.
+- Funções calculadas: `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `CONT.VALORES`, `CONTAR.VAZIO`, `E`, `OU`, `NÃO`, `SE`, `SEERRO`, `SENÃO.DISP`, `SES`, `É.CÉL.VAZIA` e demais `É…`, `INT`, `ABS`, `MOD`, `ARRED`, `ARREDONDAR.PARA.CIMA`, `ARREDONDAR.PARA.BAIXO`, `NÚM.CARACT`, `ARRUMAR`, `MAIÚSCULA`, `MINÚSCULA`, `ESQUERDA`, `DIREITA`, `EXT.TEXTO`, `CONCATENAR`, `&`, `CONT.SE`, `CONT.SES`, `SOMASE`, `SOMASES`, `PROCV`, `CORRESP`, `ÍNDICE`, `MAIOR`, `MENOR`, `ESCOLHER`, `SOMARPRODUTO`, `LIN`, matrizes (`{=…}` e `A1#`) e nomes definidos. Texto e números seguem o Excel em português (vírgula decimal, `VERDADEIRO`/`FALSO`).
+
+**Painel.** Em **Vínculos entre planilhas**, o quadro **Recalcular células** liga e desliga (chip "Ligado (teste)"). Em cada planilha aparece "N célula(s) recalculada(s)" e, quando algo ficou como estava, a linha "Recálculo: …" com o motivo principal e uma célula de exemplo. O mesmo texto vai para o Histórico.
+
+**Validação (19/11/2026), em cópias apagadas depois.**
+- Prova nas 18 planilhas dos professores: as 446.415 fórmulas que dependem dos vínculos, recalculadas com os valores atuais, deram todas o que o Excel salvou (nenhuma deixada de lado, nenhuma diferença).
+- Mudança simulada nos vínculos das 18 cópias (de 17 a 517 células por planilha): o motor gravou 55.658 células (de 72 a 5.109 por planilha). Depois o Excel recalculou os mesmos arquivos do zero e comparou 1.027.856 células: a única diferença foi `CONFIGURAÇÃO!G7` (`HOJE()`), que o motor nunca grava.
+- Tempo de processamento: de 0,5 a 2 s por planilha, dentro do limite de 30 s por invocação e dos 30 milhões de ms de CPU por mês do plano pago.
+- Testes automáticos com planilhas sintéticas feitas no Excel (`tests/gradebook/onedrive-sync/recalc-v1.test.ts`): resultado igual ao do Excel célula a célula; `TEXTO` deixado de lado e informado; valor salvo adulterado não é confiado; `INDIRETO` bloqueia; uma fórmula por função.
+
+**Rastreamento (para desfazer, se não der certo).** Tudo o que esta entrega acrescentou:
+- Motor: pasta `server/gradebook/onedrive-sync/links/recalc/` (`workbook-model-v1.ts`, `formula-tokens-v1.ts`, `values-v1.ts`, `evaluate-v1.ts`, `functions-v1.ts`, `recalc-v1.ts`).
+- `links/refresh-links-v1.ts`: entrada `recalculate`, campo `recalc` do resultado e a função `recalculateCellsV1`.
+- `links/run-link-refresh-v1.ts`: entrada `recalculate`, campo `recalc` do resultado, `recalcSummaryV1` e os textos em português dos motivos.
+- `links/link-rules-v1.ts`: `LinkSettingsV1.recalc` e, em cada planilha, `recalcCells`, `recalcSkipped` e `recalcNote`.
+- `sync-coordinator-v1.ts`: ações `links-recalc-on`/`links-recalc-off`; a marca `linkSettings.recalc` no armazenamento do coordenador; o evento `links-recalc-skipped`; a regra de reler a planilha quando houve recálculo (`acknowledgeLinkWrite`); os campos `recalcCells`, `recalcSkipped` e `recalcMismatches` no log `notas-sync-links`.
+- `workers/notas-onedrive-sync/index.ts`: aceita `recalculate` na rota interna `/vinculos`.
+- Contrato `shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1.ts`: as duas ações, `links.recalc` e os três campos por planilha (todos opcionais).
+- Painel `src/features/gradebook/onedrive-sync/onedrive-sync-page-v1.tsx`: quadro **Recalcular células**, linhas por planilha e textos do Histórico. Prévia local em `src/adm-preview/onedrive-sync-preview-v1.ts`.
+- Testes: `tests/gradebook/onedrive-sync/recalc-v1.test.ts`, planilhas em `tests/gradebook/fixtures/recalc-excel-v1.ts` e casos novos em `onedrive-sync-links-page-v1.test.tsx` e `notas-sync-worker-v1.test.ts`.
+
+**Como desligar ou remover.**
+- Desligar: **Desligar recálculo** no painel. Volta na hora ao comportamento anterior. As células já recalculadas continuam certas, e o Excel recalcula tudo ao abrir.
+- Remover: desligar no painel, reverter o PR desta entrega e publicar. A marca `linkSettings.recalc` e os campos por planilha que sobrarem no armazenamento são ignorados pelo código antigo. Nada fica no banco.

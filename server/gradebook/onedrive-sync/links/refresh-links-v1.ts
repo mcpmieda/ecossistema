@@ -19,6 +19,11 @@ import {
   type LinkUseV1,
   type SheetUseV1,
 } from './formula-references-v1';
+import {
+  blockedRecalcReportV1,
+  recalculateLinkedCellsV1,
+  type RecalcReportV1,
+} from './recalc/recalc-v1';
 import type { SourceValuesV1 } from './source-values-v1';
 import {
   readZipEntryV1,
@@ -58,6 +63,8 @@ export type RefreshOutcomeV1 = {
     readonly status: LinkPartStatusV1;
     readonly changed: number;
   }[];
+  /** The recalculation of the cells that depend on the links; null when not asked for. */
+  readonly recalc: RecalcReportV1 | null;
 };
 
 const LINK_PART_V1 = /^xl\/externalLinks\/externalLink\d+\.(bin|xml)$/u;
@@ -371,10 +378,12 @@ export async function refreshDestinationLinksV1(input: {
     candidates: readonly LinkSourceRefV1[],
     sheets: readonly string[],
   ) => Promise<SourceValuesV1 | null | 'skip'>;
+  /** Also recalculate the cells that depend on the links (#1541, off unless switched on). */
+  readonly recalculate?: boolean;
 }): Promise<RefreshOutcomeV1> {
   const { pkg, format, links } = await readDestinationLinksV1(input.bytes);
   if (!format || links.length === 0)
-    return { outcome: 'no-links', bytes: null, changedCells: 0, parts: [] };
+    return { outcome: 'no-links', bytes: null, changedCells: 0, parts: [], recalc: null };
   // What the formulas use: a used cell empty at the last update is not in the cache.
   const use = await readLinkUseV1(
     pkg,
@@ -390,7 +399,11 @@ export async function refreshDestinationLinksV1(input: {
     changedCells += refreshed.part.changed;
     parts.push(refreshed.part);
   }
-  if (replacements.size === 0) return { outcome: 'unchanged', bytes: null, changedCells: 0, parts };
+  if (replacements.size === 0)
+    return { outcome: 'unchanged', bytes: null, changedCells: 0, parts, recalc: null };
+  const report = input.recalculate
+    ? await recalculateCellsV1(pkg, format, links, replacements)
+    : null;
   const recalc = await recalcOnOpenPartV1(pkg, format);
   if (recalc) replacements.set(recalc.name, recalc.bytes);
   return {
@@ -398,7 +411,36 @@ export async function refreshDestinationLinksV1(input: {
     bytes: await rewriteZipPackageV1(pkg, replacements),
     changedCells,
     parts,
+    recalc: report,
   };
+}
+
+/**
+ * The cells that depend on the refreshed links, recalculated (only .xlsb): their new results go
+ * into `replacements` next to the link parts. Any failure leaves the cells as they are (Excel still
+ * recalculates them when the file is opened) and is reported, never failing the refresh.
+ */
+async function recalculateCellsV1(
+  pkg: ZipPackageV1,
+  format: 'xlsb' | 'xlsx',
+  links: readonly LinkPartV1[],
+  replacements: Map<string, Uint8Array>,
+): Promise<RecalcReportV1> {
+  if (format !== 'xlsb') return blockedRecalcReportV1('only .xlsb files are recalculated');
+  try {
+    const before = new Map(links.map((link) => [link.part, link.cache]));
+    const after = new Map(
+      links.map((link) => {
+        const rewritten = replacements.get(link.part);
+        return [link.part, rewritten ? readXlsbLinkCacheV1(rewritten) : link.cache];
+      }),
+    );
+    const result = await recalculateLinkedCellsV1({ pkg, before, after });
+    for (const [part, bytes] of result.replacements) replacements.set(part, bytes);
+    return result.report;
+  } catch {
+    return blockedRecalcReportV1('recalculation failed');
+  }
 }
 
 type LinkRunV1 = Parameters<typeof refreshDestinationLinksV1>[0] & {

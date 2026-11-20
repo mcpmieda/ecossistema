@@ -43,6 +43,8 @@ export const oneDriveSyncRequestSchemaV1 = z.discriminatedUnion('action', [
   // Links between workbooks (#1541): the refresh is switched on/off, checked whole, and works on
   // the folders or workbooks chosen here (destinations); their sources are found in the links.
   z.object({ action: z.enum(['links-on', 'links-off', 'links-check-all']) }).strict(),
+  // Recalculation of the cells that depend on the links (#1541): off unless switched on.
+  z.object({ action: z.enum(['links-recalc-on', 'links-recalc-off']) }).strict(),
   z
     .object({
       action: z.literal('links-add-target'),
@@ -115,10 +117,16 @@ export const oneDriveLinkFileSchemaV1 = z.object({
   changedCells: z.number().int().min(0).nullable(),
   unavailableLinks: z.number().int().min(0).nullable(),
   sources: z.number().int().min(0),
+  /** Cells recalculated at the last write, and what was left as it is (for the audit). */
+  recalcCells: z.number().int().min(0).nullable().optional(),
+  recalcSkipped: z.number().int().min(0).nullable().optional(),
+  recalcNote: z.string().max(500).nullable().optional(),
 });
 
 export const oneDriveLinksStatusSchemaV1 = z.object({
   enabled: z.boolean(),
+  /** Recalculation of the dependent cells switched on. */
+  recalc: z.boolean().optional(),
   targets: z.array(
     z.object({
       itemId: z.string(),

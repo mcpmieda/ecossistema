@@ -185,7 +185,7 @@ function xlsbCellRecordV1(col: number, value: LinkValueV1): Biff12RecordV1 {
 }
 
 /** The UTF-16 code units of a text (what Excel stores), surrogate pairs included. */
-function utf16UnitsV1(text: string): number[] {
+export function utf16UnitsV1(text: string): number[] {
   const units: number[] = [];
   for (const char of text) {
     const point = char.codePointAt(0)!;
