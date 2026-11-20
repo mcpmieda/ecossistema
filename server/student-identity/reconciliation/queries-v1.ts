@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { normalizeStudentNameV1 } from '../../../shared/student-identity/reconciliation-normalization-v1';
+import { removableStudentV1 } from './remove-v1';
 import { seal, unseal } from '../../auth/sealed';
 import {
   RECONCILIATION_PENDING_CAP_V1,
@@ -260,6 +261,12 @@ export async function detailV1(
       reason: String(r.reason),
       version: Number(r.sequence),
     })),
+    ...(request.studentUid
+      ? {
+          removable:
+            (await removableStudentV1(tx, request.academicYear, request.studentUid)) !== null,
+        }
+      : {}),
   };
 }
 

@@ -61,3 +61,7 @@ A #662 restaurou o artefato lógico V2 em PostgreSQL local descartável: 28 rela
 ## 0019 — Auditoria por origem (15/11/2026)
 
 `0019_import_diagnostics_origin_v1.sql` acrescenta `origem` a `gradebook.importacao_diagnostico` (#1462, achado 16 da #1450): `manual` (navegador) ou `onedrive:<id do item na Graph>`. A foto de cada planilha é trocada por ano, origem e nome; duas planilhas do mesmo ano com o mesmo nome, de pastas diferentes ou do OneDrive e da importação manual, não apagam mais os achados uma da outra. A chave única passa a ser `(origem, hash, chave)`. As linhas anteriores ficam como `legacy` e são trocadas pela próxima foto do mesmo arquivo, de qualquer origem; a conferência noturna do OneDrive regrava todas em até um dia. Aplicar pelo conector antes do deploy do código que grava a origem.
+
+## 0020 — Excluir aluno lançado por engano (20/11/2026)
+
+`0020_reconciliation_remove_student_v1.sql` aceita a ação `remove-student` em `gradebook.student_reconciliation_decision_v1` (mesmo molde de `0018`): só amplia a lista de ações; sem tabela, coluna ou dado novo. A decisão guarda o aluno removido em `before_state`, com `student_uid` nulo. Aplicar pelo conector antes de usar o botão; o código publicado sem ela devolve indisponível ao excluir.

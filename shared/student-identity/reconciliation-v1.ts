@@ -149,6 +149,18 @@ export const reconciliationRequestV1 = z.discriminatedUnion('operation', [
       smecelOnly: z.boolean(),
     })
     .strict(),
+  /**
+   * "Excluir aluno lançado por engano": a student with no data anywhere and a Portal account never
+   * used (the account the screen showed, or none). The Portal closes that account afterwards.
+   */
+  z
+    .object({
+      ...mutation,
+      operation: z.literal('remove-student'),
+      studentUid: studentUidV1,
+      accountId: studentUidV1.nullable(),
+    })
+    .strict(),
 ]);
 export type ReconciliationRequestV1 = z.infer<typeof reconciliationRequestV1>;
 export type ReconciliationMutationV1 = Extract<
@@ -310,12 +322,16 @@ export type ReconciliationResponseV1 =
       }[];
       candidates: { studentUid: string; name: string; classLabel: string }[];
       history: { id: string; action: string; at: string; reason: string; version: number }[];
+      /** A student (asked by studentUid) with no data anywhere: "Excluir aluno lançado por engano". */
+      removable?: boolean;
     }
   | {
       contractVersion: 1;
       state: 'committed';
       context: ReconciliationContextV1;
       operationId: string;
+      /** After "remove-student": whether the Portal closed the student's account. */
+      accountClosed?: boolean;
     }
   | { contractVersion: 1; state: 'validation-failed'; errors: ReconciliationValidationErrorV1[] }
   | {
@@ -453,6 +469,7 @@ export const reconciliationResponseV1: z.ZodType<ReconciliationResponseV1> = z.u
           })
           .strict(),
       ),
+      removable: z.boolean().optional(),
     })
     .strict(),
   z
@@ -461,6 +478,7 @@ export const reconciliationResponseV1: z.ZodType<ReconciliationResponseV1> = z.u
       state: z.literal('committed'),
       context: reconciliationContextV1,
       operationId: z.string(),
+      accountClosed: z.boolean().optional(),
     })
     .strict(),
   z

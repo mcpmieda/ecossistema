@@ -97,6 +97,7 @@ export const GRADEBOOK_RECONCILIATION_SCHEMA_PLAN_V1 = [
   'student-portal/0025_reconciliation_credentials_v1.sql',
   'gradebook-simplified/0016_reconciliation_year_reset_v1.sql',
   'gradebook-simplified/0018_smecel_only_source_v1.sql',
+  'gradebook-simplified/0020_reconciliation_remove_student_v1.sql',
 ] as const;
 
 export const GRADEBOOK_RECONCILIATION_TABLES_V1 = [

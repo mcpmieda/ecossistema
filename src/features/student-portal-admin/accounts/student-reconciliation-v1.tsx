@@ -20,6 +20,7 @@ import { StudentNameV1 } from '../shared/account-open-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import { AccountCloseV1 } from './account-close-v1';
+import { RemoveStudentV1 } from './remove-student-v1';
 import { readReconciliationListV1 } from './reconciliation-list-read-v1';
 import { PreparedReportV1 } from '../../gradebook/import/student-report-import-v1';
 import { useHistoryStepV1 } from '../../../shared/ui/history-step-v1';
@@ -382,8 +383,18 @@ export function StudentReconciliationV1({
       if (!controller.signal.aborted) setBusy(false);
     }
   }
-  function settle(result: ReconciliationResponseV1) {
+  function settle(result: ReconciliationResponseV1, request: ReconciliationRequestV1) {
     if (result.state === 'committed') {
+      // The removed student leaves the list: back to it, with what happened to the Portal account.
+      if (request.operation === 'remove-student') {
+        back();
+        setFocusFeedback(true);
+        setNotice(
+          result.accountClosed === false
+            ? 'Aluno excluído. A conta do Portal não foi encerrada: encerre no Painel do Aluno.'
+            : 'Aluno excluído.',
+        );
+      }
       reload();
       return;
     }
@@ -411,7 +422,7 @@ export function StudentReconciliationV1({
     try {
       const result = await client.request(request, active.current?.signal);
       setMutationRetry(null);
-      settle(result);
+      settle(result, request);
     } catch {
       if (!active.current?.signal.aborted) {
         setFocusFeedback(true);
@@ -526,6 +537,20 @@ export function StudentReconciliationV1({
               accountId={closable}
               canWrite={canWrite}
               onClosed={accountClosed}
+            />
+          ) : null}
+          {current.kind === 'person' && canWrite && detail?.removable ? (
+            <RemoveStudentV1
+              name={current.name}
+              disabled={locked}
+              onConfirm={() =>
+                void mutate({
+                  ...reconciliationMutationV1(detail.context),
+                  operation: 'remove-student',
+                  studentUid: current.studentUid,
+                  accountId: current.accountId,
+                })
+              }
             />
           ) : null}
           {selectedContent(current)}
