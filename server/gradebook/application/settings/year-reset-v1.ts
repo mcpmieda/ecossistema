@@ -49,7 +49,6 @@ const RESET_TABLES_V1 = [
   'conselho_votacao',
   'conselho_fechamento',
   'conselho_sessao',
-  'boletim_snapshot',
   'importacao_diagnostico_tratamento',
   'nota_historico',
   'nota',
@@ -124,7 +123,6 @@ async function loadCounts(
         +(SELECT count(*) FROM gradebook.conselho_decisao_comando c,y WHERE c.ano=y.ano)
         +(SELECT count(*) FROM gradebook.conselho_fechamento c,y WHERE c.ano=y.ano)
         +(SELECT count(*) FROM gradebook.conselho_fechamento_item i JOIN gradebook.conselho_fechamento c ON c.id=i.fechamento_id,y WHERE c.ano=y.ano))::integer AS council,
-       (SELECT count(*)::integer FROM gradebook.boletim_snapshot b,y WHERE b.ano=y.ano) AS bulletins,
        ((SELECT count(*) FROM gradebook.conselho_anterior_historico h JOIN gradebook.aluno a ON a.id=h.aluno_id,y WHERE a.ano=y.ano)
         +(SELECT count(*) FROM gradebook.conselho_decisao_historico h JOIN gradebook.aluno a ON a.id=h.aluno_id,y WHERE a.ano=y.ano)
         +(SELECT count(*) FROM gradebook.fechamento_historico h JOIN gradebook.oferta o ON o.id=h.oferta_id,y WHERE o.ano=y.ano)
@@ -155,7 +153,6 @@ async function loadCounts(
     diagnostics: integer(row.diagnostics),
     auditTrail: integer(row.audit_trail),
     council: integer(row.council),
-    bulletins: integer(row.bulletins),
     histories: integer(row.histories),
     reconciliation: integer(row.reconciliation),
     attendance,
@@ -234,7 +231,6 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
     'conselho_votacao',
     'conselho_fechamento',
     'conselho_sessao',
-    'boletim_snapshot',
     'importacao_diagnostico_tratamento',
   ] as const) {
     await run(`DELETE FROM gradebook.${table} WHERE ano=$1`);

@@ -26,7 +26,6 @@ describe('shell navigation of 07/10/2026', () => {
     ]);
     expect(serviceSectionsV2('banco-de-notas').map((section) => section.id)).toEqual([
       'performance',
-      'bulletins',
       'council',
       'settings',
     ]);

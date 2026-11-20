@@ -178,7 +178,7 @@ it('uses semantic section links with current-route state and no dangling tab con
   const app = within(view.container);
   const nav = await app.findByRole('navigation', { name: 'Seções de Banco de notas' });
   const links = within(nav).getAllByRole('link');
-  expect(links).toHaveLength(4);
+  expect(links).toHaveLength(3);
   expect(within(nav).getByRole('link', { name: 'Desempenho' }).getAttribute('aria-current')).toBe(
     'page',
   );
@@ -236,7 +236,7 @@ it('supports focus-only arrow keys and guarded mouse and native Enter activation
     await user.keyboard('{Home}');
     expect(document.activeElement).toBe(first);
     await user.keyboard('{ArrowRight}');
-    expect(document.activeElement).toBe(within(nav).getByRole('link', { name: 'Boletins' }));
+    expect(document.activeElement).toBe(within(nav).getByRole('link', { name: 'Conselho' }));
     await user.keyboard('{End}');
     expect(document.activeElement).toBe(last);
     expect(last.getAttribute('href')).toBe('#/banco-de-notas?area=settings');

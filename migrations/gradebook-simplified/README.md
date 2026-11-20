@@ -8,7 +8,7 @@ Esta pasta reconstrói o schema observado por inspeção **somente leitura** em 
 - `0002_import_diagnostics_audit_v1.sql`: migration histórica já refletida na reconstrução de `0001`; permanece como memória do passo produtivo original e **não** deve ser reaplicada depois da baseline atual.
 - `0003_council_session_v3.sql`: extensão aditiva FINAL-3 #648 com sessão, idempotência, votação numérica, históricos e fotografias imutáveis do Conselho. Não faz backfill, não persiste presentes/desempate/diretor e não altera a autoridade acadêmica.
 - `0004_council_v3_least_privilege.sql`: correção idempotente de ACL para neutralizar grants padrão do proprietário após `0003`; mantém somente as operações usadas pela role `gradebook_app` e não altera objetos ou dados.
-- `0005_relational_bulletin_snapshot_v2.sql`: extensão aditiva #654 com snapshot imutável de boletim, FKs de 2026, checks de identidade JSON e ACL `SELECT, INSERT` para `gradebook_app`; sem backfill ou DML acadêmico.
+- `0005_relational_bulletin_snapshot_v2.sql`: extensão aditiva #654 com snapshot imutável de boletim, FKs de 2026, checks de identidade JSON e ACL `SELECT, INSERT` para `gradebook_app`; sem backfill ou DML acadêmico. A tabela foi removida pela `0022`.
 - `0006_import_diagnostic_treatment_v1.sql`: extensão aditiva #674 com reconhecimento/anotação append-only separados do snapshot corrente, ator server-side e ACL `SELECT, INSERT`; sem backfill, resolução manual ou DML acadêmico. Aplicada em produção após autorização explícita e postflight.
 - `0007_multiyear_rr_v1.sql`: extensão aditiva #676 que acrescenta a máscara terminal `R/R`, amplia os estados do histórico de fechamento e remove apenas os checks físicos que limitavam boletins/tratamentos a 2026. Sem backfill ou DML acadêmico; deve ser aplicada somente depois de `0003`–`0006` e do preflight autorizado.
 - `0008_year_reset_acl_v1.sql`: ACL mínima #688 que concede `DELETE` à role backend nas dez relações posteriores mantidas como append-only até aqui. Não contém DML, `TRUNCATE`, DDL estrutural, reset de sequência ou acesso público/cliente; a exclusão anual continua pertencendo exclusivamente ao serviço autenticado/transacional.
@@ -42,7 +42,7 @@ sequências, ACL mínima exata de `gradebook_app`, ausência de privilégios `PU
 inalteradas e somente o ano 2026. Ver
 [`RELATIONAL_COUNCIL_V3.md`](../../docs/gradebook/RELATIONAL_COUNCIL_V3.md).
 
-Para `0005`, o preflight confirmou as 28 tabelas pós-Conselho, ausência de `boletim_snapshot`, ano exclusivo 2026 e contagens acadêmicas; uma cópia lógica das 28 tabelas/12 sequências foi validada antes do DDL. O postflight produtivo de 11/09/2026 confirmou 29 tabelas no total e a relação nova vazia, com 13 colunas, 15 constraints, 4 índices totais, 3 FKs e ACL exata `SELECT, INSERT`, sem `UPDATE/DELETE` ou acesso público/cliente. Não emitir boletim real no smoke automatizado. Ver [`RELATIONAL_BULLETINS_V2.md`](../../docs/gradebook/RELATIONAL_BULLETINS_V2.md).
+Para `0005`, o preflight confirmou as 28 tabelas pós-Conselho, ausência de `boletim_snapshot`, ano exclusivo 2026 e contagens acadêmicas; uma cópia lógica das 28 tabelas/12 sequências foi validada antes do DDL. O postflight produtivo de 11/09/2026 confirmou 29 tabelas no total e a relação nova vazia, com 13 colunas, 15 constraints, 4 índices totais, 3 FKs e ACL exata `SELECT, INSERT`, sem `UPDATE/DELETE` ou acesso público/cliente. A tabela foi removida pela `0022` (20/11/2026).
 
 Para `0006`, a autorização explícita foi registrada depois do head verde da PR #675. Um dump privado novo das 29 tabelas foi validado e restaurado localmente antes do DDL. Preflight e postflight produtivos confirmaram a 30ª relação vazia, catálogo `30/246/218/66/52`, 13 sequências, ACL mínima e contagens acadêmicas inalteradas. O plano de recovery integrado deve passar a incluir essa relação depois da integração da #674, sem publicar o backup. Ver [`RELATIONAL_AUDIT_TREATMENT_V1.md`](../../docs/gradebook/RELATIONAL_AUDIT_TREATMENT_V1.md).
 
@@ -69,3 +69,7 @@ A #662 restaurou o artefato lógico V2 em PostgreSQL local descartável: 28 rela
 ## 0021 — Aluno fora da Relação (20/11/2026)
 
 `0021_vinculo_fora_da_relacao_v1.sql` acrescenta `gradebook.vinculo.fora_da_relacao` (boolean, padrão `false`, sem reescrever a tabela). A leitura da Relação marca as posições das suas turmas que o arquivo não tem mais e desmarca quando a linha volta; só a Conciliação lê a marca, para oferecer **Excluir aluno lançado por engano** apenas a quem saiu da Relação. Grants e RLS de `vinculo` cobrem a coluna. Aplicada em produção em 20/11/2026, 16:19 UTC (CLI do Supabase), antes do código que a usa.
+
+## 0022 — Remoção da aba Boletins (20/11/2026)
+
+`0022_drop_boletim_snapshot_v1.sql` remove `gradebook.boletim_snapshot` junto com a aba Boletins do Banco de Notas, que será refeita mais simples. A tabela tinha 3 boletins emitidos (128 kB) e nenhuma view, função, gatilho ou chave estrangeira dependente; os registros foram descartados com autorização do responsável. A `0005` permanece como histórico aplicado. Aplicada em produção antes de publicar o código.

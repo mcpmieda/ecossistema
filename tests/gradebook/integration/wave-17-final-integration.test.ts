@@ -15,7 +15,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
 
     expect(contract).toContain('value.split(/[?#]/u)[0]');
-    for (const area of ['audit', 'performance', 'bulletins', 'council']) {
+    for (const area of ['audit', 'performance', 'council']) {
       expect(notes).toContain(`notesAreaHref('${area}')`);
     }
     expect(notes).toContain("platformHref('banco-de-notas')");
@@ -26,20 +26,6 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(shell).toContain('window.history.replaceState');
   });
 
-  it('preserva PDF oficial exclusivamente sobre snapshot canônico e renderer sob demanda', () => {
-    const page = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
-    const actions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v2.ts');
-    const renderer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts');
-
-    expect(page).toContain('Baixar PDF oficial');
-    expect(page).toContain('Imprimir PDF oficial');
-    expect(page).toContain("artifact.mode !== 'preview'");
-    expect(actions).toContain("await import('./bulletin-pdf-renderer-v2')");
-    expect(actions).not.toContain('/api/gradebook/');
-    expect(renderer).toContain('RelationalBulletinSnapshotV2');
-    expect(renderer).not.toMatch(/fetch\(|localStorage|sessionStorage|indexedDB|caches\.open/u);
-  });
-
   it('mantém a rota e as superfícies acadêmicas atuais lazy e isoladas', () => {
     const notesPage = source('src/platform/notes-page.tsx');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
@@ -48,7 +34,6 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     for (const imported of [
       'gradebook-audit-surface',
       'performance-page',
-      'bulletin-page',
       'gradebook-council-surface',
     ]) {
       expect(shell).toContain(imported);
@@ -59,7 +44,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(shell).toContain('aria-selected={selected}');
   });
 
-  it('mantém os quatro bridges dedicados restantes, auth server-side e no-store', () => {
+  it('mantém os três bridges dedicados restantes, auth server-side e no-store', () => {
     const functions = source('functions/[[path]].ts');
     const handlers = [
       [
@@ -67,7 +52,6 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
         '/api/gradebook/operational-workspace',
       ],
       ['server/gradebook/http/performance-routes-v1.ts', '/api/gradebook/performance'],
-      ['server/gradebook/http/bulletin-routes-v1.ts', '/api/gradebook/bulletins'],
       ['server/gradebook/http/council-routes-v1.ts', '/api/gradebook/council-workspace'],
     ] as const;
 
@@ -82,7 +66,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
     expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(functions.match(/handlePerformanceRequestV1/gu)).toHaveLength(2);
-    expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
+    expect(functions).not.toContain('handleBulletinRequestV1');
     expect(functions.match(/handleCouncilWorkspaceRequestV1/gu)).toHaveLength(2);
   });
 
@@ -93,7 +77,6 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
       'src/features/student-portal-admin/accounts/accounts-client-v2.ts',
       'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
       'src/features/gradebook/performance/relational-performance-page-v2.tsx',
-      'src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx',
       'src/features/gradebook/council/relational-council-page-v3.tsx',
       'src/platform/gradebook-workspace-shell.tsx',
     ]

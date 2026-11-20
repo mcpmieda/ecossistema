@@ -8,15 +8,11 @@ import {
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
 import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
-import { createRelationalBulletinServiceV2 } from '../../../server/gradebook/application/bulletins/relational-bulletin-v2';
 
 let pg: PGlite;
 let database: GradebookPostgresDatabaseV1;
 const queries: string[] = [];
 const scope = { year: 2026, classId: 848001, period: 2, mode: 'regular' } as const;
-const forbiddenSnapshot = async () => {
-  throw new Error('unexpected-snapshot-operation');
-};
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -175,50 +171,3 @@ it('keeps unrecorded dispensed cells neutral and exposes a numeric exception wit
   ).toEqual([{ valor: 5000 }]);
 });
 
-it.each([1, 2, 3, 4])(
-  'filters only a new bulletin projection, retaining official AM and coverage for student %s',
-  async (n) => {
-    const service = createRelationalBulletinServiceV2({
-      database,
-      snapshots: {
-        get: forbiddenSnapshot,
-        getLatest: forbiddenSnapshot,
-        history: forbiddenSnapshot,
-        append: forbiddenSnapshot,
-      },
-    });
-    const response = await service.execute(
-      {
-        contractVersion: 2,
-        operation: 'preview',
-        selection: {
-          year: 2026,
-          classId: 848001,
-          studentId: 848000 + n,
-          period: { kind: 'term', term: 2 },
-          detail: 'detailed',
-          presentation: { locale: 'pt-BR', dateStyle: 'long' },
-        },
-      },
-      { issuerOid: '84800000-0000-4000-8000-000000000002' },
-    );
-    if (response.state !== 'ready' || response.operation !== 'preview')
-      throw new Error('expected-preview');
-    const term = response.model.subjects[0]!.terms[0]!;
-    expect(term.sourceAmMilli).toBe(26000);
-    expect(term.coverage.complete).toBe(true);
-    expect(term.instruments.some((item) => item.slot === 3)).toBe(n !== 3);
-    expect(term.coverage.missingSlots).toEqual(n === 1 ? [3] : []);
-    if (n === 1)
-      expect(term.instruments.find((item) => item.slot === 3)).toMatchObject({
-        valueMilli: null,
-        notDone: true,
-      });
-    if (n === 2)
-      expect(term.instruments.find((item) => item.slot === 3)).toMatchObject({ valueMilli: 0 });
-    if (n === 4)
-      expect(term.instruments.find((item) => item.slot === 3)).toMatchObject({ valueMilli: 5000 });
-    expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
-    expect(queries.length).toBeLessThanOrEqual(8);
-  },
-);

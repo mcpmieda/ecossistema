@@ -21,7 +21,6 @@ export async function recordResetWriteV1(
   cause:
     | 'diagnostics'
     | 'audit-treatment'
-    | 'bulletin-snapshot'
     | 'relation'
     | 'marks'
     | 'council'

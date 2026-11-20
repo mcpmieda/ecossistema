@@ -1,3 +1,6 @@
+// The UI tests (jsdom) and the ADM preview they reach are browser code type-checked with the
+// server project: DOM comes from here (the Boletim PDF files that also gave it were removed).
+/// <reference lib="dom" />
 import { configure } from '@testing-library/react';
 import { afterEach } from 'vitest';
 

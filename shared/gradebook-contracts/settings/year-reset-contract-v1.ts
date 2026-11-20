@@ -30,7 +30,6 @@ export const yearResetCountsSchemaV1 = z
     diagnostics: count,
     auditTrail: count,
     council: count,
-    bulletins: count,
     histories: count,
     reconciliation: count,
     attendance: count.default(0),

@@ -32,7 +32,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(current).toMatch(/^schema_version: 3$/mu);
     expect(current).toContain('executable_issue: null');
     expect(current).toContain('program_status: completed-functional-program-596');
-    expect(current).toContain('total_table_count: 31');
+    expect(current).toContain('total_table_count: 30');
     expect(current).toContain('student_identity_table_count: 1');
     expect(current).toContain('materialized_years: [2025, 2026]');
     expect(current).toContain('academic_authority: imported-source');
@@ -53,9 +53,9 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(section('storage')).toContain('core_table_count: 19');
     expect(section('storage')).toContain('diagnostic_table_count: 1');
     expect(section('storage')).toContain('council_v3_table_count: 8');
-    expect(section('storage')).toContain('total_table_count: 29');
+    expect(section('storage')).toContain('total_table_count: 28');
     expect(section('storage')).toContain(
-      'relational_bulletin_snapshot_migration: applied-and-postflight-verified-2026-09-11',
+      'relational_bulletin_snapshot_migration: dropped-by-0022-2026-11-20-boletins-tab-removed-owner-request',
     );
     expect(section('runtime')).toContain('global_academic_authority_switch_verified: false');
     expect(section('work_in_progress')).toContain('phase_complete: false');
@@ -101,10 +101,10 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'import-diagnostics',
       'operational-workspace',
       'performance',
-      'bulletins',
       'council-workspace',
     ])
       expect(map).toContain(`/api/gradebook/${endpoint}`);
+    expect(map).not.toContain('/api/gradebook/bulletins');
     expect(map).toContain('não é homologação visual conjunta');
     expect(map).not.toContain('/api/gradebook/audit-workspace');
     expect(map).toContain('UI e endpoint dedicado retirados pela #664');
@@ -148,7 +148,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'relational_council_v3: integrated-pr-653-deploy-262-authenticated-read-only-smoke-success',
     );
     expect(section('runtime')).toContain(
-      'relational_bulletins_v2: integrated-pr-655-deploy-263-authenticated-read-only-smoke-success',
+      'relational_bulletins_v2: removed-2026-11-20-owner-request-to-rebuild-simpler',
     );
     expect(section('runtime')).toContain(
       'relational_reports_v2: integrated-pr-657-deploy-264-authenticated-read-only-smoke-success',
@@ -223,7 +223,6 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'FINAL2_SOURCE_DESKTOP_646.md',
       'TERM_COMPARISON_2026_V4.md',
       'RELATIONAL_COUNCIL_V3.md',
-      'RELATIONAL_BULLETINS_V2.md',
       'RELATIONAL_REPORTS_V2.md',
       'RELATIONAL_CURRENT_AUDIT_V2.md',
       'RELATIONAL_TEACHER_CONFIGURATION_660.md',

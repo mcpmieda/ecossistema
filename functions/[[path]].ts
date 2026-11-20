@@ -46,7 +46,6 @@ import {
   HttpError,
   withSecurityHeaders,
 } from '../server/http/security';
-import { handleBulletinRequestV1 } from '../server/gradebook/http/bulletin-routes-v1';
 import { handleCouncilWorkspaceRequestV1 } from '../server/gradebook/http/council-routes-v1';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
@@ -205,8 +204,6 @@ async function routeOfficialGradebookRequestV1(
   const performanceResponse = await handlePerformanceRequestV1(request, env);
   if (performanceResponse) return performanceResponse;
 
-  const bulletinResponse = await handleBulletinRequestV1(request, env, afterCommit);
-  if (bulletinResponse) return bulletinResponse;
 
   const councilResponse = await handleCouncilWorkspaceRequestV1(request, env, afterCommit);
   if (councilResponse) return councilResponse;

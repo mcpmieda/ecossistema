@@ -23,7 +23,6 @@ Diagnósticos com `ano IS NULL` ficam preservados, pois não existe evidência s
 - vínculos, ofertas, instrumentos, notas e fechamentos;
 - importações, diagnósticos atuais e trilha humana;
 - decisões legadas, sessões, votos, comandos, fechamentos e fotografias do Conselho;
-- snapshots de boletim;
 - todos os históricos alcançáveis por ano/aluno/turma/oferta/instrumento/importação;
 - eventos de revisão técnica, provas de reset e coordenação `academic_revision` atribuíveis ao ano apagado.
 

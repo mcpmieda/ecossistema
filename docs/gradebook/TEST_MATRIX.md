@@ -13,7 +13,7 @@
 
 - Menu/busca/abas não anunciam Relatórios; URL antiga, hashchange, voltar/avançar e recarga normalizam para Importação, preservando lote em andamento.
 - O tombstone exige origem, método, identidade e capacidade; autorizado recebe 410 `{ state: 'retired' }` no-store sem body, banco/bindings ou limiter externo. A regra versionada `unavailable` de BN-DEC-041 não se aplica mais a Reports; demais transportes permanecem.
-- Desempenho/PDF docente, Boletins, Conselho e Importação/Auditoria continuam exercitados por seus consumidores/testes atuais.
+- Desempenho/PDF docente, Conselho e Importação/Auditoria continuam exercitados por seus consumidores/testes atuais.
 - No ensaio de recuperação PostgreSQL descartável, o GET vigente de `import-diagnostics` deve responder 200/`ready` e corresponder aos IDs recuperados, aceitando um backup sem diagnósticos. A observação sintética do teste de contenção também deve ser legível pelo GET; o adapter exclusivo retirado não é restaurado.
 - Mapeamento e paginação continuam cobertos em PGlite por `import-diagnostics-snapshot-v1.test.ts`. O gate PostgreSQL executa `relational-recovery-contention-v2.integration.test.ts` sem skip; CI completo e gates não são reduzidos.
 
@@ -226,6 +226,8 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 
 ## F1-654 — Boletins relacionais V2
 
+A aba Boletins do Banco de Notas foi removida em 20/11/2026 (pedido do responsável), com estes testes; será refeita.
+
 - `F1-654-001`: request/response aceitam somente 2026, rejeitam campos extras, lotes duplicados e mais de 50 alunos.
 - `F1-654-002`: catálogo usa nome completo da turma e materialização ordena disciplinas pela fonte canônica.
 - `F1-654-003`: AM/U importadas permanecem oficiais e cálculo nativo aparece somente como comparação descritiva.
@@ -274,7 +276,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F14-662-003`: plano aplica `0001`, grants, `0003`, `0004`, `0005`; `0002`, já incorporada à baseline reconstruída, não é reaplicada.
 - `F14-662-004`: restore local confere 28 relações/120.879 linhas e 12 sequences, preservando IDs, binários, JSON, nulos e timestamps.
 - `F14-662-005`: postflight confere catálogo 29/227/203/62/51, quatro funções, três triggers, FKs válidas, `PUBLIC` zero, 2026 único e zero boletins inventados.
-- `F14-662-006`: banco recuperado serve catálogo, comparação T2×T1, Auditoria, Conselho e histórico de Boletins sem emissão.
+- `F14-662-006`: banco recuperado serve turmas, comparação T2×T1, Auditoria e Conselho.
 - `F14-662-007`: duas conexões provam espera no advisory lock e último snapshot de diagnósticos completo, sem mistura.
 - `F14-662-008`: falha intencional após DELETE reverte a transação e preserva o conjunto diagnóstico anterior.
 - `F14-662-009`: corrida SERIALIZABLE do Conselho repete uma vez SQLSTATE 40001; CAS resulta em um vencedor, um `version-conflict` e retry idempotente.
@@ -432,7 +434,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F15-688-002`: prévia aceita somente ano materializado e retorna contagens de todas as 30 relações atribuíveis, revisão e frase `RESETAR <ano>`.
 - `F15-688-003`: execução exige confirmação de irreversibilidade, frase exata e revisão ainda vigente; mudança desde a prévia retorna conflito sem DML.
 - `F15-688-004`: reset usa uma transação serializável e bloqueio do conjunto; falha injetada depois de exclusões reverte todas.
-- `F15-688-005`: cadastro, notas, históricos, diagnósticos/tratamentos, Conselho e boletins do ano são removidos; diagnóstico sem ano, schema, sequências e outros anos permanecem.
+- `F15-688-005`: cadastro, notas, históricos, diagnósticos/tratamentos e Conselho do ano são removidos; diagnóstico sem ano, schema, sequências e outros anos permanecem.
 - `F15-688-006`: ano removido sai do bootstrap e pode ser materializado novamente pela Relação, com novas identidades anuais.
 - `F15-688-007`: HTTP exige autenticação, `gradebook.persistence.admin`, mesma origem, body bounded, provider/gate e `no-store`; falha é opaca.
 - `F15-688-008`: ACL acrescenta somente `DELETE` às dez relações append-only necessárias; não concede `ALL`, `TRUNCATE`, DDL ou acesso público/cliente.

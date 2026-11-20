@@ -32,7 +32,6 @@ const COUNT_ITEMS = [
   ['diagnostics', 'Diagnósticos atuais'],
   ['auditTrail', 'Trilha de auditoria'],
   ['council', 'Registros de Conselho'],
-  ['bulletins', 'Boletins emitidos'],
   ['histories', 'Demais históricos'],
   ['reconciliation', 'Conciliação e relatórios cadastrais'],
   ['attendance', 'Frequência'],
