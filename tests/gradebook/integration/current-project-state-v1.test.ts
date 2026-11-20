@@ -53,6 +53,8 @@ const gradebookCleanupCandidate = '0017_drop_ano_letivo_historico_v1.sql';
 const smecelOnlyCandidate = '0018_smecel_only_source_v1.sql';
 /** Auditoria snapshot per origin (issue #1462, finding 16 of #1450). */
 const diagnosticsOriginCandidate = '0019_import_diagnostics_origin_v1.sql';
+/** "Excluir aluno lançado por engano" in the Conciliação (owner request of 20/11/2026). */
+const removeStudentCandidate = '0020_reconciliation_remove_student_v1.sql';
 /** Retention of unreachable publication editions (owner request of 14/10/2026), not yet applied. */
 const retentionCandidate = '0026_publication_source_retention_v1.sql';
 /** Política Frequência (owner request of 20/10/2026), applied as 20261020115021 (POSTFLIGHT_0027). */
@@ -85,6 +87,7 @@ describe('current canonical project state', () => {
             gradebookCleanupCandidate,
             smecelOnlyCandidate,
             diagnosticsOriginCandidate,
+            removeStudentCandidate,
           ]).has(file),
       )
       .at(-1);
@@ -207,6 +210,7 @@ describe('current canonical project state', () => {
       gradebookCleanupCandidate,
       smecelOnlyCandidate,
       diagnosticsOriginCandidate,
+      removeStudentCandidate,
     ]);
     expect(
       migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) === 25),

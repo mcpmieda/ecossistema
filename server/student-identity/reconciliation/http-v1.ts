@@ -5,9 +5,17 @@ import {
   RECONCILIATION_READ_OPERATIONS_V1,
   RECONCILIATION_ROUTE_V1,
   REPORT_BODY_BYTES_V1,
+  type ReconciliationRequestV1,
   type ReconciliationResponseV1,
 } from '../../../shared/student-identity/reconciliation-v1';
-import type { TrustedAdminContextV1 } from '../../../shared/student-portal-contracts/ports-v1';
+import {
+  adminReadResponseV2,
+  type AdminReadResponseV2,
+} from '../../../shared/student-portal-contracts/admin-read-v2';
+import type {
+  PortalAdminEntrypointV1,
+  TrustedAdminContextV1,
+} from '../../../shared/student-portal-contracts/ports-v1';
 import type { RuntimeEnv } from '../../env';
 import {
   enforceOfficialOrigin,
@@ -106,6 +114,68 @@ async function stageCredentialsV1(
     remaining: staged.remaining,
   });
 }
+type AccountBindingV1 = Pick<PortalAdminEntrypointV1, 'query' | 'command'>;
+type AccountOriginV1 = Extract<AdminReadResponseV2, { state: 'account-origin' }>;
+
+/** What the Portal knows of an account: whether it was ever used, its version, whether closable. */
+async function accountOriginV1(
+  binding: AccountBindingV1,
+  context: TrustedAdminContextV1,
+  accountId: string,
+): Promise<AccountOriginV1 | null> {
+  const read = adminReadResponseV2.safeParse(
+    await binding.query(context, {
+      contractVersion: 2,
+      operation: 'account-origin',
+      scope: { kind: 'account', academicYear: 2026, accountId },
+      page: { limit: 1 },
+    }),
+  );
+  return read.success && read.data.state === 'account-origin' ? read.data : null;
+}
+
+/**
+ * "Excluir aluno lançado por engano": the Portal account (if any) must never have been used; the
+ * Conciliação removes the student under its lock, checking that account again; then the Portal
+ * closes the account, which has no class any more. A failed closure leaves the student removed and
+ * says so ("Encerrar conta" stays in the Painel do Aluno).
+ */
+async function removeStudentWithPortalV1(
+  env: RuntimeEnv,
+  context: TrustedAdminContextV1,
+  input: Extract<ReconciliationRequestV1, { operation: 'remove-student' }>,
+  service: StudentReconciliationServiceV1,
+): Promise<ReconciliationResponseV1> {
+  const binding = env.PORTAL_SERVICE as Partial<AccountBindingV1> | undefined;
+  if (!input.accountId) return service.execute(input, { accountVersion: null });
+  if (typeof binding?.query !== 'function' || typeof binding.command !== 'function')
+    return { contractVersion: 1, state: 'unavailable' };
+  const portal = binding as AccountBindingV1;
+  const before = await accountOriginV1(portal, context, input.accountId);
+  if (!before) return { contractVersion: 1, state: 'unavailable' };
+  if (before.everAccessed)
+    return {
+      contractVersion: 1,
+      state: 'conflict',
+      reason: 'A conta do Portal deste aluno já foi usada. Ele não pode ser excluído.',
+    };
+  const result = await service.execute(input, { accountVersion: before.version });
+  if (result.state !== 'committed') return result;
+  const after = await accountOriginV1(portal, context, input.accountId).catch(() => null);
+  if (!after?.closable) return { ...result, accountClosed: false };
+  const closed = await portal
+    .command(context, {
+      contractVersion: 1,
+      operation: 'account-close',
+      accountId: input.accountId,
+      expectedVersion: after.version,
+      idempotencyKey: crypto.randomUUID(),
+      confirmed: true,
+    })
+    .catch(() => null);
+  return { ...result, accountClosed: closed?.state === 'committed' };
+}
+
 /** The browser can submit allowlisted observations, never prepared verifiers or a trusted actor. */
 export async function handleStudentReconciliationRequestV1(
   request: Request,
@@ -146,11 +216,14 @@ export async function handleStudentReconciliationRequestV1(
     if (typeof context === 'string')
       return responseV1({ contractVersion: 1, state: 'not-authorized' });
     if (!coreAvailableV1(env)) return responseV1({ contractVersion: 1, state: 'unavailable' });
-    const result = await new StudentReconciliationServiceV1(
+    const service = new StudentReconciliationServiceV1(
       env.GRADEBOOK_DATABASE as GradebookPostgresDatabaseV1,
       context.actorId,
       env.SESSION_SECRET,
-    ).execute(input);
+    );
+    if (input.operation === 'remove-student')
+      return responseV1(await removeStudentWithPortalV1(env, context, input, service));
+    const result = await service.execute(input);
     if (input.operation !== 'stage' || result.state !== 'ready') return responseV1(result);
     return await stageCredentialsV1(env, context, input);
   } catch (error) {

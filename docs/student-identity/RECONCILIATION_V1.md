@@ -108,3 +108,13 @@ Reversão: antes do primeiro relatório aplicado, voltar o código restaura o co
 ## Somente no Smecel (gradebook-simplified 0018, pedido do responsável em 10/11/2026; aplicada como 20261111075937)
 
 Uma linha do Relatório sem aluno na Relação, que a escola sabe que ficará só no Smecel, pode ser marcada na Conciliação (`smecel-only`, decisão registrada como `smecel-only`). Marcada, ela sai da contagem e da visão de pendências, da lista "Alunos não reconhecidos" da Frequência e dos avisos do Coletor (a contagem guardada do último Relatório automático acompanha a marcação na hora). Continua visível na lista completa com a situação "Somente no Smecel" e pode voltar a pendente. Nunca cria vínculo: o próximo Relatório que encontrar o aluno na Relação vincula a linha como de costume e limpa a marcação; um vínculo manual também a limpa.
+
+## Excluir aluno lançado por engano (gradebook-simplified 0020, pedido do responsável em 20/11/2026)
+
+Apagar a linha de um aluno na Relação não tira o aluno do sistema: a leitura só acrescenta e atualiza. Para um aluno lançado por engano (um teste, uma linha duplicada), a ficha da Conciliação oferece **Excluir aluno lançado por engano**.
+
+- **Quando aparece:** só para quem não tem nada no sistema: nota, fechamento, boletim, Conselho, vínculo ou perfil do Relatório, decisão da Conciliação, frequência, ocorrência ou foto (`server/student-identity/reconciliation/remove-v1.ts`). Uma relação que não pode ser lida impede a exclusão.
+- **Conta do Portal:** antes de apagar, o Portal informa se a conta foi usada alguma vez (`account-origin`); usada, nada é apagado. Na transação, a conta tem de ser a mesma, na mesma versão. Depois, o próprio Portal encerra a conta, que ficou sem turma (`account-close`). Se não conseguir, o aluno continua excluído e a tela avisa para encerrar no Painel do Aluno.
+- **O que apaga:** o aluno e a posição dele na turma, sob o mesmo bloqueio do ano das outras decisões, com publicação para o Portal.
+- **Registro:** uma decisão `remove-student` com quem, quando e o quê (nome, turma, número, ids) em `before_state`, sem referência ao aluno apagado.
+- **Relação:** a linha precisa sair da Relação antes; se continuar, o aluno volta na próxima leitura.

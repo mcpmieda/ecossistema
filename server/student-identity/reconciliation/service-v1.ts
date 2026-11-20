@@ -22,6 +22,7 @@ import { prepareReportV1, preparedResponseV1 } from './prepare-v1';
 import { applyReportV1 } from './apply-v1';
 import { automaticReportV1, catalogV1, detailV1, listV1, pendingCountV1 } from './queries-v1';
 import { decideV1 } from './decisions-v1';
+import { removeStudentV1 } from './remove-v1';
 
 type PrepareRequestV1 = Extract<ReconciliationRequestV1, { operation: 'prepare' }>;
 
@@ -167,7 +168,14 @@ export class StudentReconciliationServiceV1 {
       work(tx, await contextV1(tx, request.academicYear, true)),
     );
   }
-  async execute(input: unknown): Promise<ReconciliationResponseV1> {
+  /**
+   * `accountVersion`: for "remove-student", the version of the student's Portal account that the
+   * caller found never used (null: no open account).
+   */
+  async execute(
+    input: unknown,
+    options: { readonly accountVersion?: number | null } = {},
+  ): Promise<ReconciliationResponseV1> {
     const parsed = reconciliationRequestV1.safeParse(input);
     if (!parsed.success) return { contractVersion: 1, state: 'invalid-request' };
     const request = parsed.data;
@@ -198,6 +206,14 @@ export class StudentReconciliationServiceV1 {
             return stageBatchV1(tx, this.actorId, request, context);
           case 'activate-pending':
             return activatePendingV1(tx, this.actorId, request, context);
+          case 'remove-student':
+            return removeStudentV1(
+              tx,
+              this.actorId,
+              request,
+              context,
+              options.accountVersion ?? null,
+            );
         }
       });
     } catch (error) {
@@ -205,7 +221,9 @@ export class StudentReconciliationServiceV1 {
         return {
           contractVersion: 1,
           state: error.state,
-          reason: error.state === 'conflict' ? 'Dados alterados. Confira novamente.' : undefined,
+          reason:
+            error.reason ??
+            (error.state === 'conflict' ? 'Dados alterados. Confira novamente.' : undefined),
         };
       throw error;
     }

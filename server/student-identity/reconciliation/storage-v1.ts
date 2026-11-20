@@ -16,7 +16,11 @@ import type {
 export type TxV1 = GradebookPostgresTransactionV1;
 export type DbRowV1 = Record<string, unknown>;
 export class ReconciliationConflictV1 extends Error {
-  constructor(public readonly state: 'conflict' | 'expired' | 'invalid-request' = 'conflict') {
+  constructor(
+    public readonly state: 'conflict' | 'expired' | 'invalid-request' = 'conflict',
+    /** What the screen says instead of the general "Dados alterados" (a conflict only). */
+    public readonly reason?: string,
+  ) {
     super('reconciliation-conflict');
   }
 }
