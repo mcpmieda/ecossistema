@@ -59,7 +59,7 @@ export type RemovableStudentV1 = {
 };
 
 /**
- * The student, when nothing keeps it; null when something does, when it does not exist, or when a
+ * The student, when the Relação no longer has it and nothing keeps it; null when something does, when it does not exist, or when a
  * relation cannot be read (what cannot be checked is never removed). A relation missing from the
  * database (a schema not installed) holds nothing.
  */
@@ -88,6 +88,8 @@ export async function removableStudentV1(
   const present = new Set(found.filter((row) => boolV1(row.present)).map((row) => row.relation));
   // Relation and column names come from the fixed lists above, never from a request.
   const checks = [
+    // Still in the Relação: the line has to be deleted there first (gradebook-simplified 0021).
+    'EXISTS(SELECT 1 FROM gradebook.vinculo WHERE aluno_id=$1 AND NOT fora_da_relacao)',
     ...BY_STUDENT_ID_V1.filter((relation) => present.has(relation)).map(
       (relation) => `EXISTS(SELECT 1 FROM ${relation} WHERE aluno_id=$1)`,
     ),
@@ -95,7 +97,7 @@ export async function removableStudentV1(
       ([relation, column]) => `EXISTS(SELECT 1 FROM ${relation} WHERE ${column}=$2::uuid)`,
     ),
   ];
-  const [kept] = await tx.query(`SELECT ${checks.join(' OR ') || 'false'} AS kept`, [
+  const [kept] = await tx.query(`SELECT ${checks.join(' OR ')} AS kept`, [
     Number(student.id),
     studentUid,
   ]);

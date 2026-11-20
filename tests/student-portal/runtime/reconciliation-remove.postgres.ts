@@ -113,7 +113,13 @@ async function removal(id: number, accountId: string | null = null) {
   };
 }
 
-it('only a student with nothing in the system is offered for removal', async () => {
+it('only a student out of the Relação with nothing in the system is offered for removal', async () => {
+  // Still in the Relação: the line has to be deleted there first.
+  expect(await removable(720001)).toBe(false);
+  // What the next Relação import does once both lines are deleted (relational-import-writer.ts).
+  await owner.unsafe(
+    'UPDATE gradebook.vinculo SET fora_da_relacao=true WHERE aluno_id IN (720001,720002)',
+  );
   expect(await removable(720001)).toBe(true);
   expect(await removable(720002)).toBe(false);
 });

@@ -65,3 +65,7 @@ A #662 restaurou o artefato lógico V2 em PostgreSQL local descartável: 28 rela
 ## 0020 — Excluir aluno lançado por engano (20/11/2026)
 
 `0020_reconciliation_remove_student_v1.sql` aceita a ação `remove-student` em `gradebook.student_reconciliation_decision_v1` (mesmo molde de `0018`): só amplia a lista de ações; sem tabela, coluna ou dado novo. A decisão guarda o aluno removido em `before_state`, com `student_uid` nulo. Aplicada em produção em 20/11/2026, 15:13 UTC (CLI do Supabase).
+
+## 0021 — Aluno fora da Relação (20/11/2026)
+
+`0021_vinculo_fora_da_relacao_v1.sql` acrescenta `gradebook.vinculo.fora_da_relacao` (boolean, padrão `false`, sem reescrever a tabela). A leitura da Relação marca as posições das suas turmas que o arquivo não tem mais e desmarca quando a linha volta; só a Conciliação lê a marca, para oferecer **Excluir aluno lançado por engano** apenas a quem saiu da Relação. Grants e RLS de `vinculo` cobrem a coluna. Aplicada em produção em 20/11/2026, 16:19 UTC (CLI do Supabase), antes do código que a usa.

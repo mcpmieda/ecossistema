@@ -750,4 +750,31 @@ describe('H1/H2: real V11 idempotency against ordered relational and Portal fact
       reset: before.reset + 1,
     });
   });
+
+  it('marks a line deleted from the Relação without writing anything academic, and clears it when it comes back', async () => {
+    expect((await fixture.execute(relation(1, 3))).response.state).toBe('applied');
+    const outside = async () =>
+      (
+        await fixture.pg.query<{ numero: number }>(
+          'SELECT numero FROM gradebook.vinculo WHERE fora_da_relacao ORDER BY numero',
+        )
+      ).rows.map((row) => row.numero);
+    const revision = await fixture.revision();
+    const withoutThird = relation(1, 3);
+    const deleted = await fixture.execute({
+      ...withoutThird,
+      turmas: withoutThird.turmas.map((turma) => ({
+        ...turma,
+        alunos: turma.alunos.filter(([numero]) => numero !== 3),
+      })),
+    });
+    expect(deleted.response).toMatchObject({
+      state: 'no-changes',
+      summary: { committedWrites: { total: 0 } },
+    });
+    expect(await outside()).toEqual([3]);
+    expect(await fixture.revision()).toEqual(revision);
+    expect((await fixture.execute(relation(1, 3))).response.state).toBe('no-changes');
+    expect(await outside()).toEqual([]);
+  });
 });

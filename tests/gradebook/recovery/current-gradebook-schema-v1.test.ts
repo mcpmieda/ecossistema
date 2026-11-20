@@ -19,7 +19,7 @@ describe('current Gradebook recovery catalog V1', () => {
   it('pins the current physical catalog measured by the native PostgreSQL gate', () => {
     expect(GRADEBOOK_CURRENT_CATALOG_V1).toEqual({
       tables: 29,
-      columns: 245,
+      columns: 246,
       constraints: 217,
       indexes: 69,
       foreignKeys: 51,
