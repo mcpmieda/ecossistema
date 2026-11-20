@@ -23,11 +23,10 @@ A elegibilidade continua independente das notas ausentes nas duas avaliações. 
 | Caminho | Efeito |
 | --- | --- |
 | `resolveSimplifiedTermV1` | Única decisão de elegibilidade, exceção, pontos e cobertura exigível. |
-| `performanceCellV2` e projeção acadêmica relacional | Herda completo/parcial e comparação; matriz, trajetória, anual, Conselho e Relatórios recebem o mesmo estado. Não há estrela decidida no browser. |
+| `performanceCellV2` | Herda completo/parcial e comparação; matriz, trajetória, anual, Conselho e Relatórios recebem o mesmo estado. Não há estrela decidida no browser. |
 | `PerformanceStudentDetailV2` | Usa showParallel do núcleo, que inclui a exceção numérica; mantém os estados granulares existentes, sem reintroduzir OR locais. |
 | `performance-analysis-v3.ts` | Quantitativo considerado consulta os slots exigíveis; não duplica máximo nem pontos da PARA. Avaliações deixam neutras as células dispensadas sem nota; colunas consideram também as exceções numéricas do recorte. |
 | `performance-analytics-v6.ts` | Cobertura inclui PARA efetivamente aplicável. Resumos são omitidos somente sem elegíveis nem notas excepcionais no recorte. Estados, comparabilidade e parciais por estudante/docente seguem a matriz central. |
-| `relational-bulletin-v2.ts` | Novas prévias/materializações omitem PARA somente se não elegível e não registrada; recebem cobertura central. Leitura/reimpressão de snapshots anteriores permanece inalterada. |
 | `AcademicStudentReaderPostgresV1.projectPreparedSourceV2` | Filtra as parciais da mesma edição aprovada pela aplicabilidade efetiva, preservando zero, observado/null e AM/U oficial. REC e autoridade conservam a completude regular preexistente da edição oficial pelo adaptador privado `officialEditionTermV1`. |
 | `scopedSelfV2` → `StudentGradesV1` | O fluxo já projeta a edição aprovada em cada leitura; a tabela recebe a lista filtrada e usa os rótulos granulares existentes. Sem busca de notas atuais, nova publicação ou nova fórmula no React. Desde 27/09/2026 a tela do aluno é `StudentPortalWorkspaceV1` (a tabela foi removida); o teste da #848 abre a disciplina nela. |
 
@@ -48,7 +47,7 @@ Conferência produtiva estritamente agregada e somente leitura da #848 constatou
 Os testes usam exclusivamente fatos e identidades sintéticos, com expectativas atualizadas à BN-DEC-035:
 
 - `performance/parallel-visibility-848.test.ts`: três trimestres, limites, ausência, zero, exceção, cobertura/asteriscos, anual, dimensões, estatísticas e colunas de recorte misto/filtrado.
-- `performance/parallel-visibility-848-sql.test.ts`: leitores PostgreSQL/PGlite reais com migrations canônicas, seis instruções por matriz/detalhe/análise, estado/granularidade, nota excepcional preservada e prévia de Boletim sem escrita em snapshots.
+- `performance/parallel-visibility-848-sql.test.ts`: leitores PostgreSQL/PGlite reais com migrations canônicas, seis instruções por matriz/detalhe/análise, estado/granularidade e nota excepcional preservada.
 - `performance/parallel-visibility-848-ui.test.tsx`: componentes reais Banco/Portal, Não fez/Tirou zero, linha oculta ou excepcional, atualização do mesmo recorte e asterisco vindo do núcleo; nenhum comentário de arredondamento reintroduzido.
 - `student-portal/academic/parallel-visibility-848.test.ts`: edição preparada, imutabilidade, nenhuma consulta atual, versão divergente recusada, AM/U preservadas e limites de acesso/calendário/parciais.
 - `student-portal/academic/approved-recovery-848.test.ts`: reader real preserva REC numérica, N/C, R/R, pendência REC e autoridade sem resolver a PARA corrente; faltas regulares continuam bloqueando. Exercita `scopedSelfV2` com linhas de edição selecionadas sintéticas, autoUpdate desligado, revisão antiga e sem projeção anterior. Autorização e seleção SQL também continuam cobertas por seus gates de integração existentes.

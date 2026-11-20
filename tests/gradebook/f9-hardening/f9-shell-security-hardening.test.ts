@@ -21,7 +21,6 @@ const surfaceRoots = [
   'src/features/gradebook/operational-workspace',
   'src/features/gradebook/audit-workspace',
   'src/features/gradebook/performance',
-  'src/features/gradebook/bulletins',
   'src/features/gradebook/council',
 ] as const;
 
@@ -31,7 +30,6 @@ const academicFrontend = academicFrontendFiles.map(source).join('\n');
 const handlers = [
   'server/gradebook/http/operational-workspace-routes-v1.ts',
   'server/gradebook/http/performance-routes-v1.ts',
-  'server/gradebook/http/bulletin-routes-v1.ts',
   'server/gradebook/http/council-routes-v1.ts',
 ] as const;
 
@@ -49,7 +47,6 @@ describe('F9 — shell, isolamento e code splitting', () => {
     for (const featurePath of [
       'audit-workspace/gradebook-audit-surface',
       'performance/relational-performance-page-v2',
-      'bulletins/relational-bulletin-page-v2',
       'gradebook-council-surface',
     ]) {
       expect(shell).toContain(
@@ -171,11 +168,9 @@ describe('F9 — privacidade, auth e transporte', () => {
     expect(bindingAccess).toBeGreaterThan(providerGate);
   });
 
-  it('não introduz retry automático de decisão do Conselho nem emissão de Boletim', () => {
+  it('não introduz retry automático de decisão do Conselho', () => {
     const council = source('src/features/gradebook/council/relational-council-page-v3.tsx');
-    const bulletins = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
 
     expect(council).not.toMatch(/setInterval|retryDecision|retryEmit|autoRetry/u);
-    expect(bulletins).not.toMatch(/setInterval|retryEmit|autoRetry/u);
   });
 });

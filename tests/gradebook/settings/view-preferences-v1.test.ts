@@ -129,7 +129,6 @@ describe('view preferences v1', () => {
     for (const key of [
       'gradebook-performance-view',
       'gradebook-performance-filters:2026',
-      'gradebook-bulletins-view',
       'gradebook-council-view',
       'platform-address',
     ])

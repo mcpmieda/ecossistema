@@ -26,11 +26,11 @@ storage:
   current_official_storage: supabase-postgresql-via-cloudflare-hyperdrive
   binding: PROD_DB
   schema: gradebook
-  total_table_count: 31
+  total_table_count: 30
   core_table_count: 19
   diagnostic_table_count: 1
   council_v3_table_count: 8
-  relational_bulletin_table_count: 1
+  relational_bulletin_table_count: 0
   diagnostic_treatment_table_count: 1
   student_identity_table_count: 1
   import_transport: canonical-v9
@@ -187,9 +187,9 @@ historical_checkpoint_668:
     core_table_count: 19
     diagnostic_table_count: 1
     council_v3_table_count: 8
-    relational_bulletin_table_count: 1
+    relational_bulletin_table_count: 0
     baseline_pre_council_table_count: 20
-    total_table_count: 29
+    total_table_count: 28
     column_count: 227
     structural_constraint_count: 203
     index_count: 62
@@ -216,9 +216,7 @@ historical_checkpoint_668:
     council_v3_migration: applied-and-postflight-verified-2026-09-11
     council_v3_new_rows_after_migration: 0
     council_v3_acl: exact-backend-least-privilege-public-zero
-    relational_bulletin_snapshot_migration: applied-and-postflight-verified-2026-09-11
-    relational_bulletin_snapshot_rows_after_migration: 0
-    relational_bulletin_snapshot_acl: select-insert-backend-only-public-and-clients-zero
+    relational_bulletin_snapshot_migration: dropped-by-0022-2026-11-20-boletins-tab-removed-owner-request
     pre_migration_copy: logical-export-28-tables-12-sequences-120879-rows-sha256-562e9ac562294db560c0bface1e2ef1b392c7de7d6336bb351d2018cafcdeb4c
 
   runtime:
@@ -260,20 +258,18 @@ historical_checkpoint_668:
     relational_council_vote_storage: favoraveis-and-contrarios-only-presentes-derived
     relational_council_director_tie_break: outside-system
     relational_council_lifecycle: session-cas-idempotency-history-close-snapshot-justified-reopen
-    relational_bulletins_v2: integrated-pr-655-deploy-263-authenticated-read-only-smoke-success
-    relational_bulletins_authority: imported-am-u-official-native-calculation-descriptive
-    relational_bulletins_durability: append-only-snapshot-cas-idempotency-history-reprint
+    relational_bulletins_v2: removed-2026-11-20-owner-request-to-rebuild-simpler
     relational_reports_v2: integrated-pr-657-deploy-264-authenticated-read-only-smoke-success
     relational_reports_authority: read-only-composition-of-current-relational-contracts
     relational_reports_sources:
-      [performance-v3-v4, council-v3, current-import-diagnostics, bulletins-v2-snapshots]
+      [performance-v3-v4, council-v3, current-import-diagnostics]
     relational_current_audit_v2: integrated-pr-659-deploy-265-authenticated-read-only-smoke-success
     relational_current_audit_source: current-import-diagnostics-2026
     relational_current_audit_writes: none
     relational_current_audit_legacy_workspace: dedicated-ui-and-http-retired-pr-665-core-retained-for-reports-v1
     relational_current_audit_human_treatment_history: pending-explicit-contract-and-durability
     shared_year_consumers:
-      [centers-v2, current-audit-v2, performance-v2-v3-v4, bulletins-v2, reports-v2, council-v3]
+      [centers-v2, current-audit-v2, performance-v2-v3-v4, reports-v2, council-v3]
     shared_year_legacy_mapping: unique-exact-2026-catalog-label-or-fail-closed
     import_source_year_reinterpreted_by_navigation: false
     relational_teacher_configuration: integrated-pr-661-deploy-266-authenticated-read-only-smoke-success
@@ -346,7 +342,7 @@ historical_checkpoint_668:
     public_academic_payloads_and_credentials: forbidden
     source_document_mutation: forbidden
     production_academic_writes_in_this_delivery: forbidden
-    production_schema_extension: council-v3-and-bulletin-v2-applied-postflight-verified
+    production_schema_extension: council-v3-applied-postflight-verified-bulletin-v2-dropped-0022
     automatic_authority_activation: forbidden
     authorization_context: server-only
     concurrency_and_atomicity: required

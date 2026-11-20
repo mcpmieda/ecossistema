@@ -95,10 +95,8 @@ A #1079 retira a execucao HTTP V1/V2, nao todos os tipos que essas versoes compo
 
 | Contrato | Estado | Consumidores |
 | --- | --- | --- |
-| `bulletin-transport-v1.ts` / `bulletin-contract-v1.ts` | COMPATIBILITY/Core | #1079: transporte V1 retorna 410; apresentacao/PDF reutilizados preservados |
-| `relational-bulletin-v2.ts` | **CURRENT** | UI, HTTP e snapshot PostgreSQL de Boletins |
-
-Snapshots já emitidos continuam históricos e não são reinterpretados por troca de contrato.
+| `bulletin-transport-v1.ts` / `bulletin-contract-v1.ts` | REMOVIDO | retirados em 07/11/2026 |
+| `relational-bulletin-v2.ts` | REMOVIDO | aba Boletins do Banco de Notas removida em 20/11/2026 (pedido do responsável), com HTTP e `gradebook.boletim_snapshot` (migration `0022`); será refeita |
 
 ## 9. Relatórios
 

@@ -8,7 +8,6 @@ import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createRelationalCouncilV3 } from '../../../server/gradebook/application/council/relational-council-v3';
-import { createRelationalAcademicProjectionServiceV1 } from '../../../server/gradebook/application/results/relational-academic-projection-v1';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
 import { createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
 import {
@@ -17,7 +16,6 @@ import {
   type GradebookPostgresQuerySqlV1,
   type GradebookPostgresSqlV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import { resolveSimplifiedAnnualOutcomeV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 import type {
   GradebookNotesImportRequestV9,
   GradebookRelationImportRequestV9,
@@ -195,27 +193,6 @@ describe('materialização multi-ano e R/R terminal', () => {
         )
       ).rows,
     ).toEqual([{ rec_rr_mask: 1, rec_nc_mask: 0, rec1: null }]);
-
-    const projection = await createRelationalAcademicProjectionServiceV1(database)
-      .projectMany([
-        {
-          ofertaId: pair.oferta_id,
-          alunoId: pair.aluno_id,
-        },
-      ])
-      .then((values) => values[0]!);
-    expect(projection.recovery.classification).toBe('failed-repeat');
-    expect(
-      resolveSimplifiedAnnualOutcomeV1({
-        status: null,
-        components: [projection.recovery],
-        maxCouncilComponents: 2,
-      }),
-    ).toMatchObject({
-      visibleResult: 'REPROVADO',
-      councilEligibility: 'not-eligible',
-      reasons: ['component:failed-repeat'],
-    });
 
     const classId = (
       await pg.query<{ id: number }>(

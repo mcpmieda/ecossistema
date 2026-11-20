@@ -41,13 +41,6 @@ export const notesSections: NotesSection[] = [
     searchTerms: 'desempenho performance resultado quantitativo qualitativo avaliações turma',
   },
   {
-    id: 'bulletins',
-    label: 'Boletins',
-    description: 'Abrir preview, emissão, PDF, histórico e reimpressão de boletins.',
-    href: notesAreaHref('bulletins'),
-    searchTerms: 'boletim boletins preview emissão pdf histórico reimpressão',
-  },
-  {
     id: 'council',
     label: 'Conselho',
     description: 'Abrir fila, decisões e fechamento institucional do Conselho de Classe.',

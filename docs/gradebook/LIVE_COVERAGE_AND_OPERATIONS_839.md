@@ -10,7 +10,6 @@ Inventário de 17/09/2026. Código examinado: main 322730f8 e alterações das P
 | Conselho, incluindo votos/justificativa | relational-council-v3 → recordResetWriteV1, causa council | Admin e student/gradebook, inclusive council com affects_academic=false |
 | Diagnóstico de importação | import-diagnostics-snapshot-v1, causa diagnostics | Admin/gradebook |
 | Tratamento de diagnóstico | import-diagnostic-treatment-v1, causa audit-treatment | Admin/gradebook |
-| Emissão de boletim | relational-bulletin-snapshot-v2, causa bulletin-snapshot | Admin/gradebook; não reescreve snapshots oficiais anteriores |
 | Nomes de avaliações | assessment-names-v1, causa academic-policy | Admin e student/gradebook |
 | Nascimento, contas, QR, bloqueios, revogação, configurações e publicação | Tipos enumerados em audit_event → enqueue_portal_live_event_v1 | Admin e student/portal; destinatários filtrados no servidor |
 

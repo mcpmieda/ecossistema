@@ -18,17 +18,17 @@ const root = process.cwd();
 describe('current Gradebook recovery catalog V1', () => {
   it('pins the current physical catalog measured by the native PostgreSQL gate', () => {
     expect(GRADEBOOK_CURRENT_CATALOG_V1).toEqual({
-      tables: 29,
-      columns: 246,
-      constraints: 217,
-      indexes: 69,
-      foreignKeys: 51,
+      tables: 28,
+      columns: 233,
+      constraints: 203,
+      indexes: 65,
+      foreignKeys: 48,
       sequences: 13,
       functions: 4,
       triggers: 3,
     });
-    expect(GRADEBOOK_CURRENT_TABLES_V1).toHaveLength(29);
-    expect(new Set(GRADEBOOK_CURRENT_TABLES_V1).size).toBe(29);
+    expect(GRADEBOOK_CURRENT_TABLES_V1).toHaveLength(28);
+    expect(new Set(GRADEBOOK_CURRENT_TABLES_V1).size).toBe(28);
     expect(GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1).toHaveLength(13);
     expect(new Set(GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1).size).toBe(13);
   });

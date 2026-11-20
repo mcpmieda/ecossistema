@@ -64,7 +64,6 @@ type GradebookAclV1 = {
 const READ_DELETE_ONLY_TABLES_V1 = new Set<string>(['instrumento_historico', 'nota_historico']);
 
 const APPEND_DELETE_ONLY_TABLES_V1 = new Set<string>([
-  'boletim_snapshot',
   'conselho_decisao_comando',
   'conselho_fechamento',
   'conselho_fechamento_item',

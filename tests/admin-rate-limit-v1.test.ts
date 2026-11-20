@@ -227,9 +227,6 @@ describe('Pages ADM quota boundary', () => {
         operation: 'decision',
       }),
     ).toBe('write');
-    expect(
-      classifyAdminOperationV1('/api/gradebook/bulletins', 'POST', { operation: 'emit-batch' }),
-    ).toBe('export');
     expect(classifyAdminOperationV1('/api/gradebook/import-diagnostics', 'GET', {})).toBe('read');
     expect(classifyAdminOperationV1('/api/gradebook/import-diagnostics', 'POST', {})).toBe(
       'import',

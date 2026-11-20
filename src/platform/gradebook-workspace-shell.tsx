@@ -33,12 +33,6 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
     description: 'Explore as lentes oficiais de desempenho sem recalcular resultados na interface.',
   },
   {
-    id: 'bulletins',
-    label: 'Boletins',
-    description:
-      'Consulte preview, emissão, PDF e histórico baseados no modelo canônico existente.',
-  },
-  {
     id: 'council',
     label: 'Conselho',
     description:
@@ -107,12 +101,6 @@ const PerformancePage = preloadedSectionV1<{ isActive?: boolean }>(() =>
   ),
 );
 
-const BulletinPage = preloadedSectionV1(() =>
-  import('../features/gradebook/bulletins/relational-bulletin-page-v2').then(
-    (module) => module.RelationalBulletinPageV2,
-  ),
-);
-
 const CouncilWorkspaceSurface = preloadedSectionV1(() =>
   import('./gradebook-council-surface').then((module) => module.GradebookCouncilSurface),
 );
@@ -135,7 +123,6 @@ if (typeof window !== 'undefined') {
   if (opened === 'onedrive') OneDriveSyncPage.preload();
   else if (opened === 'audit') GradebookAuditSurface.preload();
   else if (opened === 'performance') PerformancePage.preload();
-  else if (opened === 'bulletins') BulletinPage.preload();
   else if (opened === 'council') CouncilWorkspaceSurface.preload();
   else if (opened === 'settings') SettingsPage.preload();
 }
@@ -143,7 +130,6 @@ if (typeof window !== 'undefined') {
 const WORKSPACE_SECTIONS_V1 = [
   GradebookAuditSurface,
   PerformancePage,
-  BulletinPage,
   CouncilWorkspaceSurface,
   SettingsPage,
   OneDriveSyncPage,
@@ -154,7 +140,6 @@ const SURFACE_COMPONENTS: Record<
 > = {
   audit: GradebookAuditSurface,
   performance: PerformancePage,
-  bulletins: BulletinPage,
   council: CouncilWorkspaceSurface,
   settings: SettingsPage,
   onedrive: OneDriveSyncPage,

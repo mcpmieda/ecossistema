@@ -15,30 +15,12 @@ let pg: PGlite;
 let database: GradebookPostgresDatabaseV1;
 let failOnNoteDelete = false;
 
-function snapshotJson(year: number, id: number) {
-  return JSON.stringify({
-    snapshotId: `11111111-1111-4111-8111-${String(id).padStart(12, '0')}`,
-    snapshotVersion: 1,
-    dataVersion: `synthetic-${year}`,
-    model: {
-      year,
-      classGroup: { id },
-      student: { id },
-      period: { kind: 'annual' },
-    },
-    presentation: { detail: 'summary' },
-  });
-}
-
 function sqlLiteral(value: string | number): string {
   return typeof value === 'number' ? String(value) : `'${value.replaceAll("'", "''")}'`;
 }
 
 async function seedYear(year: number, id: number) {
   const hash = id === 1 ? 'a' : 'b';
-  const snapshotId = `11111111-1111-4111-8111-${String(id).padStart(12, '0')}`;
-  const period = JSON.stringify({ kind: 'annual' });
-  const presentation = JSON.stringify({ detail: 'summary' });
   let sql = `INSERT INTO gradebook.ano_letivo VALUES ($1,60000,2);
      INSERT INTO gradebook.aluno (id,ano,nome) VALUES ($2,$1,$3);
      INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES ($2,$1,$4,$5,6,'M');
@@ -91,12 +73,7 @@ async function seedYear(year: number, id: number) {
      INSERT INTO gradebook.conselho_fechamento_item
        (fechamento_id,aluno_id,elegivel,motivo_elegibilidade,decisao,favoraveis,contrarios)
        VALUES ($2,$2,true,'ELEGIVEL',1,3,1);
-     UPDATE gradebook.conselho_sessao SET fechamento_atual_id=$2 WHERE ano=$1;
-     INSERT INTO gradebook.boletim_snapshot
-       (snapshot_id,versao,chave_serie,ano,turma_id,aluno_id,emitido_em,emitido_por_oid,
-        data_version,periodo_json,detalhe,apresentacao_json,snapshot_json)
-       VALUES ($18,1,$19,$1,$2,$2,transaction_timestamp(),'synthetic-actor',$20,$21::jsonb,
-        'summary',$22::jsonb,$23::jsonb)`;
+     UPDATE gradebook.conselho_sessao SET fechamento_atual_id=$2 WHERE ano=$1;`;
   const values: readonly (string | number)[] = [
     year,
     id,
@@ -115,12 +92,6 @@ async function seedYear(year: number, id: number) {
     `council:vote:${id}`,
     `council:decision:${id}`,
     `council:close:${id}`,
-    snapshotId,
-    `bulletin:synthetic:${id}`,
-    `synthetic-${year}`,
-    period,
-    presentation,
-    snapshotJson(year, id),
   ];
   for (let index = values.length - 1; index >= 0; index -= 1) {
     sql = sql.replaceAll(`$${String(index + 1)}`, sqlLiteral(values[index]!));
@@ -139,6 +110,8 @@ beforeAll(async () => {
     '0007_multiyear_rr_v1.sql',
     '0009_granular_observations_names_v1.sql',
     '0019_import_diagnostics_origin_v1.sql',
+    '0021_vinculo_fora_da_relacao_v1.sql',
+    '0022_drop_boletim_snapshot_v1.sql',
   ]) {
     await pg.exec(readFileSync(`migrations/gradebook-simplified/${file}`, 'utf8'));
   }
@@ -325,7 +298,7 @@ describe('year reset V1 PostgreSQL service', () => {
 
     const current = await preview(2025);
     if (current.state !== 'ready' || current.operation !== 'preview') throw new Error('preview');
-    expect(current.counts.totalRows).toBeGreaterThan(29);
+    expect(current.counts.totalRows).toBeGreaterThan(28);
     const untouchedBefore = await preview(2026);
     const untouchedTechnicalBefore = await technicalState(2026);
     const result = await createYearResetServiceV1(database, ACTOR).execute({

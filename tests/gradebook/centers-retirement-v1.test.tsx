@@ -128,7 +128,7 @@ describe('retirada da superfície Centrais', () => {
     const first = screen.getByRole('tab', { name: 'Desempenho' });
     first.focus();
     fireEvent.keyDown(first, { key: 'ArrowRight' });
-    const next = screen.getByRole('tab', { name: 'Boletins' });
+    const next = screen.getByRole('tab', { name: 'Conselho' });
     await waitFor(() => expect(document.activeElement).toBe(next));
     expect(next.getAttribute('aria-selected')).toBe('true');
     fireEvent.keyDown(next, { key: 'End' });

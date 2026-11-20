@@ -2,7 +2,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { onRequest as importDiagnosticsOnRequest } from '../../../functions/api/gradebook/import-diagnostics';
 import type { RuntimeEnv } from '../../../server/env';
-import { createRelationalBulletinServiceV2 } from '../../../server/gradebook/application/bulletins/relational-bulletin-v2';
 import { createRelationalCouncilV3 } from '../../../server/gradebook/application/council/relational-council-v3';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
@@ -11,7 +10,6 @@ import {
   type GradebookPostgresDatabaseV1,
   type GradebookPostgresScalarV1,
 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2';
 import { assertDisposableRecoveryTargetV2 } from '../../../server/gradebook/recovery/logical-backup-recovery-v2';
 import type {
   RelationalCouncilRequestV3,
@@ -164,22 +162,14 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     await Promise.all([databaseA?.close(), databaseB?.close()]);
   });
 
-  it('serves recovered catalog, T2 versus T1, audit, Council and empty bulletin history', async () => {
-    const bulletins = createRelationalBulletinServiceV2({
-      database: databaseA,
-      snapshots: createRelationalBulletinSnapshotRepositoryV2(databaseA),
-    });
-    const actor = { issuerOid: ACTOR_ID };
-    const catalog = await bulletins.execute(
-      { contractVersion: 2, operation: 'catalog', year: 2026 },
-      actor,
+  it('serves recovered classes, T2 versus T1, audit and Council', async () => {
+    const [firstClass] = await rows(
+      databaseA,
+      'SELECT id FROM gradebook.turma WHERE ano=$1 ORDER BY id LIMIT 1',
+      [2026],
     );
-    expect(catalog.state).toBe('ready');
-    if (catalog.state !== 'ready' || catalog.operation !== 'catalog') {
-      throw new Error('recovery-catalog-not-ready');
-    }
-    expect(catalog.classes.length).toBeGreaterThan(0);
-    const classId = catalog.classes[0]!.id;
+    expect(firstClass).toBeDefined();
+    const classId = Number(firstClass!.id);
 
     const performance = await createPerformanceTermComparisonV4(databaseA).execute({
       transportVersion: 4,
@@ -215,16 +205,6 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
       classId,
     });
     expect(council.state).toBe('ready');
-
-    const history = await bulletins.execute(
-      { contractVersion: 2, operation: 'history', year: 2026, classId },
-      actor,
-    );
-    expect(history.state).toBe('ready');
-    if (history.state !== 'ready' || history.operation !== 'history') {
-      throw new Error('recovery-bulletin-history-not-ready');
-    }
-    expect(history.items).toHaveLength(0);
   }, 120_000);
 
   it('blocks a competing diagnostic replacement and keeps only one complete last commit', async () => {

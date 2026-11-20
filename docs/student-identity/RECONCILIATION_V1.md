@@ -113,7 +113,7 @@ Uma linha do Relatório sem aluno na Relação, que a escola sabe que ficará s�
 
 Apagar a linha de um aluno na Relação não tira o aluno do sistema: a leitura só acrescenta e atualiza. Para um aluno lançado por engano (um teste, uma linha duplicada), a ficha da Conciliação oferece **Excluir aluno lançado por engano**.
 
-- **Quando aparece:** só para quem saiu da Relação (a última leitura da Relação não tem mais a linha: `gradebook.vinculo.fora_da_relacao`, gradebook-simplified 0021) e não tem nada no sistema: nota, fechamento, boletim, Conselho, vínculo ou perfil do Relatório, decisão da Conciliação, frequência, ocorrência ou foto (`server/student-identity/reconciliation/remove-v1.ts`). Uma relação que não pode ser lida impede a exclusão.
+- **Quando aparece:** só para quem saiu da Relação (a última leitura da Relação não tem mais a linha: `gradebook.vinculo.fora_da_relacao`, gradebook-simplified 0021) e não tem nada no sistema: nota, fechamento, Conselho, vínculo ou perfil do Relatório, decisão da Conciliação, frequência, ocorrência ou foto (`server/student-identity/reconciliation/remove-v1.ts`). Uma relação que não pode ser lida impede a exclusão.
 - **Conta do Portal:** a conta aponta para o aluno (`student_portal_account_gradebook_fk_v1`) e só pode ser encerrada quando o aluno está sem turma. Por isso a exclusão tem duas etapas na Conciliação, com o Portal no meio:
   1. o Portal informa se a conta foi usada alguma vez (`account-origin`); usada, nada é apagado;
   2. **turma:** na transação, a conta tem de ser a mesma, na mesma versão; apaga a posição do aluno na turma e registra a decisão;

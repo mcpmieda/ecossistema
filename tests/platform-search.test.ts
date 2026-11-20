@@ -66,7 +66,6 @@ describe('platform search model', () => {
       'core:content.notes',
       'notes:importacao',
       'notes:performance',
-      'notes:bulletins',
       'notes:council',
       'notes:audit',
       'notes:onedrive',

@@ -72,7 +72,7 @@ Atual e referência devem nascer do mesmo snapshot PostgreSQL read-only/repeatab
 
 Professor, componente e oferta de 2026 são reconhecidos e materializados pelas planilhas importadas. Não criar cadastro manual paralelo, nomes alternativos, confirmação, vigência ou versões ausentes do schema simplificado. A Central de professor é a configuração docente relacional: consulta as ofertas reconhecidas e orienta correções pela fonte/importação. O transporte `maintenanceVersion: 1`, próprio do modelo antigo, deixa de ser servido antes de instanciar aquele runtime; os arquivos exclusivos sem consumidor foram retirados após prova estática de dependência, preservados pelo histórico Git.
 
-A ordem de apresentação dos componentes é a observada em `CONFIGURAÇÃO`/`CONFIGURAÇÕES!H3:I16`: P, M, H, G, C, A, RL, RD, F, ET, I e CT. Desempenho, Boletins, resultados anuais e Centrais usam a mesma função. Componente desconhecido fica depois, em ordem estável, sem sigla/posição inventada. Ordem não integra a identidade acadêmica e não autoriza arraste manual de colunas.
+A ordem de apresentação dos componentes é a observada em `CONFIGURAÇÃO`/`CONFIGURAÇÕES!H3:I16`: P, M, H, G, C, A, RL, RD, F, ET, I e CT. Desempenho, Boletins (aba removida em 20/11/2026), resultados anuais e Centrais usam a mesma função. Componente desconhecido fica depois, em ordem estável, sem sigla/posição inventada. Ordem não integra a identidade acadêmica e não autoriza arraste manual de colunas.
 
 Esta decisão não altera importador, dados/schema de produção, cálculo, regras ou autoridade oficial. Uma futura edição cadastral dentro da aplicação exigiria contrato, durabilidade e decisão próprios; não pode reaproveitar silenciosamente o modelo V1.
 
@@ -136,7 +136,7 @@ A ACL foi aplicada em produção como `year_reset_acl_v1`, versão `202609120048
 
 Célula efetivamente lida em branco significa atividade não realizada; zero digitado ou resultado numérico zero de fórmula significa zero acadêmico. Indisponível, instrumento inativo e fonte ainda não observada não significam “Não fez”. O marcador legado 0,1 continua zero; AM/REC/U não recebem a nova conversão. Linha atual com nota NULL e flags históricos registram a observação sem reconstruir fatos antigos descartados. O produtor sem a nova identificação preserva a compatibilidade. Não há backfill automático; reimportação é necessária quando a informação anterior foi perdida.
 
-A interface granular do Banco e do Portal apresenta “Não fez” e “Tirou zero”, sem substituir a nota trimestral, a autoridade imported-source ou decisões humanas. O cadastro Nomear avaliações define seis nomes por ano/trimestre/AV1–2, com CAS, coordenação e evento transacional. Os nomes são apresentação, nunca identidade nem nova fórmula; podem atualizar rótulos já publicados sem trocar os resultados. Boletins emitidos mantêm seu snapshot. Autosave de nascimento continua sendo uma escrita autorizada, validada e rastreável; simplificação visual não elimina as confirmações de operações críticas.
+A interface granular do Banco e do Portal apresenta “Não fez” e “Tirou zero”, sem substituir a nota trimestral, a autoridade imported-source ou decisões humanas. O cadastro Nomear avaliações define seis nomes por ano/trimestre/AV1–2, com CAS, coordenação e evento transacional. Os nomes são apresentação, nunca identidade nem nova fórmula; podem atualizar rótulos já publicados sem trocar os resultados. Boletins emitidos mantêm seu snapshot (aba removida em 20/11/2026). Autosave de nascimento continua sendo uma escrita autorizada, validada e rastreável; simplificação visual não elimina as confirmações de operações críticas.
 
 A entrega inclui as migrações aditivas mínimas descritas em [STUDENT_EXPERIENCE_817.md](STUDENT_EXPERIENCE_817.md), sem reset/reimportação/backfill produtivo durante desenvolvimento. Gates de integração/publicação permanecem BN-DEC-023; DDL e verificação produtiva devem constar separadamente no checkpoint. Não autoriza migração destrutiva, mudança de ACL/identidade/secrets ou alteração de regras acadêmicas fora dos slots explicitamente pedidos.
 
@@ -172,7 +172,7 @@ Nas listas individuais, a PARA só aparece quando `parallelApplicable === true` 
 
 A PARA integra `coverage.requiredSlots` somente quando o instrumento existe no trimestre e o aluno é elegível. Valor nulo mantém o instrumento pendente; qualquer valor numérico, inclusive zero e nota sem ganho, resolve esse instrumento. PARA não elegível não cria pendência. Os asteriscos, estado parcial e consumidores de cobertura devem seguir a saída do núcleo; não apagar ausências em outras avaliações/atividades, inventar instrumento inexistente ou transformar período inteiramente vazio em nota zero.
 
-A matriz compartilhada de avaliações pode manter a coluna PARA quando há elegíveis no recorte visível, mas não revela valor ou “Não fez” nas células não elegíveis. Sem elegíveis, a coluna e o resumo de instrumento são omitidos. Resultado, dimensão quantitativa considerada, estatísticas, comparações e novas prévias de Boletim reutilizam a cobertura aplicável, sem fórmula paralela na UI.
+A matriz compartilhada de avaliações pode manter a coluna PARA quando há elegíveis no recorte visível, mas não revela valor ou “Não fez” nas células não elegíveis. Sem elegíveis, a coluna e o resumo de instrumento são omitidos. Resultado, dimensão quantitativa considerada, estatísticas, comparações e novas prévias de Boletim (aba removida em 20/11/2026) reutilizam a cobertura aplicável, sem fórmula paralela na UI.
 
 O Portal aplica o filtro aos fatos da edição aprovada, sem consultar notas novas para substituir uma publicação anterior. Notas oficiais AM/U, calendário, permissões, opção de parciais, autoUpdate, períodos publicados e snapshots já emitidos são preservados. Não há DML/DDL, reimportação ou republicação forçada nesta entrega. A orientação #846 permanece: não acrescentar comentários explicativos às telas. Mapa de consumidores e regressões em [PARALLEL_VISIBILITY_848.md](PARALLEL_VISIBILITY_848.md); revisão, CI e deploy seguem BN-DEC-023.
 
@@ -271,7 +271,7 @@ JSON explicito, CAS, mesma transacao fisica, isolamento, locks, diagnosticos e
 normalizacao de saida permanecem. O binding legado pode ser reconhecido como
 entrada rejeitada, nunca consultado.
 
-Workspace V2, Performance V2-V6 aditivo, Boletins V2/PDF, Relatorios V2,
+Workspace V2, Performance V2-V6 aditivo, Boletins V2/PDF (aba removida em 20/11/2026), Relatorios V2,
 Conselho V3 e importacao V9/V10/V11 permanecem. Sem DDL/DML remoto, schema,
 ACL/RLS, infraestrutura ou mudanca academica. Aceite exige testes direcionados
 e de mutacao, revisao independente, CI/gates do head final, merge commit e
@@ -287,7 +287,7 @@ Consequências aceitas pelo responsável:
 
 - Desempenho: resultados parciais entram em médias, trajetória, comparação entre trimestres, dimensões, participação e atenção recorrente. Um período sem lançamento algum vale zero, e o painel se corrige à medida que as notas entram.
 - Resultado anual e recuperação: são calculados o ano todo; aluno com trimestre em branco entra na população de recuperação.
-- Boletins: a nota calculada do trimestre é sempre emitida; o motivo `incomplete-calculation` deixa de existir. Demais bloqueios (AM oficial ausente, ano em andamento, recuperação pendente) permanecem.
+- Boletins (aba removida em 20/11/2026): a nota calculada do trimestre é sempre emitida; o motivo `incomplete-calculation` deixa de existir. Demais bloqueios (AM oficial ausente, ano em andamento, recuperação pendente) permanecem.
 - Portal do Aluno: a edição aprovada usa a mesma cobertura; a autoridade final continua exigindo concordância com AM/U da fonte.
 - Conselho: a elegibilidade segue o resultado anual calculado.
 
@@ -307,7 +307,7 @@ Contrato: nenhum campo de transporte foi acrescentado ou removido. O resumo de `
 
 `POST /api/gradebook/reports` permanece somente como tombstone: origem oficial, método, autenticação e capacidade `gradebook.persistence.admin` são exigidos; requisição autorizada recebe HTTP 410 `{ state: 'retired' }` com no-store. Não interpreta o corpo, acessa banco/bindings ou depende de limiter externo. Essa exceção é deliberada e restrita ao tombstone; guards/limiters das operações vigentes permanecem. URLs antigas da aba são normalizadas para Importação sem nova entrada no histórico.
 
-Desempenho/PDF docente, Boletins/snapshots, Conselho V3, Importação, Auditoria Atual e seus contratos/serviços compartilhados permanecem. O ensaio de recuperação exercita o GET vigente de `import-diagnostics` no PostgreSQL descartável, aceitando um conjunto recuperado legitimamente vazio; não restaura o adapter exclusivo de Reports.
+Desempenho/PDF docente, Boletins/snapshots (aba removida em 20/11/2026), Conselho V3, Importação, Auditoria Atual e seus contratos/serviços compartilhados permanecem. O ensaio de recuperação exercita o GET vigente de `import-diagnostics` no PostgreSQL descartável, aceitando um conjunto recuperado legitimamente vazio; não restaura o adapter exclusivo de Reports.
 
 Sem alteração acadêmica, DDL/DML produtivo, exclusão de migrations aplicadas, backups/histórico, contas, credenciais ou infraestrutura. A PR #1268 e a proposta #1269 ficam fora do escopo. CI/gates no head final, merge commit normal e checks oficiais pós-merge continuam obrigatórios; integração/publicação não comprovam validação real autenticada. Inventário e limites em [REPORTS_RETIREMENT_20261010.md](REPORTS_RETIREMENT_20261010.md); SHAs e resultados efetivos são registrados na #1271 e na PR #1270.
 
@@ -323,7 +323,7 @@ Sem alteração acadêmica, DDL/DML produtivo, exclusão de migrations aplicadas
 
 **Nascimento.** O nascimento do relatório é o canônico e o PIN usa o ano. **Substitui o cadastro manual do ano de nascimento na aba Alunos:** tela, salvamento e comandos `birth-write`/`birth-batch` deixam de gravar. Nascimento e PIN dependente são atualizados na mesma transação. Quem já tem PIN conserva o acesso pelo dado anterior até ser conciliado; aluno que não está no relatório não recebe novo acesso ao Portal. `account_access_data` permanece somente como leitura de transição; sua retirada física exige decisão e migration próprias.
 
-**Nome.** Uma configuração única escolhe Relação ou Relatório como fonte do nome adotado, com padrão Relatório e uso da outra fonte quando a escolhida não tem o aluno. Vale para Alunos, Portal, Desempenho, Conselho e novos Boletins por `gradebook.student_presentation_v1`. Boletins emitidos seguem seus snapshots. A fonte do nome não participa da comparação de identidade nem altera cálculo acadêmico, notas, AM/U ou posições da Relação.
+**Nome.** Uma configuração única escolhe Relação ou Relatório como fonte do nome adotado, com padrão Relatório e uso da outra fonte quando a escolhida não tem o aluno. Vale para Alunos, Portal, Desempenho, Conselho e novos Boletins (aba removida em 20/11/2026) por `gradebook.student_presentation_v1`. Boletins emitidos seguem seus snapshots. A fonte do nome não participa da comparação de identidade nem altera cálculo acadêmico, notas, AM/U ou posições da Relação.
 
 **Relação.** Um par único de `FOI PARA`/`ESTAVA NO` entre duas turmas, com grafia diferente, é ligado com aviso quando não há conflito ou rejeição. Mais de um par sem correspondência exige escolha explícita, sem pré-seleção, exibindo as grafias originais, turmas, posições e direções. A prévia e o cancelamento não gravam; o servidor vincula a conferência ao ator, ao arquivo e à geração/revisão da base, revalidando todas as pontas sob o lock anual antes da aplicação integral, inclusive dos registros independentes. Esta redação corrige a exigência de alterar a planilha e corresponde à seção 8 da #1269. Evidência de outra pessoa na mesma posição recusa o reuso. **Substitui o reparo automático de identidade dividida do importador V9:** nem a escolha explícita autoriza fundir cadastros existentes, contornar rejeições ou mover notas, fechamentos, Conselho, contas ou fotos entre identidades.
 

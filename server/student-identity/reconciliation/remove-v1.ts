@@ -25,7 +25,6 @@ const BY_STUDENT_ID_V1 = [
   'gradebook.nota_historico',
   'gradebook.fechamento',
   'gradebook.fechamento_historico',
-  'gradebook.boletim_snapshot',
   'gradebook.conselho_decisao',
   'gradebook.conselho_decisao_historico',
   'gradebook.conselho_anterior_historico',

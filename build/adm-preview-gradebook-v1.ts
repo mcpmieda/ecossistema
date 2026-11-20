@@ -69,7 +69,6 @@ const ROUTES = [
   ['year-reset-routes-v1', 'handleYearResetRequestV1'],
   ['operational-workspace-routes-v1', 'handleOperationalWorkspaceRequestV1'],
   ['performance-routes-v1', 'handlePerformanceRequestV1'],
-  ['bulletin-routes-v1', 'handleBulletinRequestV1'],
   ['council-routes-v1', 'handleCouncilWorkspaceRequestV1'],
 ] as const;
 

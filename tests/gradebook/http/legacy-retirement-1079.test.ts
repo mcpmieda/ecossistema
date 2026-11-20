@@ -7,7 +7,6 @@ import { SESSION_COOKIE } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';
 import { handleOperationalWorkspaceRequestV1 } from '../../../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../../../server/gradebook/http/performance-routes-v1';
-import { handleBulletinRequestV1 } from '../../../server/gradebook/http/bulletin-routes-v1';
 import { handleCouncilWorkspaceRequestV1 } from '../../../server/gradebook/http/council-routes-v1';
 import { testEnv } from '../../fixtures';
 
@@ -25,13 +24,6 @@ const cases = [
     path: 'performance',
     handler: handlePerformanceRequestV1,
     body: { transportVersion: 1, operation: 'matrix' },
-    expected: retired,
-  },
-  {
-    name: 'bulletins-v1',
-    path: 'bulletins',
-    handler: handleBulletinRequestV1,
-    body: { contractVersion: 1, operation: 'bootstrap' },
     expected: retired,
   },
   {

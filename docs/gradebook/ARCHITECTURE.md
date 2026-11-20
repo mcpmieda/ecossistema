@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho, Auditoria e Boletins permanecem. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
+Retirada solicitada em 10/10/2026: a candidata remove a aba Relatórios e seu módulo institucional V1/V2. O endpoint antigo responde 410 autenticado; Desempenho/PDF docente, Conselho e Auditoria permanecem; a aba Boletins foi removida depois, em 20/11/2026. [Escopo e consumidores](REPORTS_RETIREMENT_20261010.md). Entrega em branch/PR rascunho, sem integração ou publicação.
 
 Base integrada: `main@265d9ec886e3d9d5ad1f2b6d9e6af0a2ad3f6bce`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655, Relatórios V2 #656/PR #657, Auditoria atual #658/PR #659, configuração docente #660/PR #661, recuperação/contenção #662/PR #663, retiradas seletivas #664/#666 e refinamentos de Desempenho até #672/PR #673 integrados e publicados. A #674 prepara a trilha humana da Auditoria: a migration foi autorizada/aplicada/postvalidada, enquanto o código ainda está fora da base integrada na PR #675. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
@@ -38,23 +38,21 @@ O parser de ambiente ainda possui default `d1` quando a variável não é inform
 
 ## Projeções relacionais e motor
 
-`relational-academic-projection-v1.ts` lê fatos e chama `resolve-simplified-academic-engine-v1.ts`. A projeção anual chama `resolve-simplified-annual-outcome-v1.ts`; nenhuma segunda fórmula é acrescentada na UI.
+Desempenho e Portal chamam `resolve-simplified-academic-engine-v1.ts` e `resolve-simplified-annual-outcome-v1.ts`; nenhuma segunda fórmula é acrescentada na UI. A projeção oferta/aluno `relational-academic-projection-v1.ts` (`projectMany`, PR #636) era usada só pelo Boletim e foi removida com a aba em 20/11/2026.
 
-A leitura `projectMany` da PR #636 aceita até 1.000 pares únicos oferta/aluno, com parâmetros vinculados e **uma instrução SQL** para os fatos do lote. Preserva ordem solicitada e rejeita escopo ausente; não devolve zeros sintéticos. A projeção anual padrão usa três consultas: contexto, ofertas e lote. Isso elimina consultas por oferta nesse serviço, mas **não** prova ausência de N+1 de uma futura matriz de turma nem snapshot transacional das três consultas. Esses gates permanecem na #633.
-
-A precedência de situações terminais continua no núcleo/serviço anual. O fato de não calcular resultado para ASSISTIDO não dispensa uma futura projeção de visualização das suas notas quando exigida pelo contrato de Desempenho/Boletim.
+A precedência de situações terminais continua no núcleo/serviço anual. O fato de não calcular resultado para ASSISTIDO não dispensa uma futura projeção de visualização das suas notas quando exigida pelo contrato de Desempenho.
 
 ## Consumidores e reancoragem
 
-O catch-all mantém os transportes vigentes de Desempenho, Conselho e Boletins, com os tombstones legados da #1079. Relatórios institucionais V1/V2 são retirados nesta candidata; o tombstone dedicado responde 410 autenticado antes de qualquer composição PostgreSQL. Nenhum núcleo acadêmico ou snapshot foi removido. Ver `CONSUMER_MAP.md`.
+O catch-all mantém os transportes vigentes de Desempenho e Conselho, com os tombstones legados da #1079. Relatórios institucionais V1/V2 são retirados nesta candidata; o tombstone dedicado responde 410 autenticado antes de qualquer composição PostgreSQL. Nenhum núcleo acadêmico ou snapshot foi removido. Ver `CONSUMER_MAP.md`.
 
-Boletins materializa um ou mais alunos no mesmo snapshot read-only/repeatable-read, usando projeção oferta/aluno em lote e uma leitura opcional de instrumentos. AM/U oficiais ficam separadas do cálculo descritivo. Emissão grava somente o snapshot imutável; PDF e reimpressão não voltam às notas atuais. Ver [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md).
+A aba Boletins do Banco de Notas foi removida em 20/11/2026 (pedido do responsável), com `POST /api/gradebook/bulletins` e `gradebook.boletim_snapshot` (migration `0022`); será refeita. O Boletim do Portal do Aluno não é afetado.
 
 Relatórios V2 foi um agregador read-only dos contratos relacionais; seu módulo é retirado nesta candidata. Os serviços originais permanecem em suas áreas. Ver [REPORTS_RETIREMENT_20261010.md](REPORTS_RETIREMENT_20261010.md).
 
 Auditoria atual V2 apresenta a fotografia de diagnósticos de 2026. A substituição transacional da fotografia continua pertencendo ao fluxo de importação. A #674 acrescenta, em relação privada e append-only separada, somente reconhecimento e anotação humanos; não resolve achados nem altera fatos acadêmicos. A migration está aplicada e o código segue a integração da PR #675. Ver [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md) e [RELATIONAL_AUDIT_TREATMENT_V1.md](RELATIONAL_AUDIT_TREATMENT_V1.md).
 
-Alvo: PostgreSQL/fatos → núcleo acadêmico → read models compactos → experiências. Boletins emitidos e decisões humanas têm requisitos próprios de durabilidade; não inventar resultados ou snapshots para preencher lacunas.
+Alvo: PostgreSQL/fatos → núcleo acadêmico → read models compactos → experiências. Decisões humanas têm requisitos próprios de durabilidade; não inventar resultados ou snapshots para preencher lacunas.
 
 ## Segurança e publicação
 

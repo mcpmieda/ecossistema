@@ -57,6 +57,8 @@ const diagnosticsOriginCandidate = '0019_import_diagnostics_origin_v1.sql';
 const removeStudentCandidate = '0020_reconciliation_remove_student_v1.sql';
 /** Places no longer in the Relação, for "Excluir aluno lançado por engano" (owner request of 20/11/2026). */
 const outsideRelationCandidate = '0021_vinculo_fora_da_relacao_v1.sql';
+/** Removal of the Banco de Notas "Boletins" tab (owner request of 20/11/2026). */
+const dropBulletinCandidate = '0022_drop_boletim_snapshot_v1.sql';
 /** Retention of unreachable publication editions (owner request of 14/10/2026), not yet applied. */
 const retentionCandidate = '0026_publication_source_retention_v1.sql';
 /** Política Frequência (owner request of 20/10/2026), applied as 20261020115021 (POSTFLIGHT_0027). */
@@ -91,6 +93,7 @@ describe('current canonical project state', () => {
             diagnosticsOriginCandidate,
             removeStudentCandidate,
             outsideRelationCandidate,
+            dropBulletinCandidate,
           ]).has(file),
       )
       .at(-1);
@@ -137,7 +140,7 @@ describe('current canonical project state', () => {
       .at(-1);
     expect(latest).toBe('0024_seal_count_cache_v1.sql');
     expect(gradebookState).toMatchObject({
-      storage: { total_table_count: 31, student_identity_table_count: 1 },
+      storage: { total_table_count: 30, student_identity_table_count: 1 },
       repository_snapshot: {
         student_portal_latest_migration_in_tree: latest,
         student_portal_candidate_migrations_status: 'none-pending',
@@ -215,6 +218,7 @@ describe('current canonical project state', () => {
       diagnosticsOriginCandidate,
       removeStudentCandidate,
       outsideRelationCandidate,
+      dropBulletinCandidate,
     ]);
     expect(
       migrationFiles('migrations/student-portal').filter((file) => Number(file.slice(0, 4)) === 25),

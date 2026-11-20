@@ -50,7 +50,6 @@ export const ADMIN_OPERATION_ROUTES_V1: Readonly<Record<string, RouteV1>> = {
     bodyBytes: 16384,
   },
   '/api/gradebook/performance': { methods: ['POST'], operation: 'read', bodyBytes: 32768 },
-  '/api/gradebook/bulletins': { methods: ['POST'], operation: 'export', bodyBytes: 65536 },
   '/api/gradebook/council-workspace': { methods: ['POST'], operation: 'write', bodyBytes: 16384 },
   '/api/gradebook/assessment-names': { methods: ['POST'], operation: 'write', bodyBytes: 8192 },
   '/api/gradebook/year-reset': { methods: ['POST'], operation: 'write', bodyBytes: 2048 },
@@ -157,11 +156,6 @@ export function classifyAdminOperationV1(
     ['context', 'history'].includes(String(operation))
   )
     return 'read';
-  if (
-    path === '/api/gradebook/bulletins' &&
-    ['catalog', 'students', 'preview', 'history'].includes(String(operation))
-  )
-    return 'read';
   return routes[path]?.operation ?? 'write';
 }
 
@@ -221,10 +215,6 @@ const GRADEBOOK_FAILURE_SHAPES_V1: Readonly<Record<string, FailureShapeV1>> = {
   }),
   '/api/gradebook/council-workspace': (payload, state) =>
     payload.contractVersion === 3 ? { contractVersion: 3, state } : null,
-  '/api/gradebook/bulletins': (payload, state) =>
-    payload.contractVersion === 2
-      ? { contractVersion: 2, operation: payload.operation, state }
-      : null,
   '/api/gradebook/frequency/v2': (_payload, state) => ({ contractVersion: 2, state }),
 };
 
@@ -257,8 +247,7 @@ function denied(path: string, payload: PayloadV1, status: number): Response {
 function retiredTransportV1(path: string, payload: PayloadV1) {
   return (
     (path === '/api/gradebook/performance' && payload.transportVersion === 1) ||
-    (['/api/gradebook/operational-workspace', '/api/gradebook/bulletins'].includes(path) &&
-      payload.contractVersion === 1) ||
+    (path === '/api/gradebook/operational-workspace' && payload.contractVersion === 1) ||
     (path === '/api/gradebook/council-workspace' &&
       [1, 2].includes(Number(payload.contractVersion)))
   );

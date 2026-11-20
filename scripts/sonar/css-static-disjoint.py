@@ -54,7 +54,7 @@ def last_classes(sel):
 
 
 OUR_PREFIXES = ('performance-', 'learning-', 'pa-', 'pa3-', 'shell-', 'platform-', 'council-', 'school-class-',
-                'gradebook-', 'bulletin-', 'analytics-', 'filter-tags-v1', 'marquee-text-v1')
+                'gradebook-', 'analytics-', 'filter-tags-v1', 'marquee-text-v1')
 
 
 def ours(name):

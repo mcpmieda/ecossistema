@@ -12,11 +12,11 @@ export interface CurrentGradebookRecoveryQueryV1 {
 }
 
 export const GRADEBOOK_CURRENT_CATALOG_V1 = {
-  tables: 29,
-  columns: 246,
-  constraints: 217,
-  indexes: 69,
-  foreignKeys: 51,
+  tables: 28,
+  columns: 233,
+  constraints: 203,
+  indexes: 65,
+  foreignKeys: 48,
   sequences: 13,
   functions: 4,
   triggers: 3,
@@ -25,7 +25,6 @@ export const GRADEBOOK_CURRENT_CATALOG_V1 = {
 export const GRADEBOOK_CURRENT_TABLES_V1 = [
   'aluno',
   'ano_letivo',
-  'boletim_snapshot',
   'conselho_anterior_historico',
   'conselho_decisao',
   'conselho_decisao_comando',
@@ -89,6 +88,7 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0017_drop_ano_letivo_historico_v1.sql',
   '0019_import_diagnostics_origin_v1.sql',
   '0021_vinculo_fora_da_relacao_v1.sql',
+  '0022_drop_boletim_snapshot_v1.sql',
   'current_cross_schema_indexes_v1.sql',
 ] as const;
 

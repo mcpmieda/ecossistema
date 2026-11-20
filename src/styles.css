@@ -326,68 +326,6 @@ body {
   outline-offset: -2px;
 }
 
-.bulletin-student-card {
-  display: grid;
-  min-height: 3.6rem;
-  grid-template-columns: auto auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.7rem;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-2xl);
-  background: var(--surface);
-  padding: 0.65rem;
-  cursor: pointer;
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease,
-    transform 150ms ease;
-}
-
-.bulletin-student-card:hover {
-  border-color: color-mix(in oklab, var(--accent) 45%, var(--separator));
-  background: var(--surface-secondary);
-}
-
-.bulletin-student-card input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--accent);
-}
-
-.bulletin-kpi__icon {
-  display: grid;
-  width: 2.4rem;
-  aspect-ratio: 1;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: var(--radius-2xl);
-  background: color-mix(in oklab, var(--accent) 12%, transparent);
-  color: var(--accent);
-}
-
-.bulletin-kpi--success .bulletin-kpi__icon {
-  background: color-mix(in oklab, var(--success) 13%, transparent);
-  color: var(--success);
-}
-.bulletin-kpi--warning .bulletin-kpi__icon {
-  background: color-mix(in oklab, var(--warning) 14%, transparent);
-  color: var(--warning);
-}
-.bulletin-kpi strong {
-  display: block;
-  overflow: hidden;
-  font-size: 1rem;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.bulletin-kpi small {
-  display: block;
-  margin-top: 0.25rem;
-  color: var(--muted);
-  font-size: 0.72rem;
-}
-
 .performance-bar {
   position: relative;
   min-height: 3px;

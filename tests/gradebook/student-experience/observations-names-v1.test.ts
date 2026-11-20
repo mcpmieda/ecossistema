@@ -14,8 +14,6 @@ import {
 import { createGradebookImportService } from '../../../server/gradebook/application/import/import-service';
 import { createAssessmentNamesServiceV1 } from '../../../server/gradebook/application/settings/assessment-names-v1';
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
-import { createRelationalBulletinServiceV2 } from '../../../server/gradebook/application/bulletins/relational-bulletin-v2';
-import { createRelationalBulletinSnapshotRepositoryV2 } from '../../../server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2';
 import {
   AcademicStudentReaderPostgresV1,
   academicToSelfV1,
@@ -273,42 +271,6 @@ describe('observed granular facts and ecosystem names #817', () => {
     const self = academicToSelfV1(academic!.student, '81700000-0000-4000-8000-000000000001');
     expect(JSON.stringify(self)).toContain('Simulado');
     expect(JSON.stringify(self)).toContain('"notDone":true');
-  });
-  it('preserves observation and names in the detailed bulletin without replacing the official term value', async () => {
-    const pair = (
-      await pg.query<{ classId: number; studentId: number }>(
-        `SELECT turma_id AS "classId",aluno_id AS "studentId" FROM gradebook.vinculo WHERE ano=2026`,
-      )
-    ).rows[0]!;
-    const service = createRelationalBulletinServiceV2({
-      database,
-      snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
-    });
-    const response = await service.execute(
-      {
-        contractVersion: 2,
-        operation: 'preview',
-        selection: {
-          year: 2026,
-          ...pair,
-          detail: 'detailed',
-          presentation: { locale: 'pt-BR', dateStyle: 'long' },
-          period: { kind: 'term', term: 1 },
-        },
-      },
-      { issuerOid: '11111111-1111-4111-8111-111111111111' },
-    );
-    expect(response.state).toBe('ready');
-    if (response.state !== 'ready' || response.operation !== 'preview')
-      throw new Error('preview expected');
-    const instrument = response.model.subjects[0]!.terms[0]!.instruments;
-    expect(instrument).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ label: 'Simulado', valueMilli: 0 }),
-        expect.objectContaining({ notDone: true, valueMilli: null }),
-      ]),
-    );
-    expect(response.model.subjects[0]!.terms[0]!.sourceAmMilli).toBeNull();
   });
   it('rolls back a label update when its revision/outbox hook fails', async () => {
     const before = (
