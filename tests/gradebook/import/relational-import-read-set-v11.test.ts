@@ -109,6 +109,7 @@ beforeAll(async () => {
     '0006_import_diagnostic_treatment_v1.sql',
     '0007_multiyear_rr_v1.sql',
     '0009_granular_observations_names_v1.sql',
+    '0021_vinculo_fora_da_relacao_v1.sql',
   ])
     await pg.exec(file(name));
   await installResetSchemaFixtureV1(pg);

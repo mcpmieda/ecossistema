@@ -160,6 +160,7 @@ beforeAll(async () => {
     '0007_multiyear_rr_v1.sql',
     '0008_year_reset_acl_v1.sql',
     '0019_import_diagnostics_origin_v1.sql',
+    '0021_vinculo_fora_da_relacao_v1.sql',
   ])
     await admin.unsafe(readFileSync(`migrations/gradebook-simplified/${name}`, 'utf8'));
   await admin.unsafe(`

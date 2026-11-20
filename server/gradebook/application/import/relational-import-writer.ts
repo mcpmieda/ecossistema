@@ -641,6 +641,51 @@ async function persistRelation(
     const current = plan.existingByBinding.get(relationBindingKeyV9(item.turmaId, item.numero));
     await persistRelationBindingV9(database, state, request, item, alunoId, current);
   }
+  await markBindingsOutsideRelationV1(database, request.ano, classes, plan.orderedSource);
+}
+
+/**
+ * A line deleted from the Relação keeps its student (the import only adds and updates); the place
+ * is marked as no longer in the Relação, and cleared when the line comes back. Only the Conciliação's
+ * "Excluir aluno lançado por engano" reads it. Not an academic change: it is not counted as a write.
+ */
+async function markBindingsOutsideRelationV1(
+  database: GradebookPostgresWritePortV1,
+  year: number,
+  classes: ReadonlyMap<string, ExistingClassV9>,
+  source: readonly { readonly turmaId: number; readonly numero: number }[],
+): Promise<void> {
+  // Read first: an unchanged Relação writes nothing.
+  const changes = await all<Row>(
+    database,
+    `SELECT v.turma_id,v.numero,a.fora FROM gradebook.vinculo v
+     CROSS JOIN LATERAL (SELECT NOT EXISTS(
+       SELECT 1 FROM jsonb_to_recordset($2::text::jsonb) AS f(t integer,n smallint)
+       WHERE f.t=v.turma_id AND f.n=v.numero) AS fora) a
+     WHERE v.ano=$1 AND v.turma_id IN (SELECT jsonb_array_elements_text($3::text::jsonb)::integer)
+       AND v.fora_da_relacao IS DISTINCT FROM a.fora`,
+    [
+      year,
+      JSON.stringify(source.map((item) => ({ t: item.turmaId, n: item.numero }))),
+      JSON.stringify([...classes.values()].map((item) => item.id)),
+    ],
+  );
+  if (changes.length === 0) return;
+  await run(
+    database,
+    `UPDATE gradebook.vinculo v SET fora_da_relacao=c.fora
+     FROM jsonb_to_recordset($1::text::jsonb) AS c(t integer,n smallint,fora boolean)
+     WHERE v.turma_id=c.t AND v.numero=c.n`,
+    [
+      JSON.stringify(
+        changes.map((row) => ({
+          t: asNumber(row.turma_id, 'turma-id'),
+          n: asNumber(row.numero, 'numero'),
+          fora: isDatabaseTrueV9(row.fora),
+        })),
+      ),
+    ],
+  );
 }
 
 async function resolveProfessor(

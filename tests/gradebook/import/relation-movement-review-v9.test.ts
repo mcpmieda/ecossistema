@@ -34,6 +34,7 @@ beforeAll(async () => {
     '0005_relational_bulletin_snapshot_v2.sql',
     '0006_import_diagnostic_treatment_v1.sql',
     '0007_multiyear_rr_v1.sql',
+    '0021_vinculo_fora_da_relacao_v1.sql',
   ])
     await pg.exec(readFileSync(`migrations/gradebook-simplified/${file}`, 'utf8'));
   await installResetSchemaFixtureV1(pg);

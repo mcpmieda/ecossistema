@@ -71,7 +71,10 @@ function fixture(
             else if (text.includes('synchronize_gradebook_profiles_v1'))
               rows = [{ synchronized: 1 }];
             else if (options.existing && text.startsWith('SELECT ano FROM')) rows = [{ ano: 2026 }];
-            else if (options.existing && text.startsWith('SELECT v.turma_id')) {
+            else if (
+              options.existing &&
+              text.startsWith('SELECT v.turma_id, v.numero, v.aluno_id')
+            ) {
               rows = [
                 {
                   turma_id: 10,
@@ -194,12 +197,14 @@ describe('V9 native import port', () => {
       summary: { committedWrites: { total: 0 } },
     });
     expectValidatedRelationPreviewV9(calls);
-    expect(calls).toHaveLength(12);
+    expect(calls).toHaveLength(13);
     expect(calls.every(({ text }) => text.startsWith('SELECT'))).toBe(true);
-    expect(calls.at(-1)).toEqual({
+    expect(calls.at(-2)).toEqual({
       text: 'SELECT nome FROM gradebook.aluno WHERE id = $1 AND ano = $2',
       values: [20, 2026],
     });
+    // The places no longer in the Relação are read; with none to change, nothing is written.
+    expect(calls.at(-1)?.text).toContain('fora_da_relacao');
     expect(events).toEqual(['begin', 'commit']);
   });
 
