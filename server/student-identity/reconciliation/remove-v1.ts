@@ -110,11 +110,28 @@ export async function removableStudentV1(
 
 const KEPT_REASON_V1 = 'O aluno tem dados no sistema e não pode ser excluído.';
 
+/** The two steps of a removal (the Portal account points at the student until it is closed). */
+export type RemovalStepV1 = 'class' | 'student';
+
+async function openAccountV1(tx: TxV1, year: number, studentUid: string) {
+  const [account] = await tx.query(
+    `SELECT account_id::text,account_version::text FROM student_portal.reconciliation_accounts_v1($1::smallint)
+     WHERE student_uid=$2::uuid AND closed_at IS NULL`,
+    [year, studentUid],
+  );
+  return account
+    ? { id: String(account.account_id).toLowerCase(), version: Number(account.account_version) }
+    : null;
+}
+
 /**
- * Removes the student and its places in classes, and records who, when and what in the
- * Conciliação's decisions (without a reference to the removed student). `accountVersion` is the
- * version of the Portal account the caller found never used (null: no open account): the account
- * must still be that one, unchanged.
+ * "Excluir aluno lançado por engano", in two steps around the Portal: the Portal account points at
+ * the student, and the Portal closes only an account whose student has no class.
+ *
+ * - `class`: checks that nothing keeps the student and that its account is still the one the caller
+ *   found never used (`accountVersion`; null: no open account), removes its places in classes and
+ *   records who, when and what in the Conciliação's decisions (without a reference to the student).
+ * - `student`: after that step (same request) and with no open account left, removes the student.
  */
 export async function removeStudentV1(
   tx: TxV1,
@@ -122,6 +139,7 @@ export async function removeStudentV1(
   request: RemoveRequestV1,
   context: ReconciliationContextV1,
   accountVersion: number | null,
+  step: RemovalStepV1,
 ): Promise<ReconciliationResponseV1> {
   const digest = await digestV1(request);
   const [receipt] = await tx.query(
@@ -129,10 +147,13 @@ export async function removeStudentV1(
      WHERE academic_year=$1 AND generation=$2::uuid AND actor_id=$3::uuid AND idempotency_key=$4::uuid`,
     [request.academicYear, request.generation, actor, request.idempotencyKey],
   );
-  if (receipt) {
-    if (receipt.request_digest !== digest) throw new ReconciliationConflictV1();
-    return { contractVersion: 1, state: 'committed', context, operationId: String(receipt.id) };
+  if (receipt && receipt.request_digest !== digest) throw new ReconciliationConflictV1();
+  if (step === 'student') {
+    if (!receipt) throw new ReconciliationConflictV1();
+    return removeStudentRecordV1(tx, request, String(receipt.id));
   }
+  if (receipt)
+    return { contractVersion: 1, state: 'committed', context, operationId: String(receipt.id) };
   assertContextV1(context, request);
   await tx.query(
     `SELECT id FROM gradebook.aluno WHERE ano=$1 AND student_uid=$2::uuid FOR UPDATE`,
@@ -140,19 +161,13 @@ export async function removeStudentV1(
   );
   const student = await removableStudentV1(tx, request.academicYear, request.studentUid);
   if (!student) throw new ReconciliationConflictV1('conflict', KEPT_REASON_V1);
-  const [account] = await tx.query(
-    `SELECT account_id::text,account_version::text FROM student_portal.reconciliation_accounts_v1($1::smallint)
-     WHERE student_uid=$2::uuid AND closed_at IS NULL`,
-    [request.academicYear, request.studentUid],
-  );
-  const accountNow = account ? String(account.account_id).toLowerCase() : null;
+  const account = await openAccountV1(tx, request.academicYear, request.studentUid);
   if (
-    accountNow !== (request.accountId?.toLowerCase() ?? null) ||
-    (account && Number(account.account_version) !== accountVersion)
+    (account?.id ?? null) !== (request.accountId?.toLowerCase() ?? null) ||
+    (account && account.version !== accountVersion)
   )
     throw new ReconciliationConflictV1();
   await tx.executeNative(`DELETE FROM gradebook.vinculo WHERE aluno_id=$1`, [student.id]);
-  await tx.executeNative(`DELETE FROM gradebook.aluno WHERE id=$1`, [student.id]);
   const id = crypto.randomUUID();
   await tx.executeNative(
     `INSERT INTO gradebook.student_reconciliation_decision_v1
@@ -171,7 +186,7 @@ export async function removeStudentV1(
         name: student.name,
         classLabel: student.classLabel,
         number: student.number,
-        accountId: accountNow,
+        accountId: account?.id ?? null,
       }),
       request.idempotencyKey,
       digest,
@@ -184,4 +199,37 @@ export async function removeStudentV1(
     context: await contextV1(tx, request.academicYear),
     operationId: id,
   };
+}
+
+/** The second step: the student itself, once it has no class and no open Portal account. */
+async function removeStudentRecordV1(
+  tx: TxV1,
+  request: RemoveRequestV1,
+  operationId: string,
+): Promise<ReconciliationResponseV1> {
+  const [locked] = await tx.query(
+    `SELECT id FROM gradebook.aluno WHERE ano=$1 AND student_uid=$2::uuid FOR UPDATE`,
+    [request.academicYear, request.studentUid],
+  );
+  const done = async (): Promise<ReconciliationResponseV1> => ({
+    contractVersion: 1,
+    state: 'committed',
+    context: await contextV1(tx, request.academicYear),
+    operationId,
+  });
+  // Already removed (a repeated request).
+  if (!locked) return done();
+  const [classes] = await tx.query(
+    `SELECT count(*)::integer AS n FROM gradebook.vinculo WHERE aluno_id=$1`,
+    [Number(locked.id)],
+  );
+  if (
+    Number(classes?.n) > 0 ||
+    !(await removableStudentV1(tx, request.academicYear, request.studentUid)) ||
+    (await openAccountV1(tx, request.academicYear, request.studentUid))
+  )
+    throw new ReconciliationConflictV1();
+  await tx.executeNative(`DELETE FROM gradebook.aluno WHERE id=$1`, [Number(locked.id)]);
+  await advanceV1(tx, request.academicYear, true);
+  return done();
 }

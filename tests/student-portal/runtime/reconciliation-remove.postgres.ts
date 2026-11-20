@@ -24,6 +24,7 @@ let service: StudentReconciliationServiceV1;
 const actor = '11111111-1111-4111-8111-111111111111';
 const exec = (sql: string) => owner.unsafe(sql, [], { prepare: false });
 const uids = new Map<number, string>();
+const accountId = crypto.randomUUID();
 
 beforeAll(async () => {
   await cluster.unsafe('CREATE DATABASE ' + databaseName);
@@ -62,6 +63,12 @@ beforeAll(async () => {
     'SELECT id,student_uid::text FROM gradebook.aluno WHERE id IN (720001,720002)',
   ))
     uids.set(Number(row.id), String(row.student_uid));
+  // The Portal account of the mistaken student, never used: it points at the student.
+  await owner.unsafe(
+    `INSERT INTO student_portal.account(id,gradebook_student_id,auth_state,eligibility,student_uid)
+     VALUES($1::uuid,720001,'pending-activation','eligible',$2::uuid)`,
+    [accountId, uids.get(720001)!],
+  );
   app = postgres(url.toString(), { max: 1, onnotice: () => undefined });
   await app.unsafe('SET ROLE gradebook_app');
   service = new StudentReconciliationServiceV1(
@@ -122,24 +129,27 @@ it('a student with a grade is never removed', async () => {
 
 it('the account the screen showed must still be the student account', async () => {
   const response = await service.execute(await removal(720001, crypto.randomUUID()), {
-    accountVersion: 1,
+    accountVersion: 0,
   });
   expect(response.state).toBe('conflict');
-  expect(await owner.unsafe('SELECT 1 FROM gradebook.aluno WHERE id=720001')).toHaveLength(1);
+  expect(await owner.unsafe('SELECT 1 FROM gradebook.vinculo WHERE aluno_id=720001')).toHaveLength(
+    1,
+  );
 });
 
-it('removes the student and its place in the class, recorded without a reference to it', async () => {
-  const request = await removal(720001);
-  const response = await service.execute(request, { accountVersion: null });
-  expect(response.state).toBe('committed');
-  if (response.state !== 'committed') return;
-  expect(await owner.unsafe('SELECT 1 FROM gradebook.aluno WHERE id=720001')).toHaveLength(0);
+it('removes the class place, waits for the Portal to close the account, then the student', async () => {
+  const request = await removal(720001, accountId);
+  // The student step never comes first.
+  expect(await service.execute(request, { step: 'student' })).toMatchObject({ state: 'conflict' });
+  const unlinked = await service.execute(request, { accountVersion: 0, step: 'class' });
+  expect(unlinked.state).toBe('committed');
+  if (unlinked.state !== 'committed') return;
   expect(await owner.unsafe('SELECT 1 FROM gradebook.vinculo WHERE aluno_id=720001')).toHaveLength(
     0,
   );
   const [decision] = await owner.unsafe(
     `SELECT action,student_uid,actor_id::text,before_state FROM gradebook.student_reconciliation_decision_v1 WHERE id=$1::uuid`,
-    [response.operationId],
+    [unlinked.operationId],
   );
   expect(decision).toMatchObject({
     action: 'remove-student',
@@ -150,10 +160,28 @@ it('removes the student and its place in the class, recorded without a reference
       classLabel: '6A',
       number: 33,
       studentUid: uids.get(720001),
+      accountId,
     }),
   });
+  // The account still points at the student: it stays until the Portal closes the account.
+  expect(await service.execute(request, { step: 'student' })).toMatchObject({ state: 'conflict' });
+  expect(await owner.unsafe('SELECT 1 FROM gradebook.aluno WHERE id=720001')).toHaveLength(1);
+  // What the Portal's "Encerrar conta" does to the account (account-closure-v1.ts).
+  await owner.unsafe(
+    `UPDATE student_portal.account SET gradebook_student_id=NULL,eligibility='unlinked',
+       closed_at=now(),version=version+1 WHERE id=$1::uuid`,
+    [accountId],
+  );
+  const removed = await service.execute(request, { step: 'student' });
+  expect(removed).toMatchObject({ state: 'committed', operationId: unlinked.operationId });
+  expect(await owner.unsafe('SELECT 1 FROM gradebook.aluno WHERE id=720001')).toHaveLength(0);
   // The same request again: the same answer, nothing else removed.
-  const again = await service.execute(request, { accountVersion: null });
-  expect(again).toMatchObject({ state: 'committed', operationId: response.operationId });
+  expect(await service.execute(request, { accountVersion: 0, step: 'class' })).toMatchObject({
+    state: 'committed',
+    operationId: unlinked.operationId,
+  });
+  expect(await service.execute(request, { step: 'student' })).toMatchObject({
+    state: 'committed',
+  });
   expect(await owner.unsafe('SELECT 1 FROM gradebook.aluno WHERE id=720002')).toHaveLength(1);
 });

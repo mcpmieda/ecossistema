@@ -135,10 +135,11 @@ async function accountOriginV1(
 }
 
 /**
- * "Excluir aluno lançado por engano": the Portal account (if any) must never have been used; the
- * Conciliação removes the student under its lock, checking that account again; then the Portal
- * closes the account, which has no class any more. A failed closure leaves the student removed and
- * says so ("Encerrar conta" stays in the Painel do Aluno).
+ * "Excluir aluno lançado por engano". The Portal account points at the student and is closed only
+ * when the student has no class, so: the account (if any) must never have been used; the
+ * Conciliação removes the student's place in its class (checking that account again); the Portal
+ * closes the account; then the student itself is removed. When the account cannot be closed, the
+ * student stays without a class and the answer says so (trying again finishes it).
  */
 async function removeStudentWithPortalV1(
   env: RuntimeEnv,
@@ -146,8 +147,17 @@ async function removeStudentWithPortalV1(
   input: Extract<ReconciliationRequestV1, { operation: 'remove-student' }>,
   service: StudentReconciliationServiceV1,
 ): Promise<ReconciliationResponseV1> {
+  const finish = async (accountClosed?: boolean): Promise<ReconciliationResponseV1> => {
+    const removed = await service.execute(input, { step: 'student' });
+    return removed.state === 'committed' && accountClosed !== undefined
+      ? { ...removed, accountClosed }
+      : removed;
+  };
+  if (!input.accountId) {
+    const unlinked = await service.execute(input, { accountVersion: null, step: 'class' });
+    return unlinked.state === 'committed' ? finish() : unlinked;
+  }
   const binding = env.PORTAL_SERVICE as Partial<AccountBindingV1> | undefined;
-  if (!input.accountId) return service.execute(input, { accountVersion: null });
   if (typeof binding?.query !== 'function' || typeof binding.command !== 'function')
     return { contractVersion: 1, state: 'unavailable' };
   const portal = binding as AccountBindingV1;
@@ -159,21 +169,26 @@ async function removeStudentWithPortalV1(
       state: 'conflict',
       reason: 'A conta do Portal deste aluno já foi usada. Ele não pode ser excluído.',
     };
-  const result = await service.execute(input, { accountVersion: before.version });
-  if (result.state !== 'committed') return result;
+  const unlinked = await service.execute(input, {
+    accountVersion: before.version,
+    step: 'class',
+  });
+  if (unlinked.state !== 'committed') return unlinked;
   const after = await accountOriginV1(portal, context, input.accountId).catch(() => null);
-  if (!after?.closable) return { ...result, accountClosed: false };
-  const closed = await portal
-    .command(context, {
-      contractVersion: 1,
-      operation: 'account-close',
-      accountId: input.accountId,
-      expectedVersion: after.version,
-      idempotencyKey: crypto.randomUUID(),
-      confirmed: true,
-    })
-    .catch(() => null);
-  return { ...result, accountClosed: closed?.state === 'committed' };
+  const closed = after?.closable
+    ? await portal
+        .command(context, {
+          contractVersion: 1,
+          operation: 'account-close',
+          accountId: input.accountId,
+          expectedVersion: after.version,
+          idempotencyKey: crypto.randomUUID(),
+          confirmed: true,
+        })
+        .catch(() => null)
+    : null;
+  if (closed?.state !== 'committed') return { ...unlinked, accountClosed: false };
+  return finish(true);
 }
 
 /** The browser can submit allowlisted observations, never prepared verifiers or a trusted actor. */
