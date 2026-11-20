@@ -286,7 +286,7 @@ const stringV1: ReaderV1 = (c) => {
 };
 
 /** Attributes that only guide Excel (if/goto jumps, spaces, PtgAttrBaxcel). */
-const IGNORED_ATTRIBUTES_V1: readonly number[] = [0x02, 0x08, 0x20, 0x40, 0x41, 0x80];
+const IGNORED_ATTRIBUTES_V1: ReadonlySet<number> = new Set([0x02, 0x08, 0x20, 0x40, 0x41, 0x80]);
 
 /** PtgAttr*: SUM of one argument, volatile, a CHOOSE jump table, or a hint. */
 const attributeV1: ReaderV1 = (c) => {
@@ -296,7 +296,7 @@ const attributeV1: ReaderV1 = (c) => {
   if (kind === 0x04) return { token: null, size: 4 + 2 * (u16(c.d, c.at + 2) + 1) };
   if (kind === 0x10) return { token: { k: 'attrSum' }, size: 4 };
   if (kind === 0x01) return { token: { k: 'volatile' }, size: 4 };
-  if (!IGNORED_ATTRIBUTES_V1.includes(kind)) throw new UnsupportedFormulaError(`attribute ${kind}`);
+  if (!IGNORED_ATTRIBUTES_V1.has(kind)) throw new UnsupportedFormulaError(`attribute ${kind}`);
   return { token: null, size: 4 };
 };
 
