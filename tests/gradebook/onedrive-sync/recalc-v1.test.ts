@@ -18,6 +18,7 @@ import {
   type LinkCachesV1,
   type RecalcReportV1,
 } from '../../../server/gradebook/onedrive-sync/links/recalc/recalc-v1';
+import { recalculateOnThisTryV1 } from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
 import { recalcSummaryV1 } from '../../../server/gradebook/onedrive-sync/links/run-link-refresh-v1';
 import { readSourceValuesV1 } from '../../../server/gradebook/onedrive-sync/links/source-values-v1';
 import {
@@ -308,5 +309,18 @@ describe('recalculation summary for the panel', () => {
     expect(recalcSummaryV1(report({ blocked: 'only .xlsb files are recalculated' }))!.note).toBe(
       'Nada recalculado: só arquivos .xlsb são recalculados',
     );
+  });
+});
+
+describe('recalculation on each try', () => {
+  it('a try that did not finish is followed by one that only updates the link', () => {
+    expect(recalculateOnThisTryV1({ recalc: true }, { lastCode: null })).toBe(true);
+    // The Worker stopped the try (CPU or memory) or it never answered.
+    expect(recalculateOnThisTryV1({ recalc: true }, { lastCode: 'LINKS-UNREACHABLE' })).toBe(false);
+    expect(recalculateOnThisTryV1({ recalc: true }, { lastCode: 'LEASE-EXPIRED' })).toBe(false);
+    // An open file is not a failure of the recalculation.
+    expect(recalculateOnThisTryV1({ recalc: true }, { lastCode: 'FILE-OPEN' })).toBe(true);
+    expect(recalculateOnThisTryV1({ recalc: false }, { lastCode: null })).toBe(false);
+    expect(recalculateOnThisTryV1({}, { lastCode: null })).toBe(false);
   });
 });

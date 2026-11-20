@@ -70,6 +70,20 @@ const FAILED_BACKOFF_MS_V1 = [5, 15, 60].map((minutes) => minutes * 60_000);
 /** After this many failures in a row the workbook waits for the next change or the nightly check. */
 const MAX_FAILURES_V1 = 4;
 
+/** A try that did not finish: the Worker stopped it (CPU or memory) or never answered. */
+const UNFINISHED_CODES_V1: ReadonlySet<string> = new Set(['LINKS-UNREACHABLE', 'LEASE-EXPIRED']);
+
+/**
+ * Whether this try also recalculates the cells (#1541): only when switched on, and not right after
+ * a try that did not finish, so the link itself is still updated. The next change tries again.
+ */
+export function recalculateOnThisTryV1(
+  settings: Pick<LinkSettingsV1, 'recalc'>,
+  file: Pick<LinkFileV1, 'lastCode'>,
+): boolean {
+  return settings.recalc === true && !UNFINISHED_CODES_V1.has(file.lastCode ?? '');
+}
+
 const backoffV1 = (steps: readonly number[], attempts: number) =>
   steps[Math.min(attempts, steps.length - 1)]!;
 

@@ -18,6 +18,7 @@ import {
 } from './values-v1';
 import {
   cellKeyV1,
+  formulaTokensBytesV1,
   MAX_COLUMNS_V1,
   readWorkbookModelV1,
   type CellV1,
@@ -71,7 +72,17 @@ export type RecalcResultV1 = {
 const INDIRECT_TAB_V1 = 148;
 const OFFSET_TAB_V1 = 78;
 
-/** One calculation: a formula cell, or an array formula with all its cells. */
+/** What a unit reads of a linked workbook: link part, sheet name and area. */
+type ExternalReadV1 = { readonly part: string; readonly sheet: string; readonly area: AreaV1 };
+
+/** Shared by the units that read no link (most of them). */
+const NO_EXTERNAL_READS_V1: readonly ExternalReadV1[] = Object.freeze([]);
+
+/**
+ * One calculation: a formula cell, or an array formula with all its cells. Its tokens are not kept
+ * (decoded again when calculated): a workbook has tens of thousands of formulas, and the Worker
+ * has 128 MB.
+ */
 type UnitV1 = {
   readonly id: number;
   readonly sheet: number;
@@ -79,17 +90,61 @@ type UnitV1 = {
   readonly row: number;
   readonly col: number;
   readonly cells: readonly CellV1[];
-  readonly area: AreaV1;
-  readonly array: boolean;
-  tokens: TokenV1[] | null;
-  /** Areas of this workbook it reads (sheet index + area). */
-  precedents: { sheet: number; area: AreaV1 }[];
+  /** The array or shared formula it comes from (its tokens; for an array, its area too). */
+  readonly group: FormulaGroupV1 | null;
+  /** Its range in the precedents store: the areas of this workbook it reads. */
+  firstPrecedent: number;
+  endPrecedent: number;
   external: boolean;
-  /** What it reads of linked workbooks: link part, sheet name and area (null: not known exactly). */
-  externalReads: { part: string; sheet: string; area: AreaV1 }[] | null;
+  /** What it reads of linked workbooks (null: not known exactly). */
+  externalReads: readonly ExternalReadV1[] | null;
   /** Why it cannot be calculated (decoding, INDIRECT with a computed address…); null when it can. */
   problem: string | null;
 };
+
+const isArrayUnitV1 = (unit: UnitV1): boolean => unit.group?.kind === 'array';
+
+/** The tokens a unit is calculated from. */
+function unitRgceV1(model: WorkbookModelV1, unit: UnitV1): Uint8Array {
+  if (unit.group) return unit.group.rgce;
+  return formulaTokensBytesV1(model.sheets[unit.sheet]!, unit.cells[0]!.formula!);
+}
+
+const unitTokensV1 = (model: WorkbookModelV1, unit: UnitV1): TokenV1[] =>
+  decodeFormulaV1(unitRgceV1(model, unit), unit.group?.kind === 'shared');
+
+/**
+ * The areas of this workbook the units read, five numbers each (sheet, r1, r2, c1, c2), in one
+ * growing array: far less memory than an object per area.
+ */
+class PrecedentsV1 {
+  private data = new Uint32Array(8192);
+  size = 0;
+
+  push(sheet: number, area: AreaV1): void {
+    if ((this.size + 1) * 5 > this.data.length) {
+      const grown = new Uint32Array(this.data.length * 2);
+      grown.set(this.data);
+      this.data = grown;
+    }
+    const d = this.data;
+    const at = this.size * 5;
+    d[at] = sheet;
+    d[at + 1] = area.r1;
+    d[at + 2] = area.r2;
+    d[at + 3] = area.c1;
+    d[at + 4] = area.c2;
+    this.size++;
+  }
+
+  forEach(unit: UnitV1, visit: (sheet: number, area: AreaV1) => void): void {
+    const d = this.data;
+    for (let i = unit.firstPrecedent; i < unit.endPrecedent; i++) {
+      const at = i * 5;
+      visit(d[at]!, { r1: d[at + 1]!, r2: d[at + 2]!, c1: d[at + 3]!, c2: d[at + 4]! });
+    }
+  }
+}
 
 /* ---------------------------------------------------------------- link values */
 
@@ -165,7 +220,8 @@ function unitsV1(model: WorkbookModelV1): UnitV1[] {
   for (const sheet of model.sheets) {
     const arrayUnits = new Map<FormulaGroupV1, UnitV1>();
     for (const cell of sheet.cells.values())
-      if (cell.formula) addFormulaCellV1(units, arrayUnits, sheet, cell, cell.formula.rgce);
+      if (cell.formula)
+        addFormulaCellV1(units, arrayUnits, sheet, cell, formulaTokensBytesV1(sheet, cell.formula));
   }
   return units;
 }
@@ -183,26 +239,16 @@ function addFormulaCellV1(
   const base = { id: units.length, sheet: sheet.index };
   if (isExp && !group) {
     const problem = 'array or shared formula without its group';
-    units.push(newUnitV1({ ...base, at: cell, cells: [cell], rgce: null, problem }));
+    units.push(newUnitV1({ ...base, at: cell, cells: [cell], group: null, problem }));
     return;
   }
   if (group?.kind !== 'array') {
-    const relative = group?.kind === 'shared';
-    units.push(
-      newUnitV1({ ...base, at: cell, cells: [cell], rgce: group?.rgce ?? rgce, relative }),
-    );
+    units.push(newUnitV1({ ...base, at: cell, cells: [cell], group: group ?? null }));
     return;
   }
   let unit = arrayUnits.get(group);
   if (!unit) {
-    const area = { r1: group.r1, r2: group.r2, c1: group.c1, c2: group.c2 };
-    unit = newUnitV1({
-      ...base,
-      at: { row: group.r1, col: group.c1 },
-      cells: [],
-      rgce: group.rgce,
-      area,
-    });
+    unit = newUnitV1({ ...base, at: { row: group.r1, col: group.c1 }, cells: [], group });
     arrayUnits.set(group, unit);
     units.push(unit);
   }
@@ -215,38 +261,23 @@ type UnitSpecV1 = {
   /** The cell where it is evaluated. */
   readonly at: { readonly row: number; readonly col: number };
   readonly cells: CellV1[];
-  readonly rgce: Uint8Array | null;
-  /** The area of an array formula (absent for a single cell). */
-  readonly area?: AreaV1;
+  readonly group: FormulaGroupV1 | null;
   readonly problem?: string;
-  /** Read the tokens as a shared formula stores them. */
-  readonly relative?: boolean;
 };
 
 function newUnitV1(spec: UnitSpecV1): UnitV1 {
-  const { at } = spec;
-  let tokens: TokenV1[] | null = null;
-  let issue = spec.problem ?? null;
-  if (spec.rgce && !issue) {
-    try {
-      tokens = decodeFormulaV1(spec.rgce, spec.relative ?? false);
-    } catch (cause) {
-      issue = cause instanceof UnsupportedFormulaError ? cause.reason : 'formula could not be read';
-    }
-  }
   return {
     id: spec.id,
     sheet: spec.sheet,
-    row: at.row,
-    col: at.col,
+    row: spec.at.row,
+    col: spec.at.col,
     cells: spec.cells,
-    area: spec.area ?? { r1: at.row, r2: at.row, c1: at.col, c2: at.col },
-    array: spec.area !== undefined,
-    tokens,
-    precedents: [],
+    group: spec.group,
+    firstPrecedent: 0,
+    endPrecedent: 0,
     external: false,
-    externalReads: [],
-    problem: issue,
+    externalReads: NO_EXTERNAL_READS_V1,
+    problem: spec.problem ?? null,
   };
 }
 
@@ -302,8 +333,18 @@ type DependencyWalkV1 = {
   readonly unit: UnitV1;
   readonly model: WorkbookModelV1;
   readonly links: Map<string, LinkIndexV1> | null;
+  readonly store: PrecedentsV1;
   readonly seenNames: Set<number>;
 };
+
+const areaOfV1 = ({ r1, r2, c1, c2 }: AreaV1): AreaV1 => ({ r1, r2, c1, c2 });
+
+/** Something it reads of a link, or null when that cannot be known exactly. */
+function addExternalReadV1(unit: UnitV1, read: ExternalReadV1 | null): void {
+  if (read === null) unit.externalReads = null;
+  else if (unit.externalReads === NO_EXTERNAL_READS_V1) unit.externalReads = [read];
+  else (unit.externalReads as ExternalReadV1[] | null)?.push(read);
+}
 
 const wrapV1 = (value: number, size: number) => ((value % size) + size) % size;
 
@@ -319,21 +360,21 @@ function relativeAreaV1(unit: UnitV1, token: Extract<TokenV1, { k: 'areaN' }>): 
 
 /** A reference through a sheet list entry: other sheets of this workbook, or a link. */
 function sheetReferenceV1(
-  { unit, model, links }: DependencyWalkV1,
+  { unit, model, links, store }: DependencyWalkV1,
   token: Extract<TokenV1, { k: 'area3d' }>,
 ): void {
   const xti = model.xti[token.ixti];
   const book = xti ? model.books[xti.book] : undefined;
   if (!xti || !book || xti.first < 0) return;
   if (book.kind !== 'external') {
-    for (let s = xti.first; s <= xti.last; s++) unit.precedents.push({ sheet: s, area: token });
+    for (let s = xti.first; s <= xti.last; s++) store.push(s, token);
     return;
   }
   unit.external = true;
   const sheet = book.part ? links?.get(book.part)?.sheetNames[xti.first] : undefined;
   if (book.part && sheet !== undefined && xti.first === xti.last)
-    unit.externalReads?.push({ part: book.part, sheet, area: token });
-  else unit.externalReads = null;
+    addExternalReadV1(unit, { part: book.part, sheet, area: areaOfV1(token) });
+  else addExternalReadV1(unit, null);
 }
 
 /** A name of a linked workbook (its area is in the link). */
@@ -347,8 +388,8 @@ function linkedNameReferenceV1(
   const part = book?.kind === 'external' ? book.part : null;
   const name = part ? links?.get(part)?.names[token.index - 1] : undefined;
   if (part && name?.sheet && name.area)
-    unit.externalReads?.push({ part, sheet: name.sheet, area: name.area });
-  else unit.externalReads = null;
+    addExternalReadV1(unit, { part, sheet: name.sheet, area: name.area });
+  else addExternalReadV1(unit, null);
 }
 
 /** A defined name of this workbook: what its formula reads counts as read by the unit. */
@@ -366,7 +407,7 @@ function definedNameReferenceV1(walk: DependencyWalkV1, index: number): void {
 
 /** OFFSET and INDIRECT: only INDIRECT of a written address can be followed. */
 function functionReferenceV1(
-  { unit, model }: DependencyWalkV1,
+  { unit, model, store }: DependencyWalkV1,
   token: Extract<TokenV1, { k: 'func' }>,
   previous: TokenV1 | undefined,
 ): void {
@@ -374,20 +415,20 @@ function functionReferenceV1(
   if (token.tab !== INDIRECT_TAB_V1) return;
   const target =
     previous?.k === 'str' && token.argc === 1 ? addressV1(previous.v, model, unit.sheet) : null;
-  if (target) unit.precedents.push(target);
+  if (target) store.push(target.sheet, target.area);
   else unit.problem ??= 'INDIRECT with a computed address';
 }
 
 function visitTokensV1(walk: DependencyWalkV1, tokens: readonly TokenV1[], inName: boolean) {
-  const { unit } = walk;
+  const { unit, store } = walk;
   tokens.forEach((token, i) => {
     switch (token.k) {
       case 'area':
-        unit.precedents.push({ sheet: unit.sheet, area: token });
+        store.push(unit.sheet, token);
         break;
       case 'areaN':
         if (inName) unit.problem ??= 'name with a relative reference';
-        else unit.precedents.push({ sheet: unit.sheet, area: relativeAreaV1(unit, token) });
+        else store.push(unit.sheet, relativeAreaV1(unit, token));
         break;
       case 'area3d':
         sheetReferenceV1(walk, token);
@@ -407,57 +448,87 @@ function visitTokensV1(walk: DependencyWalkV1, tokens: readonly TokenV1[], inNam
   });
 }
 
-/** What a unit reads: areas of this workbook, whether it reads a link, and anything unknowable. */
+/**
+ * What a unit reads: areas of this workbook (into the store, right after the previous unit's),
+ * whether it reads a link, and anything unknowable. A formula that cannot be read gets its reason.
+ */
 function dependenciesV1(
   unit: UnitV1,
   model: WorkbookModelV1,
   links: Map<string, LinkIndexV1> | null,
+  store: PrecedentsV1,
 ): void {
-  if (unit.tokens) visitTokensV1({ unit, model, links, seenNames: new Set() }, unit.tokens, false);
+  unit.firstPrecedent = store.size;
+  unit.endPrecedent = store.size;
+  if (unit.problem) return;
+  let tokens: TokenV1[];
+  try {
+    tokens = unitTokensV1(model, unit);
+  } catch (cause) {
+    unit.problem =
+      cause instanceof UnsupportedFormulaError ? cause.reason : 'formula could not be read';
+    return;
+  }
+  visitTokensV1({ unit, model, links, store, seenNames: new Set() }, tokens, false);
+  unit.endPrecedent = store.size;
 }
 
 /* ---------------------------------------------------------------- dependency index */
 
-/** Which units read a cell: single cells by key, narrow areas by column, wide areas in a list. */
+/** A cell of the workbook as one number: sheet, row and column (below 2^53 for any workbook). */
+const SHEET_CELLS_V1 = 1_048_576 * MAX_COLUMNS_V1;
+const cellIdV1 = (sheet: number, row: number, col: number): number =>
+  sheet * SHEET_CELLS_V1 + cellKeyV1(row, col);
+
+const insideV1 = (area: AreaV1, row: number, col: number): boolean =>
+  row >= area.r1 && row <= area.r2 && col >= area.c1 && col <= area.c2;
+
+/**
+ * Which units read a cell: single cells by key, narrow areas by column, wide areas in a list.
+ * Numbers instead of objects and text keys: on a teacher's workbook this index has hundreds of
+ * thousands of entries.
+ */
 class ReadersIndexV1 {
-  private readonly singles = new Map<string, number[]>();
-  private readonly columns = new Map<string, { r1: number; r2: number; unit: number }[]>();
+  /** The unit that reads a cell alone, or the units when more than one does. */
+  private readonly singles = new Map<number, number | number[]>();
+  /** For each sheet column: r1, r2 and unit of each narrow area, three numbers each. */
+  private readonly columns = new Map<number, number[]>();
   private readonly wide = new Map<number, { area: AreaV1; unit: number }[]>();
 
-  add(unit: UnitV1) {
-    for (const { sheet, area } of unit.precedents) {
-      if (area.r1 === area.r2 && area.c1 === area.c2) {
-        const key = `${sheet}:${cellKeyV1(area.r1, area.c1)}`;
-        const list = this.singles.get(key) ?? [];
-        list.push(unit.id);
-        this.singles.set(key, list);
-      } else if (area.c2 - area.c1 <= 64) {
+  add(unit: UnitV1, store: PrecedentsV1) {
+    store.forEach(unit, (sheet, area) => {
+      if (area.r1 === area.r2 && area.c1 === area.c2) this.addSingle(sheet, area, unit.id);
+      else if (area.c2 - area.c1 <= 64)
         for (let c = area.c1; c <= area.c2; c++) {
-          const key = `${sheet}:${c}`;
-          const list = this.columns.get(key) ?? [];
-          list.push({ r1: area.r1, r2: area.r2, unit: unit.id });
-          this.columns.set(key, list);
+          const key = sheet * MAX_COLUMNS_V1 + c;
+          const list = this.columns.get(key);
+          if (list) list.push(area.r1, area.r2, unit.id);
+          else this.columns.set(key, [area.r1, area.r2, unit.id]);
         }
-      } else {
+      else {
         const list = this.wide.get(sheet) ?? [];
         list.push({ area, unit: unit.id });
         this.wide.set(sheet, list);
       }
-    }
+    });
+  }
+
+  private addSingle(sheet: number, area: AreaV1, unit: number) {
+    const key = cellIdV1(sheet, area.r1, area.c1);
+    const readers = this.singles.get(key);
+    if (readers === undefined) this.singles.set(key, unit);
+    else if (typeof readers === 'number') this.singles.set(key, [readers, unit]);
+    else readers.push(unit);
   }
 
   readers(sheet: number, row: number, col: number): number[] {
-    const out = [...(this.singles.get(`${sheet}:${cellKeyV1(row, col)}`) ?? [])];
-    for (const entry of this.columns.get(`${sheet}:${col}`) ?? [])
-      if (row >= entry.r1 && row <= entry.r2) out.push(entry.unit);
+    const single = this.singles.get(cellIdV1(sheet, row, col)) ?? [];
+    const out = typeof single === 'number' ? [single] : [...single];
+    const list = this.columns.get(sheet * MAX_COLUMNS_V1 + col) ?? [];
+    for (let i = 0; i < list.length; i += 3)
+      if (row >= list[i]! && row <= list[i + 1]!) out.push(list[i + 2]!);
     for (const entry of this.wide.get(sheet) ?? [])
-      if (
-        row >= entry.area.r1 &&
-        row <= entry.area.r2 &&
-        col >= entry.area.c1 &&
-        col <= entry.area.c2
-      )
-        out.push(entry.unit);
+      if (insideV1(entry.area, row, col)) out.push(entry.unit);
     return out;
   }
 }
@@ -465,18 +536,16 @@ class ReadersIndexV1 {
 /* ---------------------------------------------------------------- calculation */
 
 type PassV1 = {
-  /** New value of each recalculated cell (sheet:key). */
-  readonly values: Map<string, ScalarV1>;
+  /** New value of each recalculated cell (by cell id). */
+  readonly values: Map<number, ScalarV1>;
   /** Units that could not be calculated, with the reason. */
   readonly failed: Map<number, string>;
 };
 
-const cellIdV1 = (sheet: number, row: number, col: number) => `${sheet}:${cellKeyV1(row, col)}`;
-
 function contextV1(
   model: WorkbookModelV1,
   links: Map<string, LinkIndexV1>,
-  values: Map<string, ScalarV1>,
+  values: Map<number, ScalarV1>,
   unit: UnitV1,
 ): EvalContextV1 {
   const cellValue = (sheet: number, row: number, col: number): ScalarV1 => {
@@ -489,7 +558,7 @@ function contextV1(
     sheet: unit.sheet,
     row: unit.row,
     col: unit.col,
-    array: unit.array,
+    array: isArrayUnitV1(unit),
     cellValue,
     cellsIn: (sheet, area) => cellsInSheetV1(model, values, sheet, area),
     externalValue: (part, sheet, row, col) => {
@@ -520,7 +589,7 @@ function contextV1(
 
 function cellsInSheetV1(
   model: WorkbookModelV1,
-  values: Map<string, ScalarV1>,
+  values: Map<number, ScalarV1>,
   sheetIndex: number,
   area: AreaV1,
 ): { row: number; col: number; value: ScalarV1 }[] {
@@ -552,19 +621,17 @@ function spreadV1(unit: UnitV1, result: EvalValueV1): Map<CellV1, ScalarV1> | st
     for (const cell of unit.cells) out.set(cell, result ?? 0);
     return out;
   }
-  if (!unit.array) {
+  const area = unit.group;
+  if (area?.kind !== 'array') {
     out.set(unit.cells[0]!, result.data[0] ?? 0);
     return out;
   }
   const fits = (size: number, wanted: number) => size === wanted || size === 1;
-  if (
-    !fits(result.rows, unit.area.r2 - unit.area.r1 + 1) ||
-    !fits(result.cols, unit.area.c2 - unit.area.c1 + 1)
-  )
+  if (!fits(result.rows, area.r2 - area.r1 + 1) || !fits(result.cols, area.c2 - area.c1 + 1))
     return 'array result of another size';
   for (const cell of unit.cells) {
-    const r = result.rows === 1 ? 0 : cell.row - unit.area.r1;
-    const c = result.cols === 1 ? 0 : cell.col - unit.area.c1;
+    const r = result.rows === 1 ? 0 : cell.row - area.r1;
+    const c = result.cols === 1 ? 0 : cell.col - area.c1;
     out.set(cell, result.data[r * result.cols + c] ?? 0);
   }
   return out;
@@ -573,29 +640,29 @@ function spreadV1(unit: UnitV1, result: EvalValueV1): Map<CellV1, ScalarV1> | st
 /** Why a unit is not calculated in this pass; null when it is. */
 function skipReasonV1(
   unit: UnitV1,
-  dependsOn: Map<number, Set<number>>,
+  dependsOn: Map<number, number[]>,
   excluded: ReadonlyMap<number, string>,
   failed: ReadonlyMap<number, string>,
 ): string | null {
   const reason = excluded.get(unit.id);
   if (reason !== undefined) return reason;
   const deps = dependsOn.get(unit.id) ?? [];
-  if ([...deps].some((id) => failed.has(id) || excluded.has(id)))
+  if (deps.some((id) => failed.has(id) || excluded.has(id)))
     return 'depends on a cell left as it is';
-  if (unit.problem || !unit.tokens) return unit.problem ?? 'formula could not be read';
-  return null;
+  // Set while reading the workbook, also for a formula that could not be read.
+  return unit.problem || null;
 }
 
 /** The values a unit gives to its cells, or why it could not be calculated. */
 function calculateUnitV1(
   model: WorkbookModelV1,
   links: Map<string, LinkIndexV1>,
-  values: Map<string, ScalarV1>,
+  values: Map<number, ScalarV1>,
   unit: UnitV1,
 ): Map<CellV1, ScalarV1> | string {
   let result: EvalValueV1;
   try {
-    result = evaluateTokensV1(unit.tokens!, contextV1(model, links, values, unit));
+    result = evaluateTokensV1(unitTokensV1(model, unit), contextV1(model, links, values, unit));
   } catch (cause) {
     return cause instanceof UnsupportedFormulaError ? cause.reason : 'calculation failed';
   }
@@ -606,11 +673,11 @@ function runPassV1(
   model: WorkbookModelV1,
   links: Map<string, LinkIndexV1>,
   order: readonly UnitV1[],
-  dependsOn: Map<number, Set<number>>,
+  dependsOn: Map<number, number[]>,
   /** Units left as they are before calculating, with the reason. */
   excluded: ReadonlyMap<number, string>,
 ): PassV1 {
-  const values = new Map<string, ScalarV1>();
+  const values = new Map<number, ScalarV1>();
   const failed = new Map<number, string>();
   for (const unit of order) {
     const outcome =
@@ -769,13 +836,14 @@ const nothingRecalculatedV1 = (blocked: string | null, dependent = 0): RecalcRes
   report: blockedRecalcReportV1(blocked, dependent),
 });
 
-const insideV1 = (area: AreaV1, row: number, col: number): boolean =>
-  row >= area.r1 && row <= area.r2 && col >= area.c1 && col <= area.c2;
-
 /** The chain: the units it starts from, then every unit that reads their cells. */
-function chainV1(units: readonly UnitV1[], starts: readonly number[]): Set<number> {
+function chainV1(
+  units: readonly UnitV1[],
+  store: PrecedentsV1,
+  starts: readonly number[],
+): Set<number> {
   const index = new ReadersIndexV1();
-  for (const unit of units) index.add(unit);
+  for (const unit of units) index.add(unit, store);
   const inChain = new Set(starts);
   const queue = [...starts];
   while (queue.length) {
@@ -791,8 +859,12 @@ function chainV1(units: readonly UnitV1[], starts: readonly number[]): Set<numbe
 }
 
 /** For each chain unit, the other chain units whose cells it reads. */
-function dependsOnV1(units: readonly UnitV1[], inChain: Set<number>): Map<number, Set<number>> {
-  const owner = new Map<string, number>();
+function dependsOnV1(
+  units: readonly UnitV1[],
+  store: PrecedentsV1,
+  inChain: Set<number>,
+): Map<number, number[]> {
+  const owner = new Map<number, number>();
   for (const id of inChain)
     for (const cell of units[id]!.cells)
       owner.set(cellIdV1(units[id]!.sheet, cell.row, cell.col), id);
@@ -812,12 +884,13 @@ function dependsOnV1(units: readonly UnitV1[], inChain: Set<number>): Map<number
         if (other !== undefined) yield other;
       }
   }
-  const dependsOn = new Map<number, Set<number>>();
+  const dependsOn = new Map<number, number[]>();
   for (const id of inChain) {
     const deps = new Set<number>();
-    for (const { sheet, area } of units[id]!.precedents)
+    store.forEach(units[id]!, (sheet, area) => {
       for (const other of ownersOf(sheet, area)) if (other !== id) deps.add(other);
-    dependsOn.set(id, deps);
+    });
+    dependsOn.set(id, [...deps]);
   }
   return dependsOn;
 }
@@ -826,12 +899,12 @@ function dependsOnV1(units: readonly UnitV1[], inChain: Set<number>): Map<number
 function orderV1(
   units: readonly UnitV1[],
   inChain: Set<number>,
-  dependsOn: Map<number, Set<number>>,
+  dependsOn: Map<number, number[]>,
 ): { order: UnitV1[]; cyclic: Set<number> } {
   const order: UnitV1[] = [];
   const state = new Map<number, 'visiting' | 'done'>();
   const cyclic = new Set<number>();
-  const frame = (id: number) => ({ id, deps: [...(dependsOn.get(id) ?? [])], i: 0 });
+  const frame = (id: number) => ({ id, deps: dependsOn.get(id) ?? [], i: 0 });
   for (const id of inChain) {
     if (state.has(id)) continue;
     const stack = [frame(id)];
@@ -863,7 +936,7 @@ function proofV1(
   model: WorkbookModelV1,
   linksBefore: Map<string, LinkIndexV1>,
   order: readonly UnitV1[],
-  dependsOn: Map<number, Set<number>>,
+  dependsOn: Map<number, number[]>,
   circular: ReadonlyMap<number, string>,
 ): { mismatched: Set<number>; samples: string[] } {
   const proof = runPassV1(model, linksBefore, order, dependsOn, circular);
@@ -946,7 +1019,8 @@ export async function recalculateLinkedCellsV1(input: {
   if (units.length > MAX_UNITS_V1) return nothingRecalculatedV1('too many formulas');
   const linksBefore = linkIndexV1(input.before);
   const linksAfter = linkIndexV1(input.after);
-  for (const unit of units) dependenciesV1(unit, model, linksAfter);
+  const store = new PrecedentsV1();
+  for (const unit of units) dependenciesV1(unit, model, linksAfter, store);
 
   // The chain starts at the units that read a changed link cell.
   const changed = changedLinkCellsV1(linksBefore, linksAfter);
@@ -956,9 +1030,9 @@ export async function recalculateLinkedCellsV1(input: {
   const starts = units
     .filter((unit) => input.proveAll || (unit.external && readsChange(unit)))
     .map((unit) => unit.id);
-  const inChain = chainV1(units, starts);
+  const inChain = chainV1(units, store, starts);
   if (inChain.size === 0) return nothingRecalculatedV1(null);
-  const dependsOn = dependsOnV1(units, inChain);
+  const dependsOn = dependsOnV1(units, store, inChain);
   const { order, cyclic } = orderV1(units, inChain, dependsOn);
 
   // Formulas outside the chain whose address is computed cannot be proved unaffected.

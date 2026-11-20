@@ -34,6 +34,7 @@ import {
   linkTargetOfV1,
   nextLinkWakeV1,
   observedLinkFileV1,
+  recalculateOnThisTryV1,
   requestLinkRefreshV1,
   startLinkRefreshV1,
   type LinkFileV1,
@@ -689,9 +690,16 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       }
     }
     const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
+    const settings = this.linkSettings();
     for (const file of due) {
       const lease = crypto.randomUUID();
       this.saveLinkFile(startLinkRefreshV1(file, lease, now));
+      const recalculate = recalculateOnThisTryV1(settings, file);
+      if (settings.recalc === true && !recalculate)
+        this.event('links-recalc-skipped', {
+          file: file.name,
+          note: 'Nada recalculado: a tentativa anterior não terminou; só o vínculo é atualizado',
+        });
       const run = refreshLinksV1(this.env, {
         driveId,
         driveWebUrl: webUrl,
@@ -701,7 +709,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
         settleMs: LINK_DESTINATION_SETTLE_MS_V1,
         // Still open since the last try: asked first, before any download.
         probeLockFirst: file.lastOutcome === 'locked',
-        recalculate: this.linkSettings().recalc === true,
+        recalculate,
       })
         .catch((cause: unknown): LinkRefreshResultV1 => {
           console.error(
