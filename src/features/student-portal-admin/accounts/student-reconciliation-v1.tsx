@@ -391,7 +391,7 @@ export function StudentReconciliationV1({
         setFocusFeedback(true);
         setNotice(
           result.accountClosed === false
-            ? 'Aluno excluído. A conta do Portal não foi encerrada: encerre no Painel do Aluno.'
+            ? 'A posição na turma foi apagada, mas a conta do Portal não foi encerrada. Exclua de novo.'
             : 'Aluno excluído.',
         );
       }

@@ -196,15 +196,18 @@ describe('Excluir aluno lançado por engano (20/11/2026)', () => {
     expect(command).not.toHaveBeenCalled();
   });
 
-  it('removes with the account version found unused, then closes that account', async () => {
-    mocks.execute.mockResolvedValueOnce(committed);
+  it('removes the class place, closes the unused account, then removes the student', async () => {
+    mocks.execute.mockResolvedValue(committed);
     const { command, env: portalEnv } = portal(
       {},
       { classesThisYear: 0, closable: true, version: 8 },
     );
     const response = await handleStudentReconciliationRequestV1(request(removal()), portalEnv);
     expect(await response?.json()).toMatchObject({ state: 'committed', accountClosed: true });
-    expect(mocks.execute.mock.calls[0]![1]).toEqual({ accountVersion: 7 });
+    expect(mocks.execute.mock.calls.map((call) => call[1])).toEqual([
+      { accountVersion: 7, step: 'class' },
+      { step: 'student' },
+    ]);
     expect(command.mock.calls[0]![1]).toMatchObject({
       operation: 'account-close',
       accountId,
@@ -213,11 +216,12 @@ describe('Excluir aluno lançado por engano (20/11/2026)', () => {
     });
   });
 
-  it('says so when the account could not be closed (the student stays removed)', async () => {
-    mocks.execute.mockResolvedValueOnce(committed);
+  it('stops after the class place when the account could not be closed, and says so', async () => {
+    mocks.execute.mockResolvedValue(committed);
     const { command, env: portalEnv } = portal({}, { closable: false });
     const response = await handleStudentReconciliationRequestV1(request(removal()), portalEnv);
     expect(await response?.json()).toMatchObject({ state: 'committed', accountClosed: false });
     expect(command).not.toHaveBeenCalled();
+    expect(mocks.execute).toHaveBeenCalledTimes(1);
   });
 });

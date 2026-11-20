@@ -22,7 +22,7 @@ import { prepareReportV1, preparedResponseV1 } from './prepare-v1';
 import { applyReportV1 } from './apply-v1';
 import { automaticReportV1, catalogV1, detailV1, listV1, pendingCountV1 } from './queries-v1';
 import { decideV1 } from './decisions-v1';
-import { removeStudentV1 } from './remove-v1';
+import { removeStudentV1, type RemovalStepV1 } from './remove-v1';
 
 type PrepareRequestV1 = Extract<ReconciliationRequestV1, { operation: 'prepare' }>;
 
@@ -169,12 +169,12 @@ export class StudentReconciliationServiceV1 {
     );
   }
   /**
-   * `accountVersion`: for "remove-student", the version of the student's Portal account that the
-   * caller found never used (null: no open account).
+   * For "remove-student": `accountVersion`, the version of the student's Portal account that the
+   * caller found never used (null: no open account), and the `step` (see remove-v1.ts).
    */
   async execute(
     input: unknown,
-    options: { readonly accountVersion?: number | null } = {},
+    options: { readonly accountVersion?: number | null; readonly step?: RemovalStepV1 } = {},
   ): Promise<ReconciliationResponseV1> {
     const parsed = reconciliationRequestV1.safeParse(input);
     if (!parsed.success) return { contractVersion: 1, state: 'invalid-request' };
@@ -213,6 +213,7 @@ export class StudentReconciliationServiceV1 {
               request,
               context,
               options.accountVersion ?? null,
+              options.step ?? 'class',
             );
         }
       });
