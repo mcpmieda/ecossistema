@@ -35,11 +35,10 @@ export const studentPortalSections = [
   },
 ] as const;
 export type StudentPortalSection =
-  (typeof studentPortalSections)[number]['id'] | 'birth' | 'publication' | 'reconciliation';
+  (typeof studentPortalSections)[number]['id'] | 'birth' | 'publication';
 export function portalSectionFromHash(hash: string): StudentPortalSection {
   const params = new URLSearchParams(hash.split('?')[1] ?? '');
   const selected = params.get('area');
-  if (selected === 'reconciliation') return 'reconciliation';
   if (selected === 'birth') return 'credentials';
   if (selected === 'publication') return 'audit';
   return studentPortalSections.find((section) => section.id === selected)?.id ?? 'overview';

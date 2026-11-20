@@ -14,7 +14,7 @@ import {
   type ContextType,
   type ReactNode,
 } from 'react';
-import { Alert, Button, Tabs } from '@heroui/react';
+import { Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
 import { useHistoryStepV1 } from '../../shared/ui/history-step-v1';
 import type { PolicyScopeV1, ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
@@ -28,15 +28,15 @@ import {
   studentPortalSections,
   type StudentPortalSection,
 } from '../../platform/student-portal-module';
-import { createPortalAdminClientV1 } from './shared/admin-client-v1';
-import { createReconciliationClientV1 } from './shared/reconciliation-client-v1';
+import type { createPortalAdminClientV1 } from './shared/admin-client-v1';
+import type { PortalAdminIdentityV1 } from './shared/admin-identity-v1';
 import {
-  authorizationAwareFetchV1,
-  usePortalAdminIdentityV1,
-  type PortalAdminIdentityV1,
-} from './shared/admin-identity-v1';
+  PortalAdminGateV1,
+  panelCanWriteV1,
+  usePanelClientsV1,
+} from './shared/portal-admin-gate-v1';
 import { useAccountQrHandoffV1 } from './shared/qr-handoff-v1';
-import {
+import type {
   createPortalAdminReadClientV2,
   createPortalClassCatalogV2,
 } from './accounts/accounts-client-v2';
@@ -56,9 +56,6 @@ import { AreaErrorBoundaryV1 } from '../../shared/ui/area-error-boundary-v1';
 
 const StudentAccountsV1 = preloadedSectionV1(() =>
   import('./accounts/student-accounts-v1').then((module) => module.StudentAccountsV1),
-);
-const StudentReconciliationV1 = preloadedSectionV1(() =>
-  import('./accounts/student-reconciliation-v1').then((module) => module.StudentReconciliationV1),
 );
 const StudentCredentialsV1 = preloadedSectionV1(() =>
   import('./credentials/student-credentials-v1').then((module) => module.StudentCredentialsV1),
@@ -87,7 +84,6 @@ const AuditWorkspaceV1 = preloadedSectionV1(() =>
 const PANEL_SECTIONS_V1 = [
   StudentOverviewV1,
   StudentAccountsV1,
-  StudentReconciliationV1,
   StudentPoliciesV1,
   StudentSessionsV1,
   AuditWorkspaceV1,
@@ -100,8 +96,7 @@ const PANEL_SECTIONS_V1 = [
 // still being checked.
 if (typeof window !== 'undefined') {
   const opened = portalSectionFromHash(window.location.hash);
-  if (opened === 'reconciliation') StudentReconciliationV1.preload();
-  else if (opened === 'accounts' || opened === 'credentials') StudentAccountsV1.preload();
+  if (opened === 'accounts' || opened === 'credentials') StudentAccountsV1.preload();
   else if (opened === 'sessions') StudentSessionsV1.preload();
   else if (opened === 'audit') AuditWorkspaceV1.preload();
   else if (opened === 'policies') StudentPoliciesV1.preload();
@@ -114,7 +109,6 @@ const sectionFallback = (
 /** What every area of the Painel do Aluno receives: the clients, the panel's scope and the rights. */
 type PanelCommonV1 = {
   client: ReturnType<typeof createPortalAdminClientV1>;
-  reconciliation: ReturnType<typeof createReconciliationClientV1>;
   reader: ReturnType<typeof createPortalAdminReadClientV2>;
   catalog: ReturnType<typeof createPortalClassCatalogV2>;
   scope: ScopeV1;
@@ -176,70 +170,26 @@ function accountSlotsV1(common: PanelCommonV1): AccountSlotsV1 {
 }
 
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
-const enterInstitutionalLogin = () => window.location.replace('/auth/login');
 const customizationChanged = () => notifyLiveChangeV1('portal');
 /** Administrative Portal entry; heavyweight sections load only when the selected route needs them. */
 export function StudentPortalAdminPage({
   fetcher,
-  onLogin = enterInstitutionalLogin,
+  onLogin,
 }: Readonly<{
   fetcher?: PortalFetchV1;
   onLogin?: () => void;
 }>) {
-  const auth = usePortalAdminIdentityV1(fetcher);
-  const unauthenticated =
-    auth.state.state === 'error' && auth.state.error.state === 'unauthenticated';
-  useEffect(() => {
-    if (unauthenticated) onLogin();
-  }, [unauthenticated, onLogin]);
-  if (unauthenticated)
-    return (
-      <p>
-        <output className="contents">Abrindo entrada institucional…</output>
-      </p>
-    );
-  if (auth.state.state !== 'ready')
-    return (
-      <section className="pa-admin-page">
-        <h1>
-          {portalSectionFromHash(window.location.hash) === 'reconciliation'
-            ? 'Conciliação'
-            : 'Painel do Aluno'}
-        </h1>
-        {auth.state.state === 'checking' ? (
-          <p>
-            <output className="contents">Verificando sessão administrativa…</output>
-          </p>
-        ) : (
-          <Alert status="warning">
-            <Alert.Content>
-              <Alert.Title>
-                {auth.state.state === 'paused'
-                  ? 'Consulta pausada'
-                  : 'Acesso administrativo indisponível'}
-              </Alert.Title>
-              <Alert.Description>
-                Confirme sua sessão para consultar o Portal de 2026.
-              </Alert.Description>
-              <Button
-                onPress={() => {
-                  void auth.refresh();
-                }}
-              >
-                Tentar novamente
-              </Button>
-            </Alert.Content>
-          </Alert>
-        )}
-      </section>
-    );
   return (
-    <PortalWorkspace
-      key={auth.state.identity.identityKey + ':' + auth.state.identity.capabilities.join(',')}
-      identity={auth.state.identity}
-      onLost={auth.lost}
-      fetcher={fetcher}
-    />
+    <PortalAdminGateV1 title="Painel do Aluno" fetcher={fetcher} onLogin={onLogin}>
+      {(identity, onLost) => (
+        <PortalWorkspace
+          key={identity.identityKey + ':' + identity.capabilities.join(',')}
+          identity={identity}
+          onLost={onLost}
+          fetcher={fetcher}
+        />
+      )}
+    </PortalAdminGateV1>
   );
 }
 type ShiftKeyV1 = Extract<PolicyScopeV1, { kind: 'shift' }>['shift'];
@@ -277,17 +227,6 @@ function sectionContentV1({
   onOpenWithoutClass: () => void;
 }): ReactNode {
   switch (section) {
-    case 'reconciliation':
-      return (
-        <StudentReconciliationV1
-          client={common.reconciliation}
-          scope={common.scope}
-          canWrite={common.canWrite}
-          showPortalAccess={false}
-          pendingOnly
-          accountClose={{ client: common.client, reader: common.reader }}
-        />
-      );
     case 'accounts':
     case 'credentials':
       return <StudentAccountsV1 key={section} {...common} slots={slots} onQr={onQr} />;
@@ -365,7 +304,7 @@ function PortalWorkspace({
   const qr = useAccountQrHandoffV1();
   const [openedAccount, setOpenedAccount] = useState<{ id: string; parentScope: ScopeV1 } | null>(
     () =>
-      section === 'reconciliation' || initialPanel.accountId === null
+      initialPanel.accountId === null
         ? null
         : {
             id: initialPanel.accountId,
@@ -386,28 +325,7 @@ function PortalWorkspace({
     window.addEventListener('hashchange', change);
     return () => window.removeEventListener('hashchange', change);
   }, [qr.clear]);
-  const clients = useMemo(() => {
-    const send = authorizationAwareFetchV1(onLost, fetcher);
-    const catalog = createPortalClassCatalogV2();
-    return {
-      client: createPortalAdminClientV1({ fetch: send, respectRetryAfter: true }),
-      reconciliation: createReconciliationClientV1({ fetch: send, respectRetryAfter: true }),
-      reader: createPortalAdminReadClientV2({ fetch: send, respectRetryAfter: true }),
-      catalog: (async (...args: Parameters<typeof catalog>) => {
-        try {
-          return await catalog(...args);
-        } catch (error) {
-          if (
-            !args[2]?.aborted &&
-            error instanceof PortalClientErrorV1 &&
-            error.state === 'forbidden'
-          )
-            onLost(error);
-          throw error;
-        }
-      }) as typeof catalog,
-    };
-  }, [fetcher, onLost]);
+  const clients = usePanelClientsV1(onLost, fetcher);
   const loadClasses = useCallback(
     (signal: AbortSignal) => readClassOptionsV1(clients.catalog, signal),
     [clients.catalog],
@@ -485,12 +403,7 @@ function PortalWorkspace({
       scope: panelScope.scope,
       scopeLabel: panelScope.label,
       identityKey: identity.identityKey,
-      // The administrator writes; so does a person given the area (#1513). A settings reader
-      // without write is read-only.
-      canWrite:
-        identity.capabilities.includes('platform.settings.write') ||
-        (identity.capabilities.includes('area.painel-do-aluno') &&
-          !identity.capabilities.includes('platform.settings.read')),
+      canWrite: panelCanWriteV1(identity),
       platformSettings: identity.capabilities.includes('platform.settings.read'),
       onAuthorizationLost: onLost,
     }),
@@ -513,13 +426,11 @@ function PortalWorkspace({
   }, []);
   const openAccount = useMemo<ContextType<typeof AccountOpenContextV1>>(
     () =>
-      section === 'reconciliation'
-        ? null
-        : (id, parentScope = common.scope) => {
-            setCustomizationTarget(null);
-            setOpenedAccount({ id, parentScope });
-          },
-    [section, common.scope],
+      (id, parentScope = common.scope) => {
+        setCustomizationTarget(null);
+        setOpenedAccount({ id, parentScope });
+      },
+    [common.scope],
   );
   const content = sectionContentV1({
     section,
@@ -613,49 +524,43 @@ function PortalWorkspace({
       <PanelScopeContextV1.Provider value={panelScope}>
         <section className="pa-admin-page">
           <header className="pa-admin-header">
-            <h1>{section === 'reconciliation' ? 'Conciliação' : 'Painel do Aluno'}</h1>
-            {section !== 'reconciliation' && (
-              <Button
-                size="sm"
-                variant="secondary"
-                // The public demo, the one link for everybody.
-                onPress={() => window.open(PUBLIC_DEMO_URL_V1, '_blank', 'noopener,noreferrer')}
-              >
-                Visão do aluno (demo)
-              </Button>
-            )}
-          </header>
-          {section === 'reconciliation' ? (
-            <div className="pa-admin-content">{scopedContent}</div>
-          ) : (
-            <Tabs
-              selectedKey={areaKey}
-              onSelectionChange={(key) => {
-                const next = studentPortalSections.find((item) => item.id === key);
-                if (!next || !allowDraftNavigationV1()) return;
-                setCustomizationTarget(null);
-                setOpenedAccount(null);
-                if (section === next.id) qr.clear();
-                else window.location.hash = studentPortalHref(next.id);
-              }}
+            <h1>Painel do Aluno</h1>
+            <Button
+              size="sm"
+              variant="secondary"
+              // The public demo, the one link for everybody.
+              onPress={() => window.open(PUBLIC_DEMO_URL_V1, '_blank', 'noopener,noreferrer')}
             >
-              <Tabs.ListContainer className="pa-area-tabs max-w-full overflow-x-auto">
-                <Tabs.List aria-label="Áreas do Painel do Aluno">
-                  {studentPortalSections
-                    .filter((item) => item.id !== 'credentials')
-                    .map((item) => (
-                      <Tabs.Tab key={item.id} id={item.id}>
-                        {item.label}
-                        <Tabs.Indicator />
-                      </Tabs.Tab>
-                    ))}
-                </Tabs.List>
-              </Tabs.ListContainer>
-              <Tabs.Panel id={areaKey} className="pa-admin-content">
-                {scopedContent}
-              </Tabs.Panel>
-            </Tabs>
-          )}
+              Visão do aluno (demo)
+            </Button>
+          </header>
+          <Tabs
+            selectedKey={areaKey}
+            onSelectionChange={(key) => {
+              const next = studentPortalSections.find((item) => item.id === key);
+              if (!next || !allowDraftNavigationV1()) return;
+              setCustomizationTarget(null);
+              setOpenedAccount(null);
+              if (section === next.id) qr.clear();
+              else window.location.hash = studentPortalHref(next.id);
+            }}
+          >
+            <Tabs.ListContainer className="pa-area-tabs max-w-full overflow-x-auto">
+              <Tabs.List aria-label="Áreas do Painel do Aluno">
+                {studentPortalSections
+                  .filter((item) => item.id !== 'credentials')
+                  .map((item) => (
+                    <Tabs.Tab key={item.id} id={item.id}>
+                      {item.label}
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  ))}
+              </Tabs.List>
+            </Tabs.ListContainer>
+            <Tabs.Panel id={areaKey} className="pa-admin-content">
+              {scopedContent}
+            </Tabs.Panel>
+          </Tabs>
           {customizationTarget ? (
             <Suspense fallback={sectionFallback}>
               <CustomizationTargetV1
@@ -673,7 +578,7 @@ function PortalWorkspace({
               />
             </Suspense>
           ) : null}
-          {section !== 'reconciliation' && openedAccount && (
+          {openedAccount && (
             <AccountDetailV1
               accountId={openedAccount.id}
               parentScope={openedAccount.parentScope}

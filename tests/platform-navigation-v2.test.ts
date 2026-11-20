@@ -8,7 +8,7 @@ import {
   serviceSectionsV2,
 } from '../src/platform/navigation';
 import { STUDENT_PORTAL_MODULE } from '../shared/platform-contract';
-import { notesModule } from '../src/platform/notes-module';
+import { notesModule, withNotesAccessV1 } from '../src/platform/notes-module';
 import {
   portalSectionFromHash,
   withStudentPortalModule,
@@ -29,12 +29,12 @@ describe('shell navigation of 07/10/2026', () => {
       'council',
       'settings',
     ]);
-    // Auditoria of the Banco de notas sits under Importação, at its unchanged address, and so
-    // does the OneDrive automatic read.
+    // The Importação's tabs (20/11/2026): OneDrive, Auditoria, Importação manual and Conciliação.
     expect(importAreaSectionsV1().map((section) => [section.label, section.href])).toEqual([
-      ['Importação', '#/banco-de-notas?area=importacao'],
-      ['Auditoria', '#/banco-de-notas?area=audit'],
       ['OneDrive', '#/banco-de-notas?area=onedrive'],
+      ['Auditoria', '#/banco-de-notas?area=audit'],
+      ['Importação manual', '#/banco-de-notas?area=importacao'],
+      ['Conciliação', '#/banco-de-notas?area=reconciliation'],
     ]);
     expect(serviceSectionsV2('banco-de-notas').some((section) => section.id === 'reports')).toBe(
       false,
@@ -78,9 +78,9 @@ describe('independent main entries', () => {
     ).toBe('accounts');
     expect(portalSectionFromHash('#/painel-do-aluno?area=accounts&aluno=invalid')).toBe('accounts');
   });
-  it('selects only the independent area and keeps existing URLs', () => {
+  it('selects only the open area: the Conciliação is a tab of the Importação', () => {
     for (const [route, section, expected] of [
-      ['painel-do-aluno', 'reconciliation', 'Conciliação'],
+      ['banco-de-notas', 'reconciliation', 'Importação'],
       ['painel-do-aluno', 'accounts', 'Painel do Aluno'],
       ['banco-de-notas', 'importacao', 'Importação'],
       ['banco-de-notas', 'audit', 'Importação'],
@@ -88,19 +88,30 @@ describe('independent main entries', () => {
     ] as const) {
       const areas = mainNavigationAreasV1([STUDENT_PORTAL_MODULE, notesModule], route, section);
       expect(areas.filter((area) => area.open).map((area) => area.name)).toEqual([expected]);
-      expect(areas.find((area) => area.name === 'Conciliação')?.href).toBe(
-        '#/painel-do-aluno?area=reconciliation',
-      );
+      expect(areas.map((area) => area.name)).toEqual([
+        'Banco de notas',
+        'Importação',
+        'Painel do Aluno',
+      ]);
+      // The Importação opens on its first tab.
       expect(areas.find((area) => area.name === 'Importação')?.href).toBe(
-        '#/banco-de-notas?area=importacao',
+        '#/banco-de-notas?area=onedrive',
       );
     }
   });
-  it('inherits Portal visibility and does not add Conciliação for a restricted profile', () => {
-    const modules = withStudentPortalModule(
-      [STUDENT_PORTAL_MODULE, notesModule],
-      ['platform.snapshot.read'],
+  it('shows the Conciliação tab only with the Painel do Aluno grant its operations require', () => {
+    const modules = withNotesAccessV1(
+      withStudentPortalModule([STUDENT_PORTAL_MODULE, notesModule], ['area.importacao']),
+      ['area.importacao'],
     );
+    const importArea = mainNavigationAreasV1(modules, 'banco-de-notas', 'importacao').find(
+      (area) => area.name === 'Importação',
+    );
+    expect(importArea?.sections.map((item) => item.id)).toEqual([
+      'onedrive',
+      'audit',
+      'importacao',
+    ]);
     expect(
       mainNavigationAreasV1(modules, 'banco-de-notas', 'importacao').some(
         (area) => area.name === 'Conciliação',

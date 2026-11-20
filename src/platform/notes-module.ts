@@ -8,7 +8,12 @@ export const notesModule: CoreModuleContract = {
   route: 'banco-de-notas',
   state: 'ready',
   requiredRole: 'ADMINISTRADOR',
-  capabilities: ['area.desempenho', 'area.importacao', 'gradebook.persistence.admin'],
+  capabilities: [
+    'area.desempenho',
+    'area.importacao',
+    'area.painel-do-aluno',
+    'gradebook.persistence.admin',
+  ],
 };
 
 type NotesSection = {
@@ -23,12 +28,14 @@ export const defaultNotesSectionId = 'importacao';
 
 const notesHref = platformHref('banco-de-notas');
 const notesAreaHref = (area: string): string => `${notesHref}?area=${encodeURIComponent(area)}`;
+/** The Conciliação, a tab of the Importação. */
+export const reconciliationHrefV1 = notesAreaHref('reconciliation');
 
 /** In the order of the tabs: Desempenho first and Auditoria beside Configurações. */
 export const notesSections: NotesSection[] = [
   {
     id: defaultNotesSectionId,
-    label: 'Importação',
+    label: 'Importação manual',
     description: 'Importar e reconhecer planilhas de notas XLSB, XLSX e XLS.',
     href: notesHref,
     searchTerms: 'importar importação planilha planilhas xlsb xlsx xls leitor reconhecimento',
@@ -62,6 +69,13 @@ export const notesSections: NotesSection[] = [
     searchTerms: 'onedrive leitura automática sincronização pasta planilhas professores lançamento',
   },
   {
+    id: 'reconciliation',
+    label: 'Conciliação',
+    description: 'Conferir pendências e conciliar alunos.',
+    href: reconciliationHrefV1,
+    searchTerms: 'conciliação reconciliação pendências alunos smecel relatório',
+  },
+  {
     id: 'settings',
     label: 'Configurações',
     description: 'Administrar o ciclo de vida dos anos letivos do Banco de Notas.',
@@ -70,10 +84,12 @@ export const notesSections: NotesSection[] = [
   },
 ];
 
-/** The capability each section of the Banco de notas needs (#1513). */
+/** The capability each section of the Banco de notas needs (#1513). The Conciliação, a tab of the
+ * Importação, keeps the Painel do Aluno's grant its server operations require. */
 export function notesSectionCapabilityV1(sectionId: string): PlatformCapability {
   if (sectionId === defaultNotesSectionId || sectionId === 'audit' || sectionId === 'onedrive')
     return 'area.importacao';
+  if (sectionId === 'reconciliation') return 'area.painel-do-aluno';
   return sectionId === 'settings' ? 'gradebook.persistence.admin' : 'area.desempenho';
 }
 

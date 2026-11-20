@@ -3,13 +3,16 @@ import { listGradebookImportDiagnosticsAuditV1 } from '../features/gradebook/imp
 import { useLiveRefreshV1 } from '../shared/live-data/use-live-refresh-v1';
 
 /**
- * The count beside the Auditoria tab: the current problems of the Banco's year, the same number the
- * Auditoria lists. The Auditoria publishes its own count when it reads; the tab reads it otherwise
- * (on opening the area, on a change of the Banco and every five minutes while visible).
+ * The count beside the Auditoria tab (and in the Importação's sum in the side column): the current
+ * problems of the Banco's year, the same number the Auditoria lists. The Auditoria publishes its own
+ * count when it reads; the side column reads it otherwise (on moving between areas, on a change of
+ * the Banco and every five minutes while visible).
  */
 type AuditPendingStateV1 = { readonly year: number | null; readonly count: number | null };
 
 const READ_EVERY_MS_V1 = 5 * 60_000;
+/** The year the Conciliação and the Portal work on. */
+const CURRENT_SCHOOL_YEAR_V1 = 2026;
 let state: AuditPendingStateV1 = { year: null, count: null };
 const listeners = new Set<() => void>();
 
@@ -43,7 +46,19 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
-export function useAuditPendingV1(enabled: boolean, visit: string): string | null {
+export function useAuditPendingCountV1(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => state.count,
+    () => state.count,
+  );
+}
+
+/**
+ * The one reader, kept by the side column. Before the Banco has chosen its year (another area
+ * opened first), the current school year is read; the Banco's choice replaces it.
+ */
+export function useAuditPendingReaderV1(enabled: boolean, visit: string): void {
   const current = useSyncExternalStore(
     subscribe,
     () => state,
@@ -51,9 +66,8 @@ export function useAuditPendingV1(enabled: boolean, visit: string): string | nul
   );
   const active = useRef<AbortController | null>(null);
   const read = useCallback(async () => {
-    const year = state.year;
-    if (!enabled || year === null || document.visibilityState === 'hidden' || active.current)
-      return;
+    const year = state.year ?? CURRENT_SCHOOL_YEAR_V1;
+    if (!enabled || document.visibilityState === 'hidden' || active.current) return;
     const controller = new AbortController();
     active.current = controller;
     try {
@@ -64,7 +78,7 @@ export function useAuditPendingV1(enabled: boolean, visit: string): string | nul
       if (response.state === 'ready' && response.total !== undefined)
         publishAuditPendingV1(year, response.total);
     } catch {
-      // The tab keeps its last count; the Auditoria itself shows a failed read.
+      // The count stays as it was; the Auditoria itself shows a failed read.
     } finally {
       if (active.current === controller) active.current = null;
     }
@@ -84,6 +98,5 @@ export function useAuditPendingV1(enabled: boolean, visit: string): string | nul
     };
   }, [enabled, read, visit, current.year]);
 
-  useLiveRefreshV1(read, { domains: ['gradebook'], enabled: enabled && current.year !== null });
-  return enabled ? auditPendingLabelV1(current.count) : null;
+  useLiveRefreshV1(read, { domains: ['gradebook'], enabled });
 }

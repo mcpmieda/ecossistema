@@ -13,7 +13,7 @@ import {
   type FrequencyUnresolvedV2,
 } from '../../../../shared/attendance-contracts/frequency-v2';
 import { SHIFT_LABELS_V1, type ShiftV1 } from '../../../../shared/student-portal-contracts/core-v1';
-import { studentPortalHref } from '../../../platform/student-portal-module';
+import { reconciliationHrefV1 } from '../../../platform/notes-module';
 import {
   createFrequencyAdminClientV2,
   type FrequencyAdminClientV2,
@@ -534,7 +534,7 @@ function UnresolvedStudentsV2({
           </Button>
         ) : null}
         {ambiguous ? (
-          <a className="frequency-link" href={studentPortalHref('reconciliation')}>
+          <a className="frequency-link" href={reconciliationHrefV1}>
             Abrir Conciliação
           </a>
         ) : null}

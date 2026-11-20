@@ -33,19 +33,18 @@ const snapshot = {
 } satisfies PlatformSnapshotContract;
 
 describe('platform search model', () => {
-  it('indexes the independent Conciliação area while preserving Alunos in the legacy Panel', () => {
+  it('indexes the Conciliação as a tab of the Importação and keeps Alunos in the Panel', () => {
     const items = buildSearchItems({
       ...snapshot,
       coreModules: [...snapshot.coreModules, STUDENT_PORTAL_MODULE],
     });
-    expect(items.find((item) => item.id === 'students:reconciliation')).toMatchObject({
+    expect(items.find((item) => item.id === 'notes:reconciliation')).toMatchObject({
       label: 'Conciliação',
-      category: 'Área',
-      href: '#/painel-do-aluno?area=reconciliation',
+      category: 'Seção',
+      href: '#/banco-de-notas?area=reconciliation',
     });
-    expect(filterSearchItems(items, 'conciliação pendências')[0]?.id).toBe(
-      'students:reconciliation',
-    );
+    expect(items.some((item) => item.id === 'students:reconciliation')).toBe(false);
+    expect(filterSearchItems(items, 'conciliação pendências')[0]?.id).toBe('notes:reconciliation');
     expect(items.find((item) => item.id === 'student-portal:accounts')).toMatchObject({
       label: 'Alunos',
       category: 'Seção',
@@ -69,6 +68,7 @@ describe('platform search model', () => {
       'notes:council',
       'notes:audit',
       'notes:onedrive',
+      'notes:reconciliation',
       'notes:settings',
     ]);
     expect(items.some((item) => item.id === 'notes:operational')).toBe(false);

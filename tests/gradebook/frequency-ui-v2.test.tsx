@@ -549,7 +549,7 @@ it('lists unrecognized Smecel students and the failure trail with the actions th
   expect(within(unresolved).getByText(/Conferir na Conciliação/)).toBeTruthy();
   expect(
     within(unresolved).getByRole('link', { name: 'Abrir Conciliação' }).getAttribute('href'),
-  ).toBe('#/painel-do-aluno?area=reconciliation');
+  ).toBe('#/banco-de-notas?area=reconciliation');
   await userEvent
     .setup()
     .click(within(unresolved).getByRole('button', { name: 'Atualizar Relatório' }));

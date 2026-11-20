@@ -89,9 +89,7 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
       ),
       page([person('reconciled', 7)], null),
     );
-    expect(await readReconciliationListV1(client, input, signal(), true)).toEqual(
-      page(pending, null),
-    );
+    expect(await readReconciliationListV1(client, input, signal())).toEqual(page(pending, null));
     expect(client.request).toHaveBeenCalledTimes(2);
   });
   it('advances past all-reconciled pages while carrying class, search, limit and signal unchanged', async () => {
@@ -103,7 +101,7 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
     );
     const request = { ...input, classId: 7, search: 'SYNTHETIC', limit: 25 };
     const abort = signal();
-    expect(await readReconciliationListV1(client, request, abort, true)).toEqual(
+    expect(await readReconciliationListV1(client, request, abort)).toEqual(
       page([person('pending', 3), external], null),
     );
     expect(client.request.mock.calls.map(([value]) => value)).toEqual([
@@ -120,12 +118,7 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
       page([person('reconciled', 2), external], null),
     );
     expect(
-      await readReconciliationListV1(
-        client,
-        { ...input, cursor: 'opaque-previous' },
-        signal(),
-        true,
-      ),
+      await readReconciliationListV1(client, { ...input, cursor: 'opaque-previous' }, signal()),
     ).toEqual(page([external], null));
     expect(
       client.request.mock.calls.map(([request]) =>
@@ -138,7 +131,7 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
       page([person('reconciled')], 'next'),
       page([person('reconciled', 2)], null),
     );
-    expect(await readReconciliationListV1(client, input, signal(), true)).toEqual(page([], null));
+    expect(await readReconciliationListV1(client, input, signal())).toEqual(page([], null));
     expect(client.request).toHaveBeenCalledTimes(2);
   });
   it('joins pending rows scattered over several pages and stops once a page of them is in', async () => {
@@ -147,34 +140,27 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
       page([person('without-report', 2), person('pending', 3)], 'opaque-b'),
       page([person('pending', 4)], 'opaque-c'),
     );
-    expect(await readReconciliationListV1(client, { ...input, limit: 3 }, signal(), true)).toEqual(
+    expect(await readReconciliationListV1(client, { ...input, limit: 3 }, signal())).toEqual(
       page([external, person('without-report', 2), person('pending', 3)], 'opaque-b'),
     );
     expect(client.request).toHaveBeenCalledTimes(2);
   });
-  it('leaves a row kept "Somente no Smecel" out of the pending view only', async () => {
+  it('leaves a row kept "Somente no Smecel" out of the pending view', async () => {
     const kept = { ...external, id: 'synthetic-kept', reason: 'smecel_only' };
     const response = page([external, kept], null);
-    expect(await readReconciliationListV1(mock(response), input, signal(), true)).toEqual(
+    expect(await readReconciliationListV1(mock(response), input, signal())).toEqual(
       page([external], null),
     );
-    expect(await readReconciliationListV1(mock(response), input, signal(), false)).toBe(response);
   });
   it('preserves a genuinely empty result', async () => {
     const client = mock(page([], null));
-    expect(await readReconciliationListV1(client, input, signal(), true)).toEqual(page([], null));
-    expect(client.request).toHaveBeenCalledTimes(1);
-  });
-  it('preserves the legacy mixed page and pagination without automatically consuming any other page', async () => {
-    const response = page([person('reconciled'), person('pending', 2)], 'next');
-    const client = mock(response);
-    expect(await readReconciliationListV1(client, input, signal(), false)).toBe(response);
+    expect(await readReconciliationListV1(client, input, signal())).toEqual(page([], null));
     expect(client.request).toHaveBeenCalledTimes(1);
   });
   it('does not turn a revision conflict after skipped pages into an empty result', async () => {
     const conflict: ReconciliationResponseV1 = { contractVersion: 1, state: 'conflict' };
     const client = mock(page([person('reconciled')], 'next'), conflict);
-    expect(await readReconciliationListV1(client, input, signal(), true)).toBe(conflict);
+    expect(await readReconciliationListV1(client, input, signal())).toBe(conflict);
   });
   it('stops before requesting another page when an obsolete read is aborted', async () => {
     const controller = new AbortController();
@@ -182,9 +168,7 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
       controller.abort();
       return page([person('reconciled')], 'next');
     });
-    await expect(
-      readReconciliationListV1({ request }, input, controller.signal, true),
-    ).rejects.toThrow();
+    await expect(readReconciliationListV1({ request }, input, controller.signal)).rejects.toThrow();
     expect(request).toHaveBeenCalledTimes(1);
   });
   it('rejects a nonadvancing cursor instead of looping or declaring a false empty result', async () => {
@@ -192,7 +176,7 @@ describe('pending-only reconciliation reads over the existing opaque cursor', ()
       page([person('reconciled')], 'loop'),
       page([person('reconciled', 2)], 'loop'),
     );
-    await expect(readReconciliationListV1(client, input, signal(), true)).rejects.toMatchObject({
+    await expect(readReconciliationListV1(client, input, signal())).rejects.toMatchObject({
       state: 'invalid-response',
     });
     expect(client.request).toHaveBeenCalledTimes(2);

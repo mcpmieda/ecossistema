@@ -83,23 +83,7 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
         route: studentPortalModule.route,
       }))
     : [];
-  const students: PlatformSearchItem[] = portal.length
-    ? [
-        {
-          id: 'students:reconciliation',
-          label: 'Conciliação',
-          description: 'Conferir pendências e conciliar alunos.',
-          category: 'Área',
-          href: studentPortalHref('reconciliation'),
-          iconKind: 'route',
-          route: studentPortalModule.route,
-          searchText: normalizeSearch(
-            'Conciliação reconciliação pendências alunos Smecel relatório',
-          ),
-        },
-      ]
-    : [];
-  return [...core, ...notes, ...students, ...portal];
+  return [...core, ...notes, ...portal];
 }
 
 export function filterSearchItems(

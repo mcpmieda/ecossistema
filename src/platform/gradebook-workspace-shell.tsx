@@ -50,6 +50,11 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
     description: 'Leitura automática das planilhas salvas na pasta do OneDrive da secretaria.',
   },
   {
+    id: 'reconciliation',
+    label: 'Conciliação',
+    description: 'Conferir pendências e conciliar alunos.',
+  },
+  {
     id: 'settings',
     label: 'Configurações',
     description: 'Administre com segurança o ciclo de vida dos anos letivos materializados.',
@@ -111,6 +116,12 @@ const SettingsPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
   ),
 );
 
+const ReconciliationSurface = preloadedSectionV1(() =>
+  import('../features/student-portal-admin/reconciliation-surface-v1').then(
+    (module) => module.ReconciliationSurfaceV1,
+  ),
+);
+
 const OneDriveSyncPage = preloadedSectionV1<{ isActive?: boolean }>(() =>
   import('../features/gradebook/onedrive-sync/onedrive-sync-page-v1').then(
     (module) => module.OneDriveSyncPageV1,
@@ -125,6 +136,7 @@ if (typeof window !== 'undefined') {
   else if (opened === 'performance') PerformancePage.preload();
   else if (opened === 'council') CouncilWorkspaceSurface.preload();
   else if (opened === 'settings') SettingsPage.preload();
+  else if (opened === 'reconciliation') ReconciliationSurface.preload();
 }
 
 const WORKSPACE_SECTIONS_V1 = [
@@ -133,6 +145,7 @@ const WORKSPACE_SECTIONS_V1 = [
   CouncilWorkspaceSurface,
   SettingsPage,
   OneDriveSyncPage,
+  ReconciliationSurface,
 ];
 const SURFACE_COMPONENTS: Record<
   Exclude<GradebookWorkspaceSurfaceId, 'importacao'>,
@@ -143,6 +156,7 @@ const SURFACE_COMPONENTS: Record<
   council: CouncilWorkspaceSurface,
   settings: SettingsPage,
   onedrive: OneDriveSyncPage,
+  reconciliation: ReconciliationSurface,
 };
 
 type SurfaceBoundaryProps = {

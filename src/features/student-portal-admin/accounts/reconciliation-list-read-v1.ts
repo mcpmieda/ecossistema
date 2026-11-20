@@ -13,7 +13,6 @@ export async function readReconciliationListV1(
   client: ReconciliationClientV1,
   request: Extract<ReconciliationRequestV1, { operation: 'list' }>,
   signal: AbortSignal,
-  pendingOnly: boolean,
 ): Promise<ReconciliationResponseV1> {
   let cursor = request.cursor;
   const visited = new Set<string | null>();
@@ -24,9 +23,8 @@ export async function readReconciliationListV1(
     visited.add(cursor);
     const response = await client.request({ ...request, cursor }, signal);
     signal.throwIfAborted();
-    if (!pendingOnly || response.state !== 'ready' || response.operation !== 'list')
-      return response;
-    // A row kept "Somente no Smecel" is expected, not pending; it stays in the full list.
+    if (response.state !== 'ready' || response.operation !== 'list') return response;
+    // A row kept "Somente no Smecel" is expected, not pending.
     const items = response.items.filter((item) =>
       item.kind === 'external'
         ? item.reason !== 'smecel_only'

@@ -62,13 +62,22 @@ function authFailureFromUrl(): AuthFailure | null {
 }
 /** Read before anything rewrites the address: only an address-less opening returns to the last area. */
 const OPENED_WITHOUT_ADDRESS_V1 = /^#?\/?$/u.test(window.location.hash);
+/** The Conciliação left the Painel do Aluno for the Importação (20/11/2026): saved links follow it. */
+function moveRetiredReconciliationAddressV1(): void {
+  if (/^#\/?painel-do-aluno\?(?:[^#]*&)?area=reconciliation(?:&|$)/u.test(window.location.hash))
+    window.history.replaceState(null, '', '#/banco-de-notas?area=reconciliation');
+}
+moveRetiredReconciliationAddressV1();
 function routeFromHash(): PlatformRoute {
   return normalizePlatformRoute(window.location.hash.replace(/^#\/?/u, ''));
 }
 function usePlatformRoute(): PlatformRoute {
   const [route, setRoute] = useState<PlatformRoute>(() => routeFromHash());
   useEffect(() => {
-    const onHashChange = () => setRoute(routeFromHash());
+    const onHashChange = () => {
+      moveRetiredReconciliationAddressV1();
+      setRoute(routeFromHash());
+    };
     window.addEventListener('hashchange', onHashChange);
     if (!window.location.hash) window.history.replaceState(null, '', '#/banco-de-notas');
     // Addresses saved for the retired platform Auditoria open Saúde.

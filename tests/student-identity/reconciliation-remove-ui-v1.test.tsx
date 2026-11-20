@@ -98,14 +98,7 @@ function serverV1(removable: boolean | undefined) {
 it('exclui um aluno lançado por engano, com confirmação, e volta à lista', async () => {
   const request = serverV1(true);
   const user = userEvent.setup();
-  render(
-    <StudentReconciliationV1
-      client={{ request }}
-      scope={scope}
-      canWrite={true}
-      showPortalAccess={false}
-    />,
-  );
+  render(<StudentReconciliationV1 client={{ request }} scope={scope} canWrite={true} />);
   await user.click(await screen.findByRole('button', { name: 'SYNTHETIC MISTAKE' }));
   await user.click(await screen.findByRole('button', { name: 'Excluir aluno lançado por engano' }));
   const dialog = await screen.findByRole('alertdialog');
@@ -126,24 +119,14 @@ it('exclui um aluno lançado por engano, com confirmação, e volta à lista', a
 it('não oferece a exclusão a quem tem dados, nem sem permissão de escrita', async () => {
   const user = userEvent.setup();
   render(
-    <StudentReconciliationV1
-      client={{ request: serverV1(false) }}
-      scope={scope}
-      canWrite={true}
-      showPortalAccess={false}
-    />,
+    <StudentReconciliationV1 client={{ request: serverV1(false) }} scope={scope} canWrite={true} />,
   );
   await user.click(await screen.findByRole('button', { name: 'SYNTHETIC MISTAKE' }));
   await screen.findByRole('button', { name: 'Voltar aos alunos' });
   expect(screen.queryByRole('button', { name: 'Excluir aluno lançado por engano' })).toBeNull();
   cleanup();
   render(
-    <StudentReconciliationV1
-      client={{ request: serverV1(true) }}
-      scope={scope}
-      canWrite={false}
-      showPortalAccess={false}
-    />,
+    <StudentReconciliationV1 client={{ request: serverV1(true) }} scope={scope} canWrite={false} />,
   );
   await user.click(await screen.findByRole('button', { name: 'SYNTHETIC MISTAKE' }));
   await screen.findByRole('button', { name: 'Voltar aos alunos' });

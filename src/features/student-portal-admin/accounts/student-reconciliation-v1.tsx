@@ -16,7 +16,6 @@ import {
   type ReconciliationClientV1,
 } from '../shared/reconciliation-client-v1';
 import { AutomaticReportPanelV1 } from './automatic-report-v1';
-import { StudentNameV1 } from '../shared/account-open-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import { AccountCloseV1 } from './account-close-v1';
@@ -141,14 +140,12 @@ function ReconciliationListV1({
   busy,
   open,
   returnFocus,
-  pendingOnly,
   hideEmpty,
 }: Readonly<{
   items: readonly ReconciliationListItemV1[];
   busy: boolean;
   open: (item: ReconciliationListItemV1) => Promise<void>;
   returnFocus: RefObject<string | null>;
-  pendingOnly: boolean;
   hideEmpty: boolean;
 }>) {
   const [focusTarget, setFocusTarget] = useState<HTMLElement | null>(null);
@@ -161,20 +158,12 @@ function ReconciliationListV1({
   }, [focusTarget, returnFocus]);
   if (items.length === 0)
     return busy || hideEmpty ? null : (
-      <p className="text-sm text-muted">
-        {pendingOnly ? 'Nenhuma pendência encontrada.' : 'Nenhum aluno ou pendência encontrado.'}
-      </p>
+      <p className="text-sm text-muted">Nenhuma pendência encontrada.</p>
     );
   return (
     <Table variant="secondary">
-      <Table.ScrollContainer
-        tabIndex={0}
-        role="region"
-        aria-label={pendingOnly ? 'Pendências de conciliação' : 'Alunos e pendências'}
-      >
-        <Table.Content
-          aria-label={pendingOnly ? 'Pendências de conciliação' : 'Alunos e pendências'}
-        >
+      <Table.ScrollContainer tabIndex={0} role="region" aria-label="Pendências de conciliação">
+        <Table.Content aria-label="Pendências de conciliação">
           <Table.Header>
             <Table.Column isRowHeader>Aluno</Table.Column>
             <Table.Column>Turma</Table.Column>
@@ -222,15 +211,11 @@ export function StudentReconciliationV1({
   client,
   scope,
   canWrite,
-  showPortalAccess = true,
-  pendingOnly = false,
   accountClose,
 }: Readonly<{
   client: ReconciliationClientV1;
   scope: ScopeV1;
   canWrite: boolean;
-  showPortalAccess?: boolean;
-  pendingOnly?: boolean;
   /** Offers "Encerrar conta" on a record without a class, as the Portal record does. */
   accountClose?: { client: PortalAdminClientV1; reader: PortalAdminReadClientV2 };
 }>) {
@@ -283,7 +268,6 @@ export function StudentReconciliationV1({
             limit: 50,
           },
           signal,
-          pendingOnly,
         );
         signal.throwIfAborted();
         if (result.state !== 'ready' || result.operation !== 'list')
@@ -308,16 +292,14 @@ export function StudentReconciliationV1({
         if (!signal.aborted) setBusy(false);
       }
     },
-    [client, classId, query, pendingOnly],
+    [client, classId, query],
   );
   useEffect(() => {
     const controller = new AbortController();
     active.current = controller;
     setItems([]);
-    if (pendingOnly) {
-      setCursor(null);
-      setContext(null);
-    }
+    setCursor(null);
+    setContext(null);
     setDetail(null);
     setSelected(null);
     setPendingBatch(null);
@@ -340,7 +322,7 @@ export function StudentReconciliationV1({
       controller.abort();
       detailRead.current?.abort();
     };
-  }, [client, load, refresh, pendingOnly]);
+  }, [client, load, refresh]);
   async function open(item: ReconciliationListItemV1) {
     setNotice('');
     detailRead.current?.abort();
@@ -525,11 +507,6 @@ export function StudentReconciliationV1({
           {current.kind === 'person' && current.relationName !== current.name ? (
             <p className="break-words text-sm">Relação: {current.relationName}</p>
           ) : null}
-          {showPortalAccess && current.kind === 'person' && current.accountId ? (
-            <StudentNameV1 accountId={current.accountId} name={current.name} parentScope={scope}>
-              Acesso ao Portal
-            </StudentNameV1>
-          ) : null}
           {closable && accountClose ? (
             <AccountCloseV1
               client={accountClose.client}
@@ -571,7 +548,7 @@ export function StudentReconciliationV1({
   function listSection() {
     return (
       <>
-        {pendingOnly && context && !error ? (
+        {context && !error ? (
           <p className="text-sm text-muted">
             <output className="contents">
               {items.length} {items.length === 1 ? 'pendência carregada' : 'pendências carregadas'}
@@ -583,8 +560,7 @@ export function StudentReconciliationV1({
           busy={busy}
           open={open}
           returnFocus={returnFocus}
-          pendingOnly={pendingOnly}
-          hideEmpty={pendingOnly && (Boolean(error) || context === null)}
+          hideEmpty={Boolean(error) || context === null}
         />
         {cursor ? (
           <Button
@@ -609,11 +585,8 @@ export function StudentReconciliationV1({
     );
   }
   return (
-    <section
-      className="space-y-4"
-      aria-label={pendingOnly ? 'Conciliação' : 'Alunos e conciliação'}
-    >
-      {pendingOnly ? <AutomaticReportPanelV1 client={client} refresh={refresh} /> : null}
+    <section className="space-y-4" aria-label="Conciliação">
+      <AutomaticReportPanelV1 client={client} refresh={refresh} />
       <Card>
         <Card.Content className="flex flex-wrap items-center gap-3">
           <SearchField
