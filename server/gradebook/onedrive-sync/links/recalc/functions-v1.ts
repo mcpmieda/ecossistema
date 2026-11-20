@@ -26,6 +26,7 @@ import {
   VALUE_ERROR_V1,
   type ArrayV1,
   type EvalValueV1,
+  type ExcelErrorV1,
   type RefV1,
   type ScalarV1,
 } from './values-v1';
@@ -111,23 +112,32 @@ function valueArgV1(ctx: EvalContextV1, arg: EvalValueV1 | undefined): ScalarV1 
   return scalarOfV1(ctx, arg);
 }
 
+/** The values of an area (its non-empty cells, in order) or of an array. */
+function* areaValuesV1(ctx: EvalContextV1, arg: RefV1 | ArrayV1): Iterable<ScalarV1> {
+  if (isArrayV1(arg)) {
+    yield* arg.data;
+    return;
+  }
+  for (const cell of cellsOfRefV1(ctx, arg)) yield cell.value;
+}
+
+/** Adds the numbers among `values` to `numbers`; the first error found stops it and is returned. */
+function pushNumbersV1(numbers: number[], values: Iterable<ScalarV1>): ExcelErrorV1 | null {
+  for (const value of values) {
+    if (isErrorV1(value)) return value;
+    if (typeof value === 'number') numbers.push(value);
+  }
+  return null;
+}
+
 /** Numbers of an aggregate's arguments: in areas and arrays only numbers count; given values are converted. */
 function numbersOfV1(args: readonly EvalValueV1[], ctx: EvalContextV1): number[] | ScalarV1 {
   const numbers: number[] = [];
   for (const arg of args) {
     if (isMissingV1(arg)) continue;
-    if (isRefV1(arg)) {
-      for (const cell of cellsOfRefV1(ctx, arg)) {
-        if (isErrorV1(cell.value)) return cell.value;
-        if (typeof cell.value === 'number') numbers.push(cell.value);
-      }
-      continue;
-    }
-    if (isArrayV1(arg)) {
-      for (const value of arg.data) {
-        if (isErrorV1(value)) return value;
-        if (typeof value === 'number') numbers.push(value);
-      }
+    if (isRefV1(arg) || isArrayV1(arg)) {
+      const error = pushNumbersV1(numbers, areaValuesV1(ctx, arg));
+      if (error) return error;
       continue;
     }
     const value = toNumberV1(arg);
@@ -145,17 +155,67 @@ function lastArgIsOmittedV1(args: readonly EvalValueV1[], index: number): boolea
 
 type MatcherV1 = (value: ScalarV1) => boolean;
 
+const escapeRegExpV1 = (text: string): string =>
+  text.replace(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+
 function wildcardV1(pattern: string): RegExp {
   let source = '';
   for (let i = 0; i < pattern.length; i++) {
     const char = pattern[i]!;
-    if (char === '~' && i + 1 < pattern.length)
-      source += pattern[++i]!.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-    else if (char === '*') source += '[\\s\\S]*';
-    else if (char === '?') source += '[\\s\\S]';
-    else source += char.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    if (char === '~' && i + 1 < pattern.length) source += escapeRegExpV1(pattern[++i]!);
+    else if (char === '*') source += String.raw`[\s\S]*`;
+    else if (char === '?') source += String.raw`[\s\S]`;
+    else source += escapeRegExpV1(char);
   }
   return new RegExp(`^${source}$`, 'iu');
+}
+
+/** A criteria that is a number ("7", ">=5", "<>2,5"). */
+function numberCriteriaV1(op: string, n: number): MatcherV1 {
+  const equal = (value: ScalarV1) =>
+    (typeof value === 'number' && value === n) ||
+    (typeof value === 'string' && parseNumberTextV1(value) === n);
+  switch (op) {
+    case '':
+    case '=':
+      return equal;
+    case '<>':
+      return (value) => !equal(value);
+    case '<':
+      return (value) => typeof value === 'number' && value < n;
+    case '<=':
+      return (value) => typeof value === 'number' && value <= n;
+    case '>':
+      return (value) => typeof value === 'number' && value > n;
+    default:
+      return (value) => typeof value === 'number' && value >= n;
+  }
+}
+
+/** An empty criteria ("", "=", "<>"). */
+function emptyCriteriaV1(op: string): MatcherV1 {
+  if (op === '') return (value) => value === null || value === '';
+  if (op === '=') return (value) => value === null;
+  if (op === '<>') return (value) => value !== null;
+  return unsupportedV1('empty criteria with an order');
+}
+
+/** A text criteria: equal (with wildcards), different, or an order. */
+function textCriteriaV1(op: string, operand: string): MatcherV1 {
+  if (op === '' || op === '=' || op === '<>') {
+    const pattern = /[*?~]/u.test(operand) ? wildcardV1(operand) : null;
+    const equal = (value: ScalarV1) =>
+      typeof value === 'string' && (pattern ? pattern.test(value) : sameTextV1(value, operand));
+    return op === '<>' ? (value) => !equal(value) : equal;
+  }
+  return (value) => {
+    if (typeof value !== 'string') return false;
+    const order = compareV1(value, operand);
+    if (op === '<') return order < 0;
+    if (op === '<=') return order <= 0;
+    if (op === '>') return order > 0;
+    return order >= 0;
+  };
 }
 
 /** Excel's criteria: a number, a logical, or text with an optional operator and wildcards. */
@@ -172,51 +232,10 @@ function criteriaV1(criteria: ScalarV1): MatcherV1 {
   if (/^(TRUE|FALSE|VERDADEIRO|FALSO)$/iu.test(operand) || operand.startsWith('#'))
     return unsupportedV1('logical or error written as criteria');
   const n = parseNumberTextV1(operand);
-  if (n !== null) {
-    const equal = (value: ScalarV1) =>
-      (typeof value === 'number' && value === n) ||
-      (typeof value === 'string' && parseNumberTextV1(value) === n);
-    switch (op) {
-      case '':
-      case '=':
-        return equal;
-      case '<>':
-        return (value) => !equal(value);
-      case '<':
-        return (value) => typeof value === 'number' && value < n;
-      case '<=':
-        return (value) => typeof value === 'number' && value <= n;
-      case '>':
-        return (value) => typeof value === 'number' && value > n;
-      default:
-        return (value) => typeof value === 'number' && value >= n;
-    }
-  }
+  if (n !== null) return numberCriteriaV1(op, n);
   if (/^[+-]?[\d.,]+$/u.test(operand)) return unsupportedV1('decimal number written as criteria');
-  if (operand === '') {
-    if (op === '') return (value) => value === null || value === '';
-    if (op === '=') return (value) => value === null;
-    if (op === '<>') return (value) => value !== null;
-    return unsupportedV1('empty criteria with an order');
-  }
-  if (op === '' || op === '=') {
-    const pattern = /[*?~]/u.test(operand) ? wildcardV1(operand) : null;
-    return (value) =>
-      typeof value === 'string' && (pattern ? pattern.test(value) : sameTextV1(value, operand));
-  }
-  if (op === '<>') {
-    const pattern = /[*?~]/u.test(operand) ? wildcardV1(operand) : null;
-    return (value) =>
-      !(typeof value === 'string' && (pattern ? pattern.test(value) : sameTextV1(value, operand)));
-  }
-  return (value) => {
-    if (typeof value !== 'string') return false;
-    const order = compareV1(value, operand);
-    if (op === '<') return order < 0;
-    if (op === '<=') return order <= 0;
-    if (op === '>') return order > 0;
-    return order >= 0;
-  };
+  if (operand === '') return emptyCriteriaV1(op);
+  return textCriteriaV1(op, operand);
 }
 
 /** The cells of a criteria range, empty ones included, in order. */
@@ -226,12 +245,11 @@ function rangeValuesV1(ctx: EvalContextV1, arg: EvalValueV1): ArrayV1 {
   return arrayOfV1(ctx, arg);
 }
 
-function countIfsV1(
-  args: EvalValueV1[],
+/** The ranges and criteria of (range, criteria) pairs. */
+function criteriaPairsV1(
+  args: readonly EvalValueV1[],
   ctx: EvalContextV1,
-  sumRange: EvalValueV1 | null,
-): ScalarV1 {
-  if (args.length === 0 || args.length % 2 !== 0) return VALUE_ERROR_V1();
+): { ranges: ArrayV1[]; matchers: MatcherV1[] } {
   const ranges: ArrayV1[] = [];
   const matchers: MatcherV1[] = [];
   for (let i = 0; i < args.length; i += 2) {
@@ -240,23 +258,42 @@ function countIfsV1(
     if (isArrayV1(criteria)) return unsupportedV1('array of criteria');
     matchers.push(criteriaV1(criteria));
   }
-  const first = ranges[0]!;
-  if (ranges.some((range) => range.rows !== first.rows || range.cols !== first.cols))
-    return VALUE_ERROR_V1();
-  const sums = sumRange === null ? null : rangeValuesV1(ctx, sumRange);
-  if (sums && (sums.rows !== first.rows || sums.cols !== first.cols))
-    return unsupportedV1('sum range of another size');
+  return { ranges, matchers };
+}
+
+/** How many positions match (no sum range), or the sum of the sum range at those positions. */
+function totalOfMatchesV1(
+  size: number,
+  matches: (index: number) => boolean,
+  sums: ArrayV1 | null,
+): ScalarV1 {
   let total = 0;
-  for (let i = 0; i < first.data.length; i++) {
-    if (!matchers.every((match, k) => match(ranges[k]!.data[i] ?? null))) continue;
-    if (!sums) total++;
-    else {
-      const value = sums.data[i] ?? null;
-      if (isErrorV1(value)) return value;
-      if (typeof value === 'number') total += value;
-    }
+  for (let i = 0; i < size; i++) {
+    if (!matches(i)) continue;
+    const value = sums ? (sums.data[i] ?? null) : 1;
+    if (isErrorV1(value)) return value;
+    if (typeof value === 'number') total += value;
   }
   return total;
+}
+
+function countIfsV1(
+  args: EvalValueV1[],
+  ctx: EvalContextV1,
+  sumRange: EvalValueV1 | null,
+): ScalarV1 {
+  if (args.length === 0 || args.length % 2 !== 0) return VALUE_ERROR_V1();
+  const { ranges, matchers } = criteriaPairsV1(args, ctx);
+  const first = ranges[0]!;
+  const sameSize = (range: ArrayV1) => range.rows === first.rows && range.cols === first.cols;
+  if (!ranges.every(sameSize)) return VALUE_ERROR_V1();
+  const sums = sumRange === null ? null : rangeValuesV1(ctx, sumRange);
+  if (sums && !sameSize(sums)) return unsupportedV1('sum range of another size');
+  return totalOfMatchesV1(
+    first.data.length,
+    (i) => matchers.every((match, k) => match(ranges[k]!.data[i] ?? null)),
+    sums,
+  );
 }
 
 /* ---------------------------------------------------------------- lookups */
@@ -331,16 +368,18 @@ define('MAX', (args, ctx) => {
   if (!Array.isArray(numbers)) return numbers;
   return numbers.length === 0 ? 0 : Math.max(...numbers);
 });
+/** COUNT of a value given directly (not in an area): numbers, logical values and numbers as text. */
+function countsAsNumberV1(value: ScalarV1): boolean {
+  if (typeof value === 'number' || typeof value === 'boolean') return true;
+  return typeof value === 'string' && !isErrorV1(toNumberV1(value));
+}
 define('COUNT', (args, ctx) => {
   let count = 0;
   for (const arg of args) {
     if (isMissingV1(arg)) continue;
-    if (isRefV1(arg)) {
-      for (const cell of cellsOfRefV1(ctx, arg)) if (typeof cell.value === 'number') count++;
-    } else if (isArrayV1(arg))
-      count += arg.data.filter((value) => typeof value === 'number').length;
-    else if (typeof arg === 'number' || typeof arg === 'boolean') count++;
-    else if (typeof arg === 'string' && !isErrorV1(toNumberV1(arg))) count++;
+    if (isRefV1(arg) || isArrayV1(arg)) {
+      for (const value of areaValuesV1(ctx, arg)) if (typeof value === 'number') count++;
+    } else if (countsAsNumberV1(arg)) count++;
   }
   return count;
 });
@@ -360,30 +399,24 @@ define('COUNTBLANK', (args, ctx) => {
   return range.data.filter((value) => value === null || value === '').length;
 });
 
+/** Adds a value to AND/OR's list; returns what stops them (an error, or text given directly). */
+function takeLogicalV1(values: boolean[], value: ScalarV1, direct: boolean): ScalarV1 | null {
+  if (isErrorV1(value)) return value;
+  if (typeof value === 'boolean') values.push(value);
+  else if (typeof value === 'number') values.push(value !== 0);
+  else if (direct && typeof value === 'string') return unsupportedV1('text given to AND/OR');
+  return null;
+}
+
 function logicalsOfV1(args: readonly EvalValueV1[], ctx: EvalContextV1): boolean[] | ScalarV1 {
   const values: boolean[] = [];
-  const take = (value: ScalarV1, direct: boolean): ScalarV1 | null => {
-    if (isErrorV1(value)) return value;
-    if (typeof value === 'boolean') values.push(value);
-    else if (typeof value === 'number') values.push(value !== 0);
-    else if (direct && typeof value === 'string') return unsupportedV1('text given to AND/OR');
-    return null;
-  };
   for (const arg of args) {
     if (isMissingV1(arg)) continue;
-    if (isRefV1(arg)) {
-      for (const cell of cellsOfRefV1(ctx, arg)) {
-        const error = take(cell.value, false);
-        if (error !== null) return error;
-      }
-    } else if (isArrayV1(arg)) {
-      for (const value of arg.data) {
-        const error = take(value, false);
-        if (error !== null) return error;
-      }
-    } else {
-      const error = take(arg, true);
-      if (error !== null) return error;
+    const area = isRefV1(arg) || isArrayV1(arg);
+    const items: Iterable<ScalarV1> = area ? areaValuesV1(ctx, arg) : [arg];
+    for (const value of items) {
+      const stop = takeLogicalV1(values, value, !area);
+      if (stop !== null) return stop;
     }
   }
   return values;
@@ -433,13 +466,13 @@ define('IF', (args, ctx) => {
 define('IFERROR', (args, ctx) => {
   const alternative = isMissingV1(args[1]!) ? 0 : args[1]!;
   return liftV1([valueArgV1(ctx, args[0]), valueArgV1(ctx, alternative)], ([value, alt]) =>
-    isErrorV1(value) ? alt! : value === null ? 0 : value!,
+    isErrorV1(value) ? alt! : (value ?? 0),
   );
 });
 define('IFNA', (args, ctx) => {
   const alternative = isMissingV1(args[1]!) ? 0 : args[1]!;
   return liftV1([valueArgV1(ctx, args[0]), valueArgV1(ctx, alternative)], ([value, alt]) =>
-    isErrorV1(value) && value.code === ERR_V1.NA ? alt! : value === null ? 0 : value!,
+    isErrorV1(value) && value.code === ERR_V1.NA ? alt! : (value ?? 0),
   );
 });
 define('IFS', (args, ctx) => {
@@ -541,10 +574,15 @@ const text1 = (fn: (text: string) => ScalarV1): FunctionV1 =>
     const text = toTextV1(value!);
     return isErrorV1(text) ? text : fn(text);
   });
-define(
-  'TRIM',
-  text1((text) => text.replace(/^ +| +$/gu, '').replace(/ {2,}/gu, ' ')),
-);
+/** TRIM: spaces at both ends removed, runs of spaces inside made one (other blanks are kept). */
+function trimSpacesV1(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text[start] === ' ') start++;
+  while (end > start && text[end - 1] === ' ') end--;
+  return text.slice(start, end).replace(/ {2,}/gu, ' ');
+}
+define('TRIM', text1(trimSpacesV1));
 define(
   'UPPER',
   text1((text) => text.toLocaleUpperCase('pt-BR')),
@@ -638,8 +676,7 @@ define('VLOOKUP', (args, ctx) => {
   );
   const row = findV1(lookup, firstColumn, exact);
   if (row === null) return errorV1(ERR_V1.NA);
-  const value = table.data[row * table.cols + col - 1] ?? null;
-  return value === null ? 0 : value;
+  return table.data[row * table.cols + col - 1] ?? 0;
 });
 define('MATCH', (args, ctx) => {
   const lookup = valueArgV1(ctx, args[0]);
@@ -653,6 +690,35 @@ define('MATCH', (args, ctx) => {
   const index = findV1(lookup, range.data, type === 0);
   return index === null ? errorV1(ERR_V1.NA) : index + 1;
 });
+/** INDEX of a reference: the cell (or the single column) at row `r` and column `c` (0: whole). */
+function indexOfRefV1(source: RefV1, r: number, c: number): EvalValueV1 {
+  const rows = source.r2 - source.r1 + 1;
+  const cols = source.c2 - source.c1 + 1;
+  if (r < 0 || c < 0 || r > rows || c > cols) return errorV1(ERR_V1.REF);
+  if (r === 0 && c === 0) return source;
+  if (r === 0 && cols === 1) return { ...source, c1: source.c1, c2: source.c1 };
+  const rr = r === 0 ? null : source.r1 + r - 1;
+  let cc: number | null = source.c1 + c - 1;
+  if (c === 0) cc = cols === 1 ? source.c1 : null;
+  if (rr !== null && cc === null && rows === 1)
+    return { ...source, c1: source.c1 + r - 1, c2: source.c1 + r - 1 };
+  if (rr === null || cc === null) return unsupportedV1('INDEX of a whole row or column');
+  const ref: RefV1 = { ...source, r1: rr, r2: rr, c1: cc, c2: cc };
+  return ref;
+}
+
+/** INDEX of an array: a one-row array takes a lone index as its column. */
+function indexOfArrayV1(array: ArrayV1, r: number, c: number): ScalarV1 {
+  let rr = r;
+  let cc = c === 0 ? 1 : c;
+  if (array.rows === 1 && c === 0) {
+    rr = 1;
+    cc = r;
+  }
+  if (rr < 1 || cc < 1 || rr > array.rows || cc > array.cols) return errorV1(ERR_V1.REF);
+  return array.data[(rr - 1) * array.cols + cc - 1] ?? null;
+}
+
 define('INDEX', (args, ctx) => {
   const source = args[0]!;
   const row = lastArgIsOmittedV1(args, 1) ? 0 : toNumberV1(scalarOfV1(ctx, args[1]!));
@@ -661,25 +727,8 @@ define('INDEX', (args, ctx) => {
   if (isErrorV1(col)) return col;
   const r = Math.floor(row);
   const c = Math.floor(col);
-  if (isRefV1(source)) {
-    const rows = source.r2 - source.r1 + 1;
-    const cols = source.c2 - source.c1 + 1;
-    if (r < 0 || c < 0 || r > rows || c > cols) return errorV1(ERR_V1.REF);
-    if (r === 0 && c === 0) return source;
-    if (r === 0 && cols === 1) return { ...source, c1: source.c1, c2: source.c1 };
-    const rr = r === 0 ? null : source.r1 + r - 1;
-    const cc = c === 0 ? (cols === 1 ? source.c1 : null) : source.c1 + c - 1;
-    if (rr !== null && cc === null && rows === 1)
-      return { ...source, c1: source.c1 + r - 1, c2: source.c1 + r - 1 };
-    if (rr === null || cc === null) return unsupportedV1('INDEX of a whole row or column');
-    const ref: RefV1 = { ...source, r1: rr, r2: rr, c1: cc, c2: cc };
-    return ref;
-  }
-  const array = arrayOfV1(ctx, source);
-  const rr = array.rows === 1 && c === 0 ? 1 : r;
-  const cc = array.rows === 1 && c === 0 ? r : c === 0 ? 1 : c;
-  if (rr < 1 || cc < 1 || rr > array.rows || cc > array.cols) return errorV1(ERR_V1.REF);
-  return array.data[(rr - 1) * array.cols + cc - 1] ?? null;
+  if (isRefV1(source)) return indexOfRefV1(source, r, c);
+  return indexOfArrayV1(arrayOfV1(ctx, source), r, c);
 });
 const nth =
   (largest: boolean): FunctionV1 =>
@@ -743,4 +792,5 @@ define('ROW', (args, ctx) => {
 export const functionByNameV1 = (name: string): FunctionV1 | undefined => FUNCTIONS_V1.get(name);
 
 /** Names of every supported function (for the panel and the documentation). */
-export const supportedFunctionsV1 = (): string[] => [...FUNCTIONS_V1.keys()].sort();
+export const supportedFunctionsV1 = (): string[] =>
+  [...FUNCTIONS_V1.keys()].sort((a, b) => a.localeCompare(b));

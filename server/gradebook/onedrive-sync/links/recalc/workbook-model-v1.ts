@@ -136,7 +136,7 @@ function wideV1(d: Uint8Array, at: number): { text: string; end: number } {
 function rkV1(raw: number): number {
   const cents = (raw & 1) === 1;
   let value: number;
-  if (raw & 2) value = (raw | 0) >> 2;
+  if (raw & 2) value = raw >> 2;
   else {
     const buffer = new DataView(new ArrayBuffer(8));
     buffer.setUint32(4, raw & 0xfffffffc, true);
@@ -168,7 +168,7 @@ async function relationshipsV1(pkg: ZipPackageV1, owner: string): Promise<Map<st
 /** Shared strings (BrtSSTItem: flags, then the text; rich and phonetic runs are ignored). */
 async function sharedStringsV1(pkg: ZipPackageV1, rels: Map<string, string>): Promise<string[]> {
   const partName =
-    [...rels.values()].find((part) => /sharedStrings\.bin$/u.test(part)) ?? 'xl/sharedStrings.bin';
+    [...rels.values()].find((part) => part.endsWith('sharedStrings.bin')) ?? 'xl/sharedStrings.bin';
   const bytes = await readZipEntryV1(pkg, partName);
   const strings: string[] = [];
   if (!bytes) return strings;

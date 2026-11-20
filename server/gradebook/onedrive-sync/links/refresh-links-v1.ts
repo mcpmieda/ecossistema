@@ -19,7 +19,11 @@ import {
   type LinkUseV1,
   type SheetUseV1,
 } from './formula-references-v1';
-import { recalculateLinkedCellsV1, type RecalcReportV1 } from './recalc/recalc-v1';
+import {
+  blockedRecalcReportV1,
+  recalculateLinkedCellsV1,
+  type RecalcReportV1,
+} from './recalc/recalc-v1';
 import type { SourceValuesV1 } from './source-values-v1';
 import {
   readZipEntryV1,
@@ -422,7 +426,7 @@ async function recalculateCellsV1(
   links: readonly LinkPartV1[],
   replacements: Map<string, Uint8Array>,
 ): Promise<RecalcReportV1> {
-  if (format !== 'xlsb') return recalcBlockedV1('only .xlsb files are recalculated');
+  if (format !== 'xlsb') return blockedRecalcReportV1('only .xlsb files are recalculated');
   try {
     const before = new Map(links.map((link) => [link.part, link.cache]));
     const after = new Map(
@@ -435,21 +439,8 @@ async function recalculateCellsV1(
     for (const [part, bytes] of result.replacements) replacements.set(part, bytes);
     return result.report;
   } catch {
-    return recalcBlockedV1('recalculation failed');
+    return blockedRecalcReportV1('recalculation failed');
   }
-}
-
-function recalcBlockedV1(blocked: string): RecalcReportV1 {
-  return {
-    dependent: 0,
-    writtenCells: 0,
-    skipped: 0,
-    reasons: {},
-    reasonSamples: {},
-    mismatches: 0,
-    mismatchSamples: [],
-    blocked,
-  };
 }
 
 type LinkRunV1 = Parameters<typeof refreshDestinationLinksV1>[0] & {

@@ -10,7 +10,8 @@ import { ERR_V1, errorV1, ExcelErrorV1, isErrorV1, type ScalarV1 } from './workb
 /** A reference: an area of this workbook's sheet, or of a sheet of another workbook (a link). */
 export type RefV1 = {
   readonly kind: 'ref';
-  readonly book: 'self' | string;
+  /** 'self' for this workbook, or the link part of another one. */
+  readonly book: string;
   /** Sheet index (this workbook) or sheet name (an external workbook). */
   readonly sheet: number | string;
   readonly r1: number;
@@ -53,7 +54,11 @@ function generalTextV1(value: number): string | null {
   if (abs < 1e-4 || abs >= 1e15) return null;
   // Up to 15 significant digits, without trailing zeros.
   const text = value.toPrecision(15);
-  return text.includes('.') ? text.replace(/0+$/u, '').replace(/\.$/u, '') : text;
+  if (!text.includes('.')) return text;
+  let end = text.length;
+  while (text[end - 1] === '0') end--;
+  if (text[end - 1] === '.') end--;
+  return text.slice(0, end);
 }
 
 /**
@@ -130,24 +135,37 @@ export function numberResultV1(value: number): number | ExcelErrorV1 {
 /** Excel's text order: case does not matter, accents do; checked by each file's proof. */
 const TEXT_ORDER_V1 = new Intl.Collator('pt-BR', { sensitivity: 'accent', numeric: false });
 
-/** Equality as Excel tests it: text ignores case; an empty cell equals 0, "" and FALSE. */
-export function compareV1(a: ScalarV1, b: ScalarV1): number {
-  const left = a === null ? emptyLikeV1(b) : a;
-  const right = b === null ? emptyLikeV1(a) : b;
-  const rank = (value: ScalarV1) =>
-    typeof value === 'number' ? 0 : typeof value === 'string' ? 1 : 2;
-  const ra = rank(left);
-  const rb = rank(right);
-  if (ra !== rb) return ra - rb;
-  if (typeof left === 'number' && typeof right === 'number')
-    return left === right ? 0 : left < right ? -1 : 1;
-  if (typeof left === 'boolean' && typeof right === 'boolean') return Number(left) - Number(right);
-  const x = String(left).toLocaleUpperCase('pt-BR');
-  const y = String(right).toLocaleUpperCase('pt-BR');
+/** Excel's order of kinds: numbers, then text, then logical values (and errors). */
+function kindRankV1(value: ScalarV1): number {
+  if (typeof value === 'number') return 0;
+  if (typeof value === 'string') return 1;
+  return 2;
+}
+
+function compareTextV1(a: string, b: string): number {
+  const x = a.toLocaleUpperCase('pt-BR');
+  const y = b.toLocaleUpperCase('pt-BR');
   if (x === y) return 0;
   const order = TEXT_ORDER_V1.compare(x, y);
   if (order === 0) return x < y ? -1 : 1;
   return order < 0 ? -1 : 1;
+}
+
+/** Equality as Excel tests it: text ignores case; an empty cell equals 0, "" and FALSE. */
+export function compareV1(a: ScalarV1, b: ScalarV1): number {
+  const left = a ?? emptyLikeV1(b);
+  const right = b ?? emptyLikeV1(a);
+  const kinds = kindRankV1(left) - kindRankV1(right);
+  if (kinds !== 0) return kinds;
+  if (typeof left === 'number' && typeof right === 'number') {
+    if (left === right) return 0;
+    return left < right ? -1 : 1;
+  }
+  if (typeof left === 'string' && typeof right === 'string') return compareTextV1(left, right);
+  if (typeof left === 'boolean' && typeof right === 'boolean') return Number(left) - Number(right);
+  // Errors never get here (every caller returns them first); logical values come before them.
+  const code = (value: ScalarV1) => (isErrorV1(value) ? value.code : -1);
+  return code(left) - code(right);
 }
 
 function emptyLikeV1(other: ScalarV1): ScalarV1 {

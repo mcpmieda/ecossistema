@@ -175,37 +175,37 @@ export function liftV1(
 
 /* ---------------------------------------------------------------- operators */
 
+function concatenateV1(a: ScalarV1, b: ScalarV1): ScalarV1 {
+  const x = toTextV1(a);
+  if (isErrorV1(x)) return x;
+  const y = toTextV1(b);
+  if (isErrorV1(y)) return y;
+  return x + y;
+}
+
+const COMPARISONS_V1: Readonly<Partial<Record<BinaryOpV1, (order: number) => boolean>>> = {
+  '=': (order) => order === 0,
+  '<>': (order) => order !== 0,
+  '<': (order) => order < 0,
+  '<=': (order) => order <= 0,
+  '>': (order) => order > 0,
+  '>=': (order) => order >= 0,
+};
+
 function arithmeticV1(op: BinaryOpV1, a: ScalarV1, b: ScalarV1): ScalarV1 {
   if (isErrorV1(a)) return a;
   if (isErrorV1(b)) return b;
-  if (op === '&') {
-    const x = toTextV1(a);
-    if (isErrorV1(x)) return x;
-    const y = toTextV1(b);
-    if (isErrorV1(y)) return y;
-    return x + y;
-  }
-  if (op === '=' || op === '<>' || op === '<' || op === '<=' || op === '>' || op === '>=') {
-    const order = compareV1(a, b);
-    switch (op) {
-      case '=':
-        return order === 0;
-      case '<>':
-        return order !== 0;
-      case '<':
-        return order < 0;
-      case '<=':
-        return order <= 0;
-      case '>':
-        return order > 0;
-      default:
-        return order >= 0;
-    }
-  }
+  if (op === '&') return concatenateV1(a, b);
+  const comparison = COMPARISONS_V1[op];
+  if (comparison) return comparison(compareV1(a, b));
   const x = toNumberV1(a);
   if (isErrorV1(x)) return x;
   const y = toNumberV1(b);
   if (isErrorV1(y)) return y;
+  return numericV1(op, x, y);
+}
+
+function numericV1(op: BinaryOpV1, x: number, y: number): ScalarV1 {
   switch (op) {
     case '+':
       return numberResultV1(x + y);
@@ -255,13 +255,105 @@ function nameValueV1(ctx: EvalContextV1, index: number): StackValueV1 {
   return evaluateTokensV1(tokens, { ...ctx, array: true }, true);
 }
 
-function pushReferenceV1(stack: StackValueV1[], ctx: EvalContextV1, ref: RefV1) {
-  stack.push(ref);
-}
-
 function popArgsV1(stack: StackValueV1[], count: number): StackValueV1[] {
   if (stack.length < count) throw new UnsupportedFormulaError('malformed formula');
   return stack.splice(stack.length - count, count);
+}
+
+type ReferenceTokenV1 = Extract<TokenV1, { k: 'area' | 'areaN' | 'area3d' }>;
+
+function referenceOfTokenV1(ctx: EvalContextV1, token: ReferenceTokenV1): RefV1 {
+  if (token.k === 'area3d') return refFromXtiV1(ctx, token.ixti, token);
+  const area =
+    token.k === 'area'
+      ? { r1: token.r1, r2: token.r2, c1: token.c1, c2: token.c2 }
+      : resolveAreaNV1(ctx, token);
+  return { kind: 'ref', book: 'self', sheet: ctx.sheet, ...area };
+}
+
+/** The area a linked workbook's name points to (PtgNameX). */
+function linkedNameV1(ctx: EvalContextV1, token: Extract<TokenV1, { k: 'nameX' }>): RefV1 {
+  const xti = ctx.model.xti[token.ixti];
+  const book = xti ? ctx.model.books[xti.book] : undefined;
+  if (!book || book.kind === 'self' || !book.part)
+    return unsupportedV1('name of this workbook through a link');
+  const ref = ctx.externalName(book.part, token.index);
+  if (!ref) return unsupportedV1('linked name without a known area');
+  return ref;
+}
+
+function binaryV1(stack: StackValueV1[], ctx: EvalContextV1, op: BinaryOpV1): EvalValueV1 {
+  const [left, right] = popArgsV1(stack, 2) as EvalValueV1[];
+  if (op === 'isect' || op === 'union' || op === ':')
+    return unsupportedV1(`reference operator ${op}`);
+  return liftV1([operandV1(ctx, left!), operandV1(ctx, right!)], ([a, b]) =>
+    arithmeticV1(op, a!, b!),
+  );
+}
+
+function callFunctionV1(
+  stack: StackValueV1[],
+  ctx: EvalContextV1,
+  token: Extract<TokenV1, { k: 'func' }>,
+): EvalValueV1 {
+  if (token.argc === null)
+    return unsupportedV1(`function ${functionNameV1(token.tab) ?? token.tab}`);
+  const args = popArgsV1(stack, token.argc);
+  let name: string | null;
+  if (token.tab === 255) {
+    const first = args.shift();
+    name = isFunctionNameV1(first) ? first.name : null;
+  } else name = functionNameV1(token.tab);
+  const fn = name ? functionByNameV1(name) : undefined;
+  if (!fn) return unsupportedV1(`function ${name ?? token.tab}`);
+  if (args.some(isFunctionNameV1)) return unsupportedV1('function name used as a value');
+  return fn(args as EvalValueV1[], ctx);
+}
+
+/** The value a token puts on the stack (operators and functions take theirs from it first). */
+function tokenValueV1(
+  stack: StackValueV1[],
+  ctx: EvalContextV1,
+  token: Exclude<TokenV1, { k: 'paren' }>,
+): StackValueV1 {
+  switch (token.k) {
+    case 'num':
+    case 'str':
+    case 'bool':
+      return token.v;
+    case 'err':
+      return errorV1(token.v);
+    case 'miss':
+      return MISSING_V1;
+    case 'volatile':
+      return unsupportedV1('volatile function');
+    case 'exp':
+      return unsupportedV1('nested array or shared formula');
+    case 'refErr':
+      return errorV1(ERR_V1.REF);
+    case 'area':
+    case 'areaN':
+    case 'area3d':
+      return referenceOfTokenV1(ctx, token);
+    case 'name':
+      return nameValueV1(ctx, token.index);
+    case 'nameX':
+      return linkedNameV1(ctx, token);
+    case 'unary': {
+      const [value] = popArgsV1(stack, 1) as EvalValueV1[];
+      return liftV1([operandV1(ctx, value!)], ([a]) => unaryV1(token.op, a!));
+    }
+    case 'bin':
+      return binaryV1(stack, ctx, token.op);
+    case 'attrSum': {
+      const [value] = popArgsV1(stack, 1) as EvalValueV1[];
+      return functionByNameV1('SUM')!([value!], ctx);
+    }
+    case 'func':
+      return callFunctionV1(stack, ctx, token);
+    default:
+      return unsupportedV1('token');
+  }
 }
 
 /** Evaluates tokens; `keepReference` leaves a reference result as it is (names, INDEX…). */
@@ -271,103 +363,7 @@ export function evaluateTokensV1(
   keepReference = false,
 ): EvalValueV1 {
   const stack: StackValueV1[] = [];
-  for (const token of tokens) {
-    switch (token.k) {
-      case 'num':
-      case 'str':
-      case 'bool':
-        stack.push(token.v);
-        break;
-      case 'err':
-        stack.push(errorV1(token.v));
-        break;
-      case 'miss':
-        stack.push(MISSING_V1);
-        break;
-      case 'paren':
-        break;
-      case 'volatile':
-        return unsupportedV1('volatile function');
-      case 'exp':
-        return unsupportedV1('nested array or shared formula');
-      case 'refErr':
-        stack.push(errorV1(ERR_V1.REF));
-        break;
-      case 'area':
-        pushReferenceV1(stack, ctx, {
-          kind: 'ref',
-          book: 'self',
-          sheet: ctx.sheet,
-          r1: token.r1,
-          r2: token.r2,
-          c1: token.c1,
-          c2: token.c2,
-        });
-        break;
-      case 'areaN':
-        pushReferenceV1(stack, ctx, {
-          kind: 'ref',
-          book: 'self',
-          sheet: ctx.sheet,
-          ...resolveAreaNV1(ctx, token),
-        });
-        break;
-      case 'area3d':
-        pushReferenceV1(stack, ctx, refFromXtiV1(ctx, token.ixti, token));
-        break;
-      case 'name':
-        stack.push(nameValueV1(ctx, token.index));
-        break;
-      case 'nameX': {
-        const xti = ctx.model.xti[token.ixti];
-        const book = xti ? ctx.model.books[xti.book] : undefined;
-        if (!book || book.kind === 'self' || !book.part)
-          return unsupportedV1('name of this workbook through a link');
-        const ref = ctx.externalName(book.part, token.index);
-        if (!ref) return unsupportedV1('linked name without a known area');
-        stack.push(ref);
-        break;
-      }
-      case 'unary': {
-        const [value] = popArgsV1(stack, 1) as EvalValueV1[];
-        stack.push(liftV1([operandV1(ctx, value!)], ([a]) => unaryV1(token.op, a!)));
-        break;
-      }
-      case 'bin': {
-        const [left, right] = popArgsV1(stack, 2) as EvalValueV1[];
-        if (token.op === 'isect' || token.op === 'union' || token.op === ':')
-          return unsupportedV1(`reference operator ${token.op}`);
-        stack.push(
-          liftV1([operandV1(ctx, left!), operandV1(ctx, right!)], ([a, b]) =>
-            arithmeticV1(token.op, a!, b!),
-          ),
-        );
-        break;
-      }
-      case 'attrSum': {
-        const [value] = popArgsV1(stack, 1) as EvalValueV1[];
-        stack.push(functionByNameV1('SUM')!([value!], ctx));
-        break;
-      }
-      case 'func': {
-        if (token.argc === null)
-          return unsupportedV1(`function ${functionNameV1(token.tab) ?? token.tab}`);
-        const args = popArgsV1(stack, token.argc);
-        let name: string | null;
-        if (token.tab === 255) {
-          const first = args.shift();
-          name = isFunctionNameV1(first) ? first.name : null;
-        } else name = functionNameV1(token.tab);
-        const fn = name ? functionByNameV1(name) : undefined;
-        if (!fn) return unsupportedV1(`function ${name ?? token.tab}`);
-        if (args.some(isFunctionNameV1)) return unsupportedV1('function name used as a value');
-        stack.push(fn(args as EvalValueV1[], ctx));
-        break;
-      }
-      default:
-        return unsupportedV1('token');
-    }
-  }
+  for (const token of tokens) if (token.k !== 'paren') stack.push(tokenValueV1(stack, ctx, token));
   if (stack.length !== 1) return unsupportedV1('malformed formula');
   const result = stack[0]!;
   if (isFunctionNameV1(result)) return unsupportedV1('function name as a result');

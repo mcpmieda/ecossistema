@@ -180,6 +180,198 @@ function relColumnV1(raw: number): { col: number; rel: boolean; rowRel: boolean 
   return { col, rel, rowRel };
 }
 
+/** Where a token is read: the formula bytes, its offset, class and reading mode. */
+type CursorV1 = {
+  readonly d: Uint8Array;
+  readonly at: number;
+  readonly cls: TokenClassV1;
+  readonly relative: boolean;
+};
+
+/**
+ * A token reader: checks the bytes it needs, then gives the token (or null for a token that only
+ * guides Excel) and how many bytes it takes.
+ */
+type ReaderV1 = (c: CursorV1) => { token: TokenV1 | null; size: number };
+
+function needV1(c: CursorV1, size: number): void {
+  if (c.at + size > c.d.length) throw new UnsupportedFormulaError('truncated tokens');
+}
+
+/** A reader of a fixed-size token. */
+const fixedV1 =
+  (size: number, read: (c: CursorV1) => TokenV1 | null): ReaderV1 =>
+  (c) => {
+    needV1(c, size);
+    return { token: read(c), size };
+  };
+
+const rowV1 = (d: Uint8Array, at: number, rel: boolean): number => (rel ? i32(d, at) : u32(d, at));
+
+function areaNTokenV1(
+  cls: TokenClassV1,
+  r1: number,
+  r2: number,
+  first: ReturnType<typeof relColumnV1>,
+  last: ReturnType<typeof relColumnV1>,
+): TokenV1 {
+  return {
+    k: 'areaN',
+    cls,
+    r1,
+    r2,
+    c1: first.col,
+    c2: last.col,
+    r1Rel: first.rowRel,
+    r2Rel: last.rowRel,
+    c1Rel: first.rel,
+    c2Rel: last.rel,
+  };
+}
+
+/** PtgRefN (or a relative PtgRef in a shared formula or name). */
+function refNV1({ d, at, cls }: CursorV1): TokenV1 {
+  const col = relColumnV1(u16(d, at + 5));
+  const row = rowV1(d, at + 1, col.rowRel);
+  return areaNTokenV1(cls, row, row, col, col);
+}
+
+/** PtgAreaN (or a relative PtgArea in a shared formula or name). */
+function areaNV1({ d, at, cls }: CursorV1): TokenV1 {
+  const first = relColumnV1(u16(d, at + 9));
+  const last = relColumnV1(u16(d, at + 11));
+  return areaNTokenV1(
+    cls,
+    rowV1(d, at + 1, first.rowRel),
+    rowV1(d, at + 5, last.rowRel),
+    first,
+    last,
+  );
+}
+
+function refV1(c: CursorV1): TokenV1 {
+  const colRaw = u16(c.d, c.at + 5);
+  if (c.relative && (colRaw & 0xc000) !== 0) return refNV1(c);
+  const row = u32(c.d, c.at + 1);
+  return { k: 'area', cls: c.cls, r1: row, r2: row, c1: colRaw & 0x3fff, c2: colRaw & 0x3fff };
+}
+
+function areaTokenV1(c: CursorV1): TokenV1 {
+  if (c.relative && ((u16(c.d, c.at + 9) | u16(c.d, c.at + 11)) & 0xc000) !== 0) return areaNV1(c);
+  return { k: 'area', ...areaV1(c.cls, c.d, c.at + 1) };
+}
+
+function ref3dV1({ d, at, cls, relative }: CursorV1): TokenV1 {
+  const colRaw = u16(d, at + 7);
+  if (relative && (colRaw & 0xc000) !== 0)
+    throw new UnsupportedFormulaError('relative 3D reference');
+  const row = u32(d, at + 3);
+  const col = colRaw & 0x3fff;
+  return { k: 'area3d', cls, ixti: u16(d, at + 1), r1: row, r2: row, c1: col, c2: col };
+}
+
+function area3dV1({ d, at, cls, relative }: CursorV1): TokenV1 {
+  if (relative && ((u16(d, at + 11) | u16(d, at + 13)) & 0xc000) !== 0)
+    throw new UnsupportedFormulaError('relative 3D reference');
+  return { k: 'area3d', ixti: u16(d, at + 1), ...areaV1(cls, d, at + 3) };
+}
+
+/** PtgStr: a count of UTF-16 units, then the units. */
+const stringV1: ReaderV1 = (c) => {
+  needV1(c, 3);
+  const count = u16(c.d, c.at + 1);
+  needV1(c, 3 + count * 2);
+  const text = new TextDecoder('utf-16le').decode(c.d.subarray(c.at + 3, c.at + 3 + count * 2));
+  return { token: { k: 'str', v: text }, size: 3 + count * 2 };
+};
+
+/** Attributes that only guide Excel (if/goto jumps, spaces, PtgAttrBaxcel). */
+const IGNORED_ATTRIBUTES_V1: readonly number[] = [0x02, 0x08, 0x20, 0x40, 0x41, 0x80];
+
+/** PtgAttr*: SUM of one argument, volatile, a CHOOSE jump table, or a hint. */
+const attributeV1: ReaderV1 = (c) => {
+  needV1(c, 4);
+  const kind = c.d[c.at + 1]!;
+  // AttrChoose: a jump table; CHOOSE itself follows as a function.
+  if (kind === 0x04) return { token: null, size: 4 + 2 * (u16(c.d, c.at + 2) + 1) };
+  if (kind === 0x10) return { token: { k: 'attrSum' }, size: 4 };
+  if (kind === 0x01) return { token: { k: 'volatile' }, size: 4 };
+  if (!IGNORED_ATTRIBUTES_V1.includes(kind)) throw new UnsupportedFormulaError(`attribute ${kind}`);
+  return { token: null, size: 4 };
+};
+
+const refErrV1 = (size: number): ReaderV1 => fixedV1(size, ({ cls }) => ({ k: 'refErr', cls }));
+
+/** Readers by base token (class bits removed). Binary operators are read apart. */
+const READERS_V1: ReadonlyMap<number, ReaderV1> = new Map<number, ReaderV1>([
+  [0x01, fixedV1(5, ({ d, at }) => ({ k: 'exp', row: u32(d, at + 1) }))],
+  [0x12, fixedV1(1, () => ({ k: 'unary', op: 'u+' }))],
+  [0x13, fixedV1(1, () => ({ k: 'unary', op: 'u-' }))],
+  [0x14, fixedV1(1, () => ({ k: 'unary', op: '%' }))],
+  [0x15, fixedV1(1, () => ({ k: 'paren' }))],
+  [0x16, fixedV1(1, () => ({ k: 'miss' }))],
+  [0x17, stringV1],
+  [0x19, attributeV1],
+  [0x1c, fixedV1(2, ({ d, at }) => ({ k: 'err', v: d[at + 1]! }))],
+  [0x1d, fixedV1(2, ({ d, at }) => ({ k: 'bool', v: d[at + 1] !== 0 }))],
+  [0x1e, fixedV1(3, ({ d, at }) => ({ k: 'num', v: u16(d, at + 1) }))],
+  [
+    0x1f,
+    fixedV1(9, ({ d, at }) => ({
+      k: 'num',
+      v: new DataView(d.buffer, d.byteOffset + at + 1, 8).getFloat64(0, true),
+    })),
+  ],
+  [
+    0x21,
+    fixedV1(3, ({ d, at, cls }) => {
+      const tab = u16(d, at + 1);
+      return { k: 'func', cls, tab, argc: FIXED_ARGC_V1.get(tab) ?? null };
+    }),
+  ],
+  [
+    0x22,
+    fixedV1(4, ({ d, at, cls }) => ({
+      k: 'func',
+      cls,
+      tab: u16(d, at + 2) & 0x7fff,
+      argc: d[at + 1]!,
+    })),
+  ],
+  [0x23, fixedV1(5, ({ d, at, cls }) => ({ k: 'name', cls, index: u32(d, at + 1) }))],
+  [0x24, fixedV1(7, refV1)],
+  [0x25, fixedV1(13, areaTokenV1)],
+  // PtgMemArea / MemErr / MemNoMem: a hint before a reference subexpression.
+  [0x26, fixedV1(7, () => null)],
+  [0x27, fixedV1(7, () => null)],
+  [0x28, fixedV1(7, () => null)],
+  [0x29, fixedV1(3, () => null)],
+  [0x2a, refErrV1(7)],
+  [0x2b, refErrV1(13)],
+  [0x2c, fixedV1(7, refNV1)],
+  [0x2d, fixedV1(13, areaNV1)],
+  [
+    0x39,
+    fixedV1(7, ({ d, at, cls }) => ({
+      k: 'nameX',
+      cls,
+      ixti: u16(d, at + 1),
+      index: u32(d, at + 3),
+    })),
+  ],
+  [0x3a, fixedV1(9, ref3dV1)],
+  [0x3b, fixedV1(15, area3dV1)],
+  [0x3c, refErrV1(9)],
+  [0x3d, refErrV1(15)],
+]);
+
+/** A binary operator; anything else not listed is unsupported. */
+function binaryReaderV1(base: number, ptg: number): ReaderV1 {
+  const op = BINARY_V1[base];
+  if (!op) throw new UnsupportedFormulaError(`token 0x${ptg.toString(16)}`);
+  return () => ({ token: { k: 'bin', op }, size: 1 });
+}
+
 /**
  * The tokens of a formula. `relative` reads cell references the way shared formulas and names
  * store them (offsets from the formula's cell when flagged relative).
@@ -187,269 +379,14 @@ function relColumnV1(raw: number): { col: number; rel: boolean; rowRel: boolean 
 export function decodeFormulaV1(rgce: Uint8Array, relative = false): TokenV1[] {
   const tokens: TokenV1[] = [];
   let at = 0;
-  const need = (size: number) => {
-    if (at + size > rgce.length) throw new UnsupportedFormulaError('truncated tokens');
-  };
   while (at < rgce.length) {
     const ptg = rgce[at]!;
     const base = ptg >= 0x20 ? (ptg & 0x1f) | 0x20 : ptg;
     const cls = ptg >= 0x20 ? CLASS_V1[ptg >> 5]! : null;
-    switch (base) {
-      case 0x01:
-        need(5);
-        tokens.push({ k: 'exp', row: u32(rgce, at + 1) });
-        at += 5;
-        break;
-      case 0x12:
-        tokens.push({ k: 'unary', op: 'u+' });
-        at += 1;
-        break;
-      case 0x13:
-        tokens.push({ k: 'unary', op: 'u-' });
-        at += 1;
-        break;
-      case 0x14:
-        tokens.push({ k: 'unary', op: '%' });
-        at += 1;
-        break;
-      case 0x15:
-        tokens.push({ k: 'paren' });
-        at += 1;
-        break;
-      case 0x16:
-        tokens.push({ k: 'miss' });
-        at += 1;
-        break;
-      case 0x17: {
-        need(3);
-        const count = u16(rgce, at + 1);
-        need(3 + count * 2);
-        tokens.push({
-          k: 'str',
-          v: new TextDecoder('utf-16le').decode(rgce.subarray(at + 3, at + 3 + count * 2)),
-        });
-        at += 3 + count * 2;
-        break;
-      }
-      case 0x19: {
-        need(4);
-        const kind = rgce[at + 1]!;
-        if (kind === 0x04) {
-          // AttrChoose: a jump table; CHOOSE itself follows as a function.
-          const count = u16(rgce, at + 2);
-          at += 4 + 2 * (count + 1);
-          break;
-        }
-        if (kind === 0x10) tokens.push({ k: 'attrSum' });
-        else if (kind === 0x01) tokens.push({ k: 'volatile' });
-        else if (![0x02, 0x08, 0x20, 0x40, 0x41, 0x80].includes(kind))
-          throw new UnsupportedFormulaError(`attribute ${kind}`);
-        at += 4;
-        break;
-      }
-      case 0x1c:
-        need(2);
-        tokens.push({ k: 'err', v: rgce[at + 1]! });
-        at += 2;
-        break;
-      case 0x1d:
-        need(2);
-        tokens.push({ k: 'bool', v: rgce[at + 1] !== 0 });
-        at += 2;
-        break;
-      case 0x1e:
-        need(3);
-        tokens.push({ k: 'num', v: u16(rgce, at + 1) });
-        at += 3;
-        break;
-      case 0x1f:
-        need(9);
-        tokens.push({
-          k: 'num',
-          v: new DataView(rgce.buffer, rgce.byteOffset + at + 1, 8).getFloat64(0, true),
-        });
-        at += 9;
-        break;
-      case 0x21: {
-        need(3);
-        const tab = u16(rgce, at + 1);
-        tokens.push({ k: 'func', cls, tab, argc: FIXED_ARGC_V1.get(tab) ?? null });
-        at += 3;
-        break;
-      }
-      case 0x22:
-        need(4);
-        tokens.push({ k: 'func', cls, tab: u16(rgce, at + 2) & 0x7fff, argc: rgce[at + 1]! });
-        at += 4;
-        break;
-      case 0x23:
-        need(5);
-        tokens.push({ k: 'name', cls, index: u32(rgce, at + 1) });
-        at += 5;
-        break;
-      case 0x24: {
-        need(7);
-        const row = u32(rgce, at + 1);
-        const colRaw = u16(rgce, at + 5);
-        if (relative && (colRaw & 0xc000) !== 0) {
-          const c = relColumnV1(colRaw);
-          const r = c.rowRel ? i32(rgce, at + 1) : row;
-          tokens.push({
-            k: 'areaN',
-            cls,
-            r1: r,
-            r2: r,
-            c1: c.col,
-            c2: c.col,
-            r1Rel: c.rowRel,
-            r2Rel: c.rowRel,
-            c1Rel: c.rel,
-            c2Rel: c.rel,
-          });
-        } else
-          tokens.push({
-            k: 'area',
-            cls,
-            r1: row,
-            r2: row,
-            c1: colRaw & 0x3fff,
-            c2: colRaw & 0x3fff,
-          });
-        at += 7;
-        break;
-      }
-      case 0x25: {
-        need(13);
-        const a = areaV1(cls, rgce, at + 1);
-        if (relative && ((u16(rgce, at + 9) | u16(rgce, at + 11)) & 0xc000) !== 0) {
-          const first = relColumnV1(u16(rgce, at + 9));
-          const last = relColumnV1(u16(rgce, at + 11));
-          tokens.push({
-            k: 'areaN',
-            cls,
-            r1: first.rowRel ? i32(rgce, at + 1) : a.r1,
-            r2: last.rowRel ? i32(rgce, at + 5) : a.r2,
-            c1: first.col,
-            c2: last.col,
-            r1Rel: first.rowRel,
-            r2Rel: last.rowRel,
-            c1Rel: first.rel,
-            c2Rel: last.rel,
-          });
-        } else tokens.push({ k: 'area', ...a });
-        at += 13;
-        break;
-      }
-      case 0x26:
-      case 0x27:
-      case 0x28:
-        // PtgMemArea / MemErr / MemNoMem: a hint before a reference subexpression.
-        need(7);
-        at += 7;
-        break;
-      case 0x29:
-        need(3);
-        at += 3;
-        break;
-      case 0x2a:
-        need(7);
-        tokens.push({ k: 'refErr', cls });
-        at += 7;
-        break;
-      case 0x2b:
-        need(13);
-        tokens.push({ k: 'refErr', cls });
-        at += 13;
-        break;
-      case 0x2c: {
-        need(7);
-        const c = relColumnV1(u16(rgce, at + 5));
-        const r = c.rowRel ? i32(rgce, at + 1) : u32(rgce, at + 1);
-        tokens.push({
-          k: 'areaN',
-          cls,
-          r1: r,
-          r2: r,
-          c1: c.col,
-          c2: c.col,
-          r1Rel: c.rowRel,
-          r2Rel: c.rowRel,
-          c1Rel: c.rel,
-          c2Rel: c.rel,
-        });
-        at += 7;
-        break;
-      }
-      case 0x2d: {
-        need(13);
-        const first = relColumnV1(u16(rgce, at + 9));
-        const last = relColumnV1(u16(rgce, at + 11));
-        tokens.push({
-          k: 'areaN',
-          cls,
-          r1: first.rowRel ? i32(rgce, at + 1) : u32(rgce, at + 1),
-          r2: last.rowRel ? i32(rgce, at + 5) : u32(rgce, at + 5),
-          c1: first.col,
-          c2: last.col,
-          r1Rel: first.rowRel,
-          r2Rel: last.rowRel,
-          c1Rel: first.rel,
-          c2Rel: last.rel,
-        });
-        at += 13;
-        break;
-      }
-      case 0x39:
-        need(7);
-        tokens.push({ k: 'nameX', cls, ixti: u16(rgce, at + 1), index: u32(rgce, at + 3) });
-        at += 7;
-        break;
-      case 0x3a: {
-        need(9);
-        const colRaw = u16(rgce, at + 7);
-        if (relative && (colRaw & 0xc000) !== 0)
-          throw new UnsupportedFormulaError('relative 3D reference');
-        const row = u32(rgce, at + 3);
-        tokens.push({
-          k: 'area3d',
-          cls,
-          ixti: u16(rgce, at + 1),
-          r1: row,
-          r2: row,
-          c1: colRaw & 0x3fff,
-          c2: colRaw & 0x3fff,
-        });
-        at += 9;
-        break;
-      }
-      case 0x3b: {
-        need(15);
-        if (relative && ((u16(rgce, at + 11) | u16(rgce, at + 13)) & 0xc000) !== 0)
-          throw new UnsupportedFormulaError('relative 3D reference');
-        tokens.push({ k: 'area3d', ixti: u16(rgce, at + 1), ...areaV1(cls, rgce, at + 3) });
-        at += 15;
-        break;
-      }
-      case 0x3c:
-        need(9);
-        tokens.push({ k: 'refErr', cls });
-        at += 9;
-        break;
-      case 0x3d:
-        need(15);
-        tokens.push({ k: 'refErr', cls });
-        at += 15;
-        break;
-      default: {
-        const op = BINARY_V1[base];
-        if (op) {
-          tokens.push({ k: 'bin', op });
-          at += 1;
-          break;
-        }
-        throw new UnsupportedFormulaError(`token 0x${ptg.toString(16)}`);
-      }
-    }
+    const reader = READERS_V1.get(base) ?? binaryReaderV1(base, ptg);
+    const { token, size } = reader({ d: rgce, at, cls, relative });
+    if (token) tokens.push(token);
+    at += size;
   }
   return tokens;
 }
