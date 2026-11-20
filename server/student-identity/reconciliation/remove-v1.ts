@@ -75,7 +75,8 @@ export async function removableStudentV1(
      WHERE a.ano=$1 AND a.student_uid=$2::uuid`,
     [year, studentUid],
   );
-  if (!student || student.conselho_anterior !== null) return null;
+  // No student, or a previous year's council decision (a real student).
+  if (student?.conselho_anterior !== null) return null;
   const relations = [...BY_STUDENT_ID_V1, ...BY_STUDENT_UID_V1.map(([relation]) => relation)];
   const found = await tx.query(
     `SELECT r AS relation,to_regclass(r) IS NOT NULL AS present,
