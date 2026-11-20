@@ -32,7 +32,10 @@ export type ScalarV1 = number | string | boolean | ExcelErrorV1 | null;
 export const errorV1 = (code: number): ExcelErrorV1 => new ExcelErrorV1(code);
 export const isErrorV1 = (value: unknown): value is ExcelErrorV1 => value instanceof ExcelErrorV1;
 
-/** A formula as stored: its tokens (rgce) and, for array or shared groups, the group's range. */
+/**
+ * A formula as stored. Only positions inside the sheet part are kept (a workbook has tens of
+ * thousands of formulas, and the Worker has little memory): the tokens are read from there.
+ */
 export type FormulaRecordV1 = {
   /** BrtFmlaNum / String / Bool / Error. */
   readonly recordType: number;
@@ -41,13 +44,14 @@ export type FormulaRecordV1 = {
   readonly dataEnd: number;
   /** Where the whole record (header included) starts and ends, for a rewrite. */
   readonly recordStart: number;
-  /** The tokens; a cell of an array or shared formula holds only PtgExp. */
-  readonly rgce: Uint8Array;
-  /** Extra data of the formula (array constants), in order after rgce. */
-  readonly rgcb: Uint8Array;
-  /** grbitFlags of the cell formula (fAlwaysCalc and others). */
-  readonly flags: number;
+  /** Where the tokens (rgce) are; a cell of an array or shared formula holds only PtgExp. */
+  readonly rgceStart: number;
+  readonly rgceEnd: number;
 };
+
+/** The tokens of a cell's own formula. */
+export const formulaTokensBytesV1 = (sheet: SheetModelV1, formula: FormulaRecordV1): Uint8Array =>
+  sheet.bytes.subarray(formula.rgceStart, formula.rgceEnd);
 
 export type CellV1 = {
   readonly row: number;
@@ -65,7 +69,6 @@ export type FormulaGroupV1 = {
   readonly c1: number;
   readonly c2: number;
   readonly rgce: Uint8Array;
-  readonly rgcb: Uint8Array;
 };
 
 export type SheetModelV1 = {
@@ -84,7 +87,6 @@ export type DefinedNameV1 = {
   /** Sheet index for a sheet-scoped name, null for a workbook name. */
   readonly sheet: number | null;
   readonly rgce: Uint8Array;
-  readonly rgcb: Uint8Array;
   readonly hidden: boolean;
 };
 
@@ -106,7 +108,6 @@ export type WorkbookModelV1 = {
 export const MAX_COLUMNS_V1 = 16_384;
 export const cellKeyV1 = (row: number, col: number): number => row * MAX_COLUMNS_V1 + col;
 
-const u16 = (d: Uint8Array, at: number): number => d[at]! | (d[at + 1]! << 8);
 const u32 = (d: Uint8Array, at: number): number =>
   (d[at]! | (d[at + 1]! << 8) | (d[at + 2]! << 16)) + d[at + 3]! * 0x1000000;
 const i32 = (d: Uint8Array, at: number): number => {
@@ -185,18 +186,18 @@ type WorkbookPartsV1 = {
   xti: XtiV1[];
 };
 
-/** Formula bytes: cce, rgce, cb, rgcb (CellParsedFormula and friends). */
-function parsedFormulaV1(d: Uint8Array, at: number): { rgce: Uint8Array; rgcb: Uint8Array } {
+/** Where the tokens of formula bytes are: cce, then rgce (CellParsedFormula and friends). */
+function rgceBoundsV1(d: Uint8Array, at: number): { start: number; end: number } {
   if (at + 4 > d.length) throw new WorkbookModelError('formula is truncated');
-  const cce = u32(d, at);
-  const rgceEnd = at + 4 + cce;
-  if (rgceEnd > d.length) throw new WorkbookModelError('formula is truncated');
-  const cb = rgceEnd + 4 <= d.length ? u32(d, rgceEnd) : 0;
-  return {
-    rgce: d.subarray(at + 4, rgceEnd),
-    rgcb: d.subarray(rgceEnd + 4, Math.min(d.length, rgceEnd + 4 + cb)),
-  };
+  const end = at + 4 + u32(d, at);
+  if (end > d.length) throw new WorkbookModelError('formula is truncated');
+  return { start: at + 4, end };
 }
+
+const rgceOfV1 = (d: Uint8Array, at: number): Uint8Array => {
+  const { start, end } = rgceBoundsV1(d, at);
+  return d.subarray(start, end);
+};
 
 function workbookPartsV1(workbook: Uint8Array, rels: Map<string, string>): WorkbookPartsV1 {
   const out: WorkbookPartsV1 = { sheets: [], names: [], books: [], xti: [] };
@@ -215,12 +216,11 @@ function workbookPartsV1(workbook: Uint8Array, rels: Map<string, string>): Workb
         const flags = u32(d, 0);
         const itab = u32(d, 5);
         const name = wideV1(d, 9);
-        const formula = parsedFormulaV1(d, name.end);
         out.names.push({
           name: name.text,
           sheet: itab === 0xffffffff ? null : itab,
           hidden: (flags & 1) === 1,
-          ...formula,
+          rgce: rgceOfV1(d, name.end),
         });
         break;
       }
@@ -314,29 +314,28 @@ function sheetModelV1(
       const { value, end: valueEnd } = cellValueV1(type, d, strings);
       let formula: FormulaRecordV1 | null = null;
       if (FORMULA_TYPES_V1.has(type)) {
-        const flags = u16(d, valueEnd);
-        const parsed = parsedFormulaV1(d, valueEnd + 2);
+        // After the value: grbitFlags (2 bytes), then the formula.
+        const rgce = rgceBoundsV1(d, valueEnd + 2);
         formula = {
           recordType: type,
           dataStart: start,
           dataEnd: end,
           recordStart,
-          flags,
-          ...parsed,
+          rgceStart: start + rgce.start,
+          rgceEnd: start + rgce.end,
         };
       }
       cells.set(cellKeyV1(row, col), { row, col, value, formula });
       return;
     }
     if (type === 0x1aa || type === 0x1ab) {
-      const parsed = parsedFormulaV1(d, type === 0x1aa ? 17 : 16);
       groups.push({
         kind: type === 0x1aa ? 'array' : 'shared',
         r1: u32(d, 0),
         r2: u32(d, 4),
         c1: u32(d, 8),
         c2: u32(d, 12),
-        ...parsed,
+        rgce: rgceOfV1(d, type === 0x1aa ? 17 : 16),
       });
     }
   });

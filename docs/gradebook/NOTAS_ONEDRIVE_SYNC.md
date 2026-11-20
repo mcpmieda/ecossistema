@@ -188,14 +188,23 @@ Ao atualizar um vínculo, o Worker pode recalcular também as fórmulas que depe
 **Validação (19/11/2026), em cópias apagadas depois.**
 - Prova nas 18 planilhas dos professores: as 446.415 fórmulas que dependem dos vínculos, recalculadas com os valores atuais, deram todas o que o Excel salvou (nenhuma deixada de lado, nenhuma diferença).
 - Mudança simulada nos vínculos das 18 cópias (de 17 a 517 células por planilha): o motor gravou 55.658 células (de 72 a 5.109 por planilha). Depois o Excel recalculou os mesmos arquivos do zero e comparou 1.027.856 células: a única diferença foi `CONFIGURAÇÃO!G7` (`HOJE()`), que o motor nunca grava.
-- Tempo de processamento: de 0,5 a 2 s por planilha, dentro do limite de 30 s por invocação e dos 30 milhões de ms de CPU por mês do plano pago.
 - Testes automáticos com planilhas sintéticas feitas no Excel (`tests/gradebook/onedrive-sync/recalc-v1.test.ts`): resultado igual ao do Excel célula a célula; `TEXTO` deixado de lado e informado; valor salvo adulterado não é confiado; `INDIRETO` bloqueia; uma fórmula por função.
+
+**Limites do Worker (20/11/2026).** Cada atualização de vínculo roda numa invocação própria, com 30 s de CPU e 128 MB de memória.
+- **Na primeira versão:** o motor guardava todas as fórmulas decodificadas e precisava de 104 a 182 MB nas planilhas reais. O recálculo foi desligado antes de passar por uma planilha real.
+- **Na versão atual:**
+  - Cada fórmula é decodificada só na hora do cálculo.
+  - As dependências ficam num vetor numérico único, e as chaves dos mapas são números.
+  - O modelo da planilha guarda posições em vez de recortes de bytes.
+- **Medição nas cópias das 18 planilhas e das 4 origens de 2026:** a invocação inteira (baixar, ler as origens, atualizar o vínculo e recalcular), com metade das notas das origens mudadas, coube com 40 a 80 MB de memória. Só o vínculo cabe com 32 MB. A CPU ficou entre 2,1 e 5,3 s por planilha.
+- **Resultado:** igual ao do motor anterior, byte a byte, nas 18 cópias e em 3 cenários.
+- **Proteção:** se uma tentativa com recálculo não terminar (CPU ou memória da invocação, ou sem resposta), a próxima tentativa daquela planilha atualiza só o vínculo e avisa no Histórico ("Nada recalculado: a tentativa anterior não terminou"). A mudança seguinte tenta o recálculo de novo.
 
 **Rastreamento (para desfazer, se não der certo).** Tudo o que esta entrega acrescentou:
 - Motor: pasta `server/gradebook/onedrive-sync/links/recalc/` (`workbook-model-v1.ts`, `formula-tokens-v1.ts`, `values-v1.ts`, `evaluate-v1.ts`, `functions-v1.ts`, `recalc-v1.ts`).
 - `links/refresh-links-v1.ts`: entrada `recalculate`, campo `recalc` do resultado e a função `recalculateCellsV1`.
 - `links/run-link-refresh-v1.ts`: entrada `recalculate`, campo `recalc` do resultado, `recalcSummaryV1` e os textos em português dos motivos.
-- `links/link-rules-v1.ts`: `LinkSettingsV1.recalc` e, em cada planilha, `recalcCells`, `recalcSkipped` e `recalcNote`.
+- `links/link-rules-v1.ts`: `LinkSettingsV1.recalc`, a regra `recalculateOnThisTryV1` (sem recálculo depois de uma tentativa que não terminou) e, em cada planilha, `recalcCells`, `recalcSkipped` e `recalcNote`.
 - `sync-coordinator-v1.ts`: ações `links-recalc-on`/`links-recalc-off`; a marca `linkSettings.recalc` no armazenamento do coordenador; o evento `links-recalc-skipped`; a regra de reler a planilha quando houve recálculo (`acknowledgeLinkWrite`); os campos `recalcCells`, `recalcSkipped` e `recalcMismatches` no log `notas-sync-links`.
 - `workers/notas-onedrive-sync/index.ts`: aceita `recalculate` na rota interna `/vinculos`.
 - Contrato `shared/gradebook-contracts/onedrive-sync/onedrive-sync-contract-v1.ts`: as duas ações, `links.recalc` e os três campos por planilha (todos opcionais).
