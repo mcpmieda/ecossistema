@@ -40,7 +40,7 @@ export function pendingForVersionV1(
   pending: StoredPendingLinkValuesV1 | null | undefined,
   hash: string | null,
 ): PendingLinkValuesV1 | null {
-  if (!pending || pending.hash === null || pending.hash !== hash) return null;
+  if (!pending?.hash || pending.hash !== hash) return null;
   return { overflow: pending.overflow, cells: pending.cells };
 }
 
