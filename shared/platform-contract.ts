@@ -28,7 +28,7 @@ export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
  * ADMINISTRADOR only.
  */
 export const ACCESS_AREAS = [
-  { id: 'desempenho', label: 'Banco de notas', detail: 'Desempenho, Boletins e Conselho' },
+  { id: 'desempenho', label: 'Banco de notas', detail: 'Desempenho e Conselho' },
   { id: 'importacao', label: 'Importação', detail: 'Importação, Auditoria e OneDrive' },
   { id: 'painel-do-aluno', label: 'Painel do Aluno', detail: 'Painel do Aluno e Conciliação' },
   { id: 'saude', label: 'Saúde', detail: 'Saúde do sistema' },

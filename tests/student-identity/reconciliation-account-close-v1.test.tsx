@@ -118,8 +118,6 @@ it('encerra na Conciliação a conta de um cadastro sem turma, como na ficha (11
       client={{ request }}
       scope={{ kind: 'school', academicYear: 2026 }}
       canWrite
-      pendingOnly
-      showPortalAccess={false}
       accountClose={{ client: mock.props.client, reader: mock.props.reader }}
     />,
   );
@@ -193,8 +191,6 @@ it('não oferece encerrar a conta de quem tem turma', async () => {
       client={{ request }}
       scope={{ kind: 'school', academicYear: 2026 }}
       canWrite
-      pendingOnly
-      showPortalAccess={false}
       accountClose={{ client: mock.props.client, reader: mock.props.reader }}
     />,
   );

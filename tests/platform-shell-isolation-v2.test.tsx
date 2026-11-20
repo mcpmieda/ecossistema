@@ -86,21 +86,21 @@ it('uses independent main links without remounting Importação and respects int
   await user.click(main.getByRole('link', { name: 'Banco de notas' }));
   expect(window.location.hash).toBe('#/banco-de-notas?area=performance');
   await user.click(main.getByRole('link', { name: 'Importação' }));
-  expect(window.location.hash).toBe('#/banco-de-notas?area=importacao');
+  // The Importação opens on its first tab, the OneDrive.
+  expect(window.location.hash).toBe('#/banco-de-notas?area=onedrive');
   expect(main.getByRole('link', { name: 'Importação' }).getAttribute('aria-current')).toBe('page');
   expect(screen.getByRole('textbox', { name: 'workspace-banco-de-notas' })).toBe(input);
   expect((input as HTMLInputElement).value).toBe('interrupted synthetic import');
+  // The Conciliação is a tab of the Importação, not an entry of the side column.
+  expect(main.queryByRole('link', { name: 'Conciliação' })).toBeNull();
   const block = (event: Event) => event.preventDefault();
   window.addEventListener('ecossistema-before-navigation', block);
   try {
-    await user.click(main.getByRole('link', { name: 'Conciliação' }));
-    expect(window.location.hash).toBe('#/banco-de-notas?area=importacao');
+    await user.click(main.getByRole('link', { name: 'Painel do Aluno' }));
+    expect(window.location.hash).toBe('#/banco-de-notas?area=onedrive');
   } finally {
     window.removeEventListener('ecossistema-before-navigation', block);
   }
-  await user.click(main.getByRole('link', { name: 'Conciliação' }));
-  await screen.findByRole('textbox', { name: 'workspace-painel-do-aluno' });
-  expect(main.getByRole('link', { name: 'Conciliação' }).getAttribute('aria-current')).toBe('page');
   expect(screen.queryByRole('link', { name: 'Acessos e QR' })).toBeNull();
   expect(screen.queryByRole('tab', { name: 'Acessos e QR' })).toBeNull();
   await user.click(main.getByRole('link', { name: 'Painel do Aluno' }));
@@ -112,7 +112,7 @@ it('uses independent main links without remounting Importação and respects int
   expect(main.queryByRole('link', { name: 'Alunos' })).toBeNull();
   await user.click(sections.getByRole('link', { name: 'Sessões' }));
   expect(window.location.hash).toBe('#/painel-do-aluno?area=sessions');
-  expect(main.getByRole('link', { name: 'Conciliação' })).toBeTruthy();
+  expect(main.queryByRole('link', { name: 'Conciliação' })).toBeNull();
 });
 
 it.each([503, 401])(

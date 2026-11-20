@@ -56,15 +56,7 @@ const catalog = (): ReconciliationResponseV1 => ({
   reportClasses: [],
 });
 const mount = (request: ReconciliationClientV1['request']) =>
-  render(
-    <StudentReconciliationV1
-      client={{ request }}
-      scope={scope}
-      canWrite={false}
-      pendingOnly
-      showPortalAccess={false}
-    />,
-  );
+  render(<StudentReconciliationV1 client={{ request }} scope={scope} canWrite={false} />);
 
 it('joins the pendencies of mixed and filtered-empty pages into one list, with no load-more left', async () => {
   const request = vi.fn<ReconciliationClientV1['request']>(async (input) => {
@@ -146,9 +138,7 @@ it('resets pending rows and opaque cursor for search and class changes, retainin
     return input.cursor ? page([], null) : page([person(1, 'pending')], 'old-page');
   });
   const client = { request };
-  const view = render(
-    <StudentReconciliationV1 client={client} scope={scope} canWrite={false} pendingOnly />,
-  );
+  const view = render(<StudentReconciliationV1 client={client} scope={scope} canWrite={false} />);
   await screen.findByText('SYNTHETIC PERSON 1');
   await userEvent
     .setup()
@@ -168,7 +158,6 @@ it('resets pending rows and opaque cursor for search and class changes, retainin
       client={client}
       scope={{ kind: 'class', academicYear: 2026, classId: 7 }}
       canWrite={false}
-      pendingOnly
     />,
   );
   expect(await screen.findByText('SYNTHETIC CLASS PENDING')).toBeTruthy();

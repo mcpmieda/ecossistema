@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentReconciliationV1 } from '../../src/features/student-portal-admin/accounts/student-reconciliation-v1';
 import { ReportValidationErrorsV1 } from '../../src/features/gradebook/import/student-report-import-v1';
-import { AccountOpenContextV1 } from '../../src/features/student-portal-admin/shared/account-open-v1';
 import {
   createReconciliationActivationV1,
   createReconciliationClientV1,
@@ -75,70 +74,6 @@ afterEach(() => {
 });
 
 describe('Relatório e aba Alunos', () => {
-  it('preserva o atalho administrativo para a conta na composição legada', async () => {
-    const openAccount = vi.fn();
-    const scope = { kind: 'school' as const, academicYear: 2026 as const };
-    const request = vi.fn(
-      async (input: ReconciliationRequestV1): Promise<ReconciliationResponseV1> => {
-        const base = { contractVersion: 1 as const, state: 'ready' as const, context };
-        if (input.operation === 'catalog')
-          return { ...base, operation: 'catalog', classes: [], reportClasses: [] };
-        if (input.operation === 'detail')
-          return {
-            ...base,
-            operation: 'detail',
-            selectedObservationId: null,
-            sources: [],
-            candidates: [],
-            history: [],
-          };
-        if (input.operation !== 'list')
-          throw new Error('Synthetic navigation test allows reads only');
-        return {
-          ...base,
-          operation: 'list',
-          nextCursor: null,
-          items: [
-            {
-              kind: 'person',
-              studentUid: uid,
-              academicStudentId: 1,
-              academicYear: 2026,
-              name: 'SYNTHETIC PORTAL ACCOUNT',
-              relationName: 'SYNTHETIC PORTAL ACCOUNT',
-              classId: null,
-              classLabel: null,
-              version: 1,
-              reconciliation: 'pending',
-              portal: 'with-portal',
-              accountId: uid,
-              possibleSamePerson: false,
-            },
-          ],
-        };
-      },
-    );
-    render(
-      <AccountOpenContextV1.Provider value={openAccount}>
-        <StudentReconciliationV1 client={{ request }} scope={scope} canWrite={false} />
-      </AccountOpenContextV1.Provider>,
-    );
-    await userEvent
-      .setup()
-      .click(await screen.findByRole('button', { name: 'SYNTHETIC PORTAL ACCOUNT' }));
-    await userEvent
-      .setup()
-      .click(
-        await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC PORTAL ACCOUNT' }),
-      );
-    expect(openAccount).toHaveBeenCalledWith(uid, scope);
-    expect(screen.getByText('Acesso ao Portal')).toBeTruthy();
-    expect(
-      request.mock.calls.every(([input]) =>
-        ['catalog', 'list', 'detail'].includes(input.operation),
-      ),
-    ).toBe(true);
-  });
   it('mostra o histórico de decisões em português, sem os códigos gravados', async () => {
     const scope = { kind: 'school' as const, academicYear: 2026 as const };
     const request = vi.fn(
@@ -346,7 +281,7 @@ describe('Relatório e aba Alunos', () => {
     expect(screen.getByText('Linha 9')).toBeTruthy();
     expect(document.querySelector('img')).toBeNull();
   });
-  it.each(['reconciled', 'review-required'] as const)(
+  it.each(['review-required'] as const)(
     'permite escolher dados de uma única matrícula em estado %s sem preparar outro relatório',
     async (reconciliation) => {
       const request = vi.fn(
@@ -438,7 +373,9 @@ describe('Relatório e aba Alunos', () => {
       );
       const mutations = request.mock.calls
         .map(([input]) => input)
-        .filter((input) => !['catalog', 'list', 'detail'].includes(input.operation));
+        .filter(
+          (input) => !['catalog', 'list', 'detail', 'automatic-report'].includes(input.operation),
+        );
       expect(mutations.map((input) => input.operation)).toEqual([
         'select-observation',
         'stage',
@@ -804,7 +741,7 @@ describe('Relatório e aba Alunos', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('alert')));
     await user.tab();
     expect(document.activeElement).toBe(
-      screen.getByRole('region', { name: 'Alunos e pendências' }),
+      screen.getByRole('region', { name: 'Pendências de conciliação' }),
     );
     expect(resolvePayloads).toEqual([
       expect.objectContaining({
@@ -1162,12 +1099,6 @@ describe('Somente no Smecel', () => {
       button: 'Somente no Smecel',
       smecelOnly: true,
       state: 'Revisão necessária',
-    },
-    {
-      reason: 'smecel_only',
-      button: 'Voltar a pendente',
-      smecelOnly: false,
-      state: 'Somente no Smecel',
     },
   ])(
     'marks a report row without a link ($reason)',

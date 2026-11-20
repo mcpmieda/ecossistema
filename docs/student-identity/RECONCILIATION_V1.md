@@ -1,5 +1,7 @@
 # Conciliação de alunos V1 — entrega 1 da #1269
 
+**Onde fica (20/11/2026):** quarta aba do menu **Importação** (OneDrive, Auditoria, Importação manual, Conciliação), em `#/banco-de-notas?area=reconciliation`; o endereço antigo do Painel do Aluno redireciona para ela. O item Importação do menu lateral soma as pendências da Auditoria e da Conciliação. O acesso continua sendo o da área Painel do Aluno, que as operações do servidor exigem.
+
 Contrato candidato registrado na [#1276](https://github.com/mcpmieda/ecossistema-escola/issues/1276), subordinado ao corpo consolidado e aos complementos aprovados da [#1269](https://github.com/mcpmieda/ecossistema-escola/issues/1269). Base inicial: `main@7119308fbbd7d870d9d0957ea2e18fa93184e042`. Esta documentação descreve a branch; não altera a baseline de `PROJECT_STATE.yaml` nem comprova integração, aplicação de migrations ou validação produtiva.
 
 ## Fronteiras e fontes
@@ -107,7 +109,7 @@ Reversão: antes do primeiro relatório aplicado, voltar o código restaura o co
 
 ## Somente no Smecel (gradebook-simplified 0018, pedido do responsável em 10/11/2026; aplicada como 20261111075937)
 
-Uma linha do Relatório sem aluno na Relação, que a escola sabe que ficará só no Smecel, pode ser marcada na Conciliação (`smecel-only`, decisão registrada como `smecel-only`). Marcada, ela sai da contagem e da visão de pendências, da lista "Alunos não reconhecidos" da Frequência e dos avisos do Coletor (a contagem guardada do último Relatório automático acompanha a marcação na hora). Continua visível na lista completa com a situação "Somente no Smecel" e pode voltar a pendente. Nunca cria vínculo: o próximo Relatório que encontrar o aluno na Relação vincula a linha como de costume e limpa a marcação; um vínculo manual também a limpa.
+Uma linha do Relatório sem aluno na Relação, que a escola sabe que ficará só no Smecel, pode ser marcada na Conciliação (`smecel-only`, decisão registrada como `smecel-only`). Marcada, ela sai da contagem e da visão de pendências, da lista "Alunos não reconhecidos" da Frequência e dos avisos do Coletor (a contagem guardada do último Relatório automático acompanha a marcação na hora). Sai da lista da Conciliação, que mostra só pendências; com a ficha ainda aberta, pode voltar a pendente. Nunca cria vínculo: o próximo Relatório que encontrar o aluno na Relação vincula a linha como de costume e limpa a marcação; um vínculo manual também a limpa.
 
 ## Excluir aluno lançado por engano (gradebook-simplified 0020, pedido do responsável em 20/11/2026)
 

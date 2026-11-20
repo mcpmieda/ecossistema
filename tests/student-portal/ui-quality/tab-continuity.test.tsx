@@ -4,13 +4,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalApp } from '../../../src/student-portal/app';
 import { usePortalAdminIdentityV1 } from '../../../src/features/student-portal-admin/shared/admin-identity-v1';
 import { StudentPortalAdminPage } from '../../../src/features/student-portal-admin/student-portal-admin-page';
+import { ReconciliationSurfaceV1 } from '../../../src/features/student-portal-admin/reconciliation-surface-v1';
 import { PortalClientErrorV1 } from '../../../src/features/student-portal/shared/transport-v1';
 import { SYNTHETIC_QR_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
 import { clientFixtureV1 } from '../ui/auth/fixtures-v1';
 import { setupOperationsDomV1 } from '../ui/overview/dom-v1';
 import { opJsonV1, operationsMockV1 } from '../ui/overview/fixtures-v1';
 import { emptyReconciliationReadV1 } from '../ui/accounts/fixtures-v1';
-import { claimPanelHashV1 } from '../../../src/features/student-portal-admin/shared/panel-hash-v1';
 
 beforeEach(setupOperationsDomV1);
 afterEach(() => {
@@ -86,18 +86,15 @@ it.each(['accounts', 'credentials', 'birth'])(
 );
 
 it.each([false, true])(
-  'opens Conciliação independently with existing write permission %s and pending records only',
+  'opens the Conciliação of the Importação with existing write permission %s and pending records only',
   async (canWrite) => {
-    window.history.replaceState(null, '', '/#/painel-do-aluno?area=reconciliation');
     const mock = operationsMockV1();
     const accountId = '11111111-1111-4111-8111-111111111111';
-    claimPanelHashV1(
-      'synthetic-students:' + identity('synthetic-students', canWrite).capabilities.join(','),
-    );
+    // A record left in the address by the Painel do Aluno never opens here.
     window.history.replaceState(
       null,
       '',
-      '/#/painel-do-aluno?area=reconciliation&ficha=' + accountId,
+      '/#/banco-de-notas?area=reconciliation&ficha=' + accountId,
     );
     const fetcher = vi.fn(async (path: string, init: RequestInit) => {
       if (path === '/api/me') return opJsonV1(identity('synthetic-students', canWrite));
@@ -160,10 +157,10 @@ it.each([false, true])(
           : await mock.client.query(input),
       );
     });
-    render(<StudentPortalAdminPage fetcher={fetcher} />);
+    render(<ReconciliationSurfaceV1 fetcher={fetcher} />);
     const source = await screen.findByLabelText('Fonte do nome exibido');
     expect(source.hasAttribute('disabled')).toBe(!canWrite);
-    expect(screen.getByRole('heading', { name: 'Conciliação' })).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Conciliação' })).toBeTruthy();
     expect(screen.queryByText('SYNTHETIC RECONCILED ACCOUNT')).toBeNull();
     expect(await screen.findByText('1 pendência carregada')).toBeTruthy();
     expect(screen.queryByRole('tablist', { name: 'Áreas do Painel do Aluno' })).toBeNull();
