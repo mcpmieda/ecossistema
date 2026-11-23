@@ -723,6 +723,8 @@ export function RelationalCouncilPageV3() {
   const protectDrafts = studentDirty || confirmClose;
   state.protectDrafts(protectDrafts);
   useEffect(() => {
+    // What was confirmed in one class does not follow to the next.
+    setMessage('');
     if (!workspace) {
       setSelectedStudentId(null);
       return;
@@ -751,12 +753,7 @@ export function RelationalCouncilPageV3() {
 
   return (
     <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-2">
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="sr-only">Conselho de Classe</h2>
-        <Chip size="sm" variant="soft" color="accent" className="ml-auto">
-          <Chip.Label>{state.year} · decisão explícita</Chip.Label>
-        </Chip>
-      </header>
+      <h2 className="sr-only">Conselho de Classe</h2>
       <ClassTabsV1
         label="Turmas do Conselho"
         items={state.classes.map((item) => ({
