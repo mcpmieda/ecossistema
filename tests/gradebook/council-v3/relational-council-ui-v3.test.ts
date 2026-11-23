@@ -66,8 +66,6 @@ function workspace(
       state: 'not-opened',
       version: 0,
       reviewReference: 'council-review:2026:10:0',
-      closedAt: null,
-      snapshotCount: 0,
     },
     summary: {
       total: 2,
@@ -80,8 +78,6 @@ function workspace(
       notEligible: 1,
     },
     students: [student, nonEligible],
-    timeline: [],
-    closures: [],
     ...extra,
   };
 }
@@ -158,17 +154,6 @@ beforeEach(() => {
           version: 1,
           reviewReference: 'council-review:2026:10:1',
         },
-        timeline: [
-          {
-            id: 's:1',
-            action: 'opened',
-            version: 1,
-            studentId: null,
-            studentLabel: null,
-            justification: String(body.justification),
-            occurredAt: '2026-09-11T04:01:00.000Z',
-          },
-        ],
       });
     if (body.operation === 'decision')
       current = workspace({
@@ -187,23 +172,10 @@ beforeEach(() => {
               code: 2,
               label: 'REPROVADO PELO CONSELHO',
               justification: String(body.justification),
-              version: 2,
               updatedAt: '2026-09-11T04:02:00.000Z',
             },
           },
           nonEligible,
-        ],
-        timeline: [
-          {
-            id: 'd:1',
-            action: 'decision-recorded',
-            version: 2,
-            studentId: 1,
-            studentLabel: student.name,
-            justification: String(body.justification),
-            occurredAt: '2026-09-11T04:02:00.000Z',
-          },
-          ...current.timeline,
         ],
       });
     if (body.operation === 'vote')
@@ -363,7 +335,7 @@ describe('relational Council V3 client and HeroUI journey', () => {
     await mount();
     await openClass(10);
     await waitFor(() => host.textContent?.includes(student.name) === true);
-    // Opening asks for no justification: the field only comes with closing and reopening.
+    // Opening, closing and reopening ask for no justification.
     expect(host.querySelector('#council-session-reason')).toBeNull();
     await click('Abrir reunião');
     const openRequest = requests.filter((request) => request.operation === 'open').at(-1);
@@ -374,7 +346,8 @@ describe('relational Council V3 client and HeroUI journey', () => {
       expectedVersion: 0,
     });
     expect(openRequest).not.toHaveProperty('justification');
-    await waitFor(() => host.querySelector('#council-session-reason') !== null);
+    await waitFor(() => host.querySelector('#decision-reason-1') !== null);
+    expect(host.querySelector('#council-session-reason')).toBeNull();
     expect(String(openRequest?.idempotencyKey)).toMatch(/^open:/u);
     await select('Situação após o Conselho', '2');
     await fill('#decision-reason-1', 'Deliberação humana sintética.');

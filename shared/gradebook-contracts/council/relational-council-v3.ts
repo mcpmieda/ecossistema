@@ -8,8 +8,6 @@ export const RELATIONAL_COUNCIL_LIMITS_V3 = Object.freeze({
   students: 150,
   offers: 40,
   pairs: 1_000,
-  timeline: 500,
-  closures: 100,
 });
 
 export const RELATIONAL_COUNCIL_DECISIONS_V3 = Object.freeze({
@@ -46,7 +44,10 @@ const idempotencyKey = z
   .max(120)
   .regex(/^[A-Za-z0-9._:-]+$/u, 'invalid idempotency key');
 const decisionCode = z.union([z.literal(1), z.literal(2), z.literal(3)]);
-const command = { year, classId: id, expectedVersion: version, idempotencyKey, justification };
+// Every write carries the expected version and its idempotency key. Only what is recorded about a
+// student carries a justification: the meeting opens, closes and reopens without one (BN-DEC-049).
+const sessionCommand = { year, classId: id, expectedVersion: version, idempotencyKey };
+const studentCommand = { ...sessionCommand, justification, studentId: id };
 
 export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation', [
   z
@@ -61,21 +62,14 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
   z
     .object({ contractVersion: z.literal(3), operation: z.literal('workspace'), year, classId: id })
     .strict(),
-  // Opening needs no justification (BN-DEC-049); every other command keeps its own.
   z
-    .object({
-      contractVersion: z.literal(3),
-      operation: z.literal('open'),
-      ...command,
-      justification: justification.optional(),
-    })
+    .object({ contractVersion: z.literal(3), operation: z.literal('open'), ...sessionCommand })
     .strict(),
   z
     .object({
       contractVersion: z.literal(3),
       operation: z.literal('decision'),
-      ...command,
-      studentId: id,
+      ...studentCommand,
       decision: decisionCode,
     })
     .strict(),
@@ -83,8 +77,7 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
     .object({
       contractVersion: z.literal(3),
       operation: z.literal('vote'),
-      ...command,
-      studentId: id,
+      ...studentCommand,
       favoraveis: count,
       contrarios: count,
     })
@@ -93,11 +86,13 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
     .object({
       contractVersion: z.literal(3),
       operation: z.literal('close'),
-      ...command,
+      ...sessionCommand,
       reviewReference: z.string().trim().min(8).max(200),
     })
     .strict(),
-  z.object({ contractVersion: z.literal(3), operation: z.literal('reopen'), ...command }).strict(),
+  z
+    .object({ contractVersion: z.literal(3), operation: z.literal('reopen'), ...sessionCommand })
+    .strict(),
 ]);
 export type RelationalCouncilRequestV3 = z.infer<typeof relationalCouncilRequestSchemaV3>;
 export type RelationalCouncilDecisionV3 = z.infer<typeof decisionCode>;
@@ -142,7 +137,6 @@ const decision = z
     code: decisionCode,
     label,
     justification,
-    version,
     updatedAt: z.string().datetime({ offset: true }),
   })
   .strict();
@@ -198,37 +192,6 @@ const session = z
     state: z.enum(['not-opened', 'open', 'closed']),
     version,
     reviewReference: z.string().trim().min(8).max(200),
-    closedAt: z.string().datetime({ offset: true }).nullable(),
-    snapshotCount: z.number().int().min(0).max(RELATIONAL_COUNCIL_LIMITS_V3.closures),
-  })
-  .strict();
-const timeline = z
-  .object({
-    id: z.string().trim().min(1).max(100),
-    action: z.enum(['opened', 'decision-recorded', 'vote-recorded', 'closed', 'reopened']),
-    version: version.positive(),
-    studentId: id.nullable(),
-    studentLabel: label.nullable(),
-    justification,
-    occurredAt: z.string().datetime({ offset: true }),
-  })
-  .strict();
-const closure = z
-  .object({
-    id,
-    sequence: z.number().int().min(1).max(32767),
-    version: version.positive(),
-    closedAt: z.string().datetime({ offset: true }),
-    summary: z
-      .object({
-        total: count,
-        eligible: count,
-        approved: count,
-        rejected: count,
-        absence: count,
-        notEligible: count,
-      })
-      .strict(),
   })
   .strict();
 const summary = z
@@ -254,8 +217,6 @@ const workspace = z
     session,
     summary,
     students: z.array(student).max(RELATIONAL_COUNCIL_LIMITS_V3.students),
-    timeline: z.array(timeline).max(RELATIONAL_COUNCIL_LIMITS_V3.timeline),
-    closures: z.array(closure).max(RELATIONAL_COUNCIL_LIMITS_V3.closures),
   })
   .strict()
   .superRefine((value, ctx) => {

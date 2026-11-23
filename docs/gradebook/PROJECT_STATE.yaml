@@ -26,10 +26,10 @@ storage:
   current_official_storage: supabase-postgresql-via-cloudflare-hyperdrive
   binding: PROD_DB
   schema: gradebook
-  total_table_count: 30
-  core_table_count: 19
+  total_table_count: 24
+  core_table_count: 18
   diagnostic_table_count: 1
-  council_v3_table_count: 8
+  council_v3_table_count: 3
   relational_bulletin_table_count: 0
   diagnostic_treatment_table_count: 1
   student_identity_table_count: 1

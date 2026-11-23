@@ -41,13 +41,8 @@ const RECONCILIATION_TABLES_V1 = [
 const RESET_TABLES_V1 = [
   'student_reconciliation_scope_v1',
   ...RECONCILIATION_TABLES_V1,
-  'conselho_fechamento_item',
-  'conselho_sessao_historico',
-  'conselho_votacao_historico',
-  'conselho_decisao_comando',
   'conselho_idempotencia',
   'conselho_votacao',
-  'conselho_fechamento',
   'conselho_sessao',
   'importacao_diagnostico_tratamento',
   'nota_historico',
@@ -59,7 +54,6 @@ const RESET_TABLES_V1 = [
   'vinculo_historico',
   'vinculo',
   'conselho_anterior_historico',
-  'conselho_decisao_historico',
   'conselho_decisao',
   'importacao_diagnostico',
   'importacao',
@@ -116,15 +110,9 @@ async function loadCounts(
        (SELECT count(*)::integer FROM gradebook.importacao_diagnostico_tratamento t,y WHERE t.ano=y.ano) AS audit_trail,
        ((SELECT count(*) FROM gradebook.conselho_decisao c JOIN gradebook.aluno a ON a.id=c.aluno_id,y WHERE a.ano=y.ano)
         +(SELECT count(*) FROM gradebook.conselho_sessao c,y WHERE c.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_sessao_historico c,y WHERE c.ano=y.ano)
         +(SELECT count(*) FROM gradebook.conselho_idempotencia c,y WHERE c.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_votacao c,y WHERE c.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_votacao_historico c,y WHERE c.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_decisao_comando c,y WHERE c.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_fechamento c,y WHERE c.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_fechamento_item i JOIN gradebook.conselho_fechamento c ON c.id=i.fechamento_id,y WHERE c.ano=y.ano))::integer AS council,
+        +(SELECT count(*) FROM gradebook.conselho_votacao c,y WHERE c.ano=y.ano))::integer AS council,
        ((SELECT count(*) FROM gradebook.conselho_anterior_historico h JOIN gradebook.aluno a ON a.id=h.aluno_id,y WHERE a.ano=y.ano)
-        +(SELECT count(*) FROM gradebook.conselho_decisao_historico h JOIN gradebook.aluno a ON a.id=h.aluno_id,y WHERE a.ano=y.ano)
         +(SELECT count(*) FROM gradebook.fechamento_historico h JOIN gradebook.oferta o ON o.id=h.oferta_id,y WHERE o.ano=y.ano)
         +(SELECT count(*) FROM gradebook.instrumento_historico h JOIN gradebook.instrumento i ON i.id=h.instrumento_id JOIN gradebook.oferta o ON o.id=i.oferta_id,y WHERE o.ano=y.ano)
         +(SELECT count(*) FROM gradebook.nota_historico h JOIN gradebook.instrumento i ON i.id=h.instrumento_id JOIN gradebook.oferta o ON o.id=i.oferta_id,y WHERE o.ano=y.ano)
@@ -217,19 +205,9 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
     [year],
   );
 
-  await database.executeNative(
-    'UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=$1',
-    [year],
-  );
-  await run(`DELETE FROM gradebook.conselho_fechamento_item i USING gradebook.conselho_fechamento c
-    WHERE c.id=i.fechamento_id AND c.ano=$1`);
   for (const table of [
-    'conselho_sessao_historico',
-    'conselho_votacao_historico',
-    'conselho_decisao_comando',
     'conselho_idempotencia',
     'conselho_votacao',
-    'conselho_fechamento',
     'conselho_sessao',
     'importacao_diagnostico_tratamento',
   ] as const) {
@@ -250,11 +228,7 @@ async function removeYear(database: GradebookPostgresTransactionV1, year: number
   await run(`DELETE FROM gradebook.vinculo_historico h USING gradebook.turma t
     WHERE t.id=h.turma_id AND t.ano=$1`);
   await run('DELETE FROM gradebook.vinculo WHERE ano=$1');
-  for (const table of [
-    'conselho_anterior_historico',
-    'conselho_decisao_historico',
-    'conselho_decisao',
-  ] as const) {
+  for (const table of ['conselho_anterior_historico', 'conselho_decisao'] as const) {
     await run(`DELETE FROM gradebook.${table} c USING gradebook.aluno a
       WHERE a.id=c.aluno_id AND a.ano=$1`);
   }

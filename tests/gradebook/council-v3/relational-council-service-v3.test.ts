@@ -30,6 +30,9 @@ beforeAll(async () => {
   await pg.exec(
     readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'),
   );
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0023_council_current_state_only_v1.sql', 'utf8'),
+  );
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES
@@ -170,14 +173,7 @@ describe('relational Council V3 lifecycle', () => {
       await service.execute(
         request('open', { expectedVersion: 0, idempotencyKey: 'open:synthetic:0001' }),
       ),
-    ).toMatchObject({
-      state: 'ready',
-      workspace: {
-        session: { state: 'open', version: 1 },
-        // No justification was sent: the history keeps the fixed record of the opening.
-        timeline: [{ action: 'opened', justification: 'Abertura da reunião.' }],
-      },
-    });
+    ).toMatchObject({ state: 'ready', workspace: { session: { state: 'open', version: 1 } } });
     expect(
       await service.execute(
         request('decision', {
@@ -252,16 +248,32 @@ describe('relational Council V3 lifecycle', () => {
         expectedVersion: 3,
         reviewReference: voted.workspace.session.reviewReference,
         idempotencyKey: 'close:synthetic:0001',
-        justification: 'Primeiro fechamento da reunião.',
       }),
     );
     expect(closed).toMatchObject({
       state: 'ready',
       workspace: {
-        session: { state: 'closed', version: 4, snapshotCount: 1 },
-        closures: [{ sequence: 1, summary: { eligible: 1, approved: 1 } }],
+        session: { state: 'closed', version: 4 },
+        summary: { eligible: 1, approved: 1 },
       },
     });
+    if (closed.state !== 'ready' || closed.operation === 'classes')
+      throw new Error('closed-workspace-missing');
+    // Only the current state travels: no timeline, no snapshots.
+    expect(Object.keys(closed.workspace).sort()).toEqual([
+      'authority',
+      'classGroup',
+      'context',
+      'readAt',
+      'session',
+      'students',
+      'summary',
+    ]);
+    expect(Object.keys(closed.workspace.session).sort()).toEqual([
+      'reviewReference',
+      'state',
+      'version',
+    ]);
     expect(
       await service.execute(
         request('decision', {
@@ -282,12 +294,11 @@ describe('relational Council V3 lifecycle', () => {
       request('reopen', {
         expectedVersion: 4,
         idempotencyKey: 'reopen:synthetic:0001',
-        justification: 'Correção formal após revisão.',
       }),
     );
     expect(reopened).toMatchObject({
       state: 'ready',
-      workspace: { session: { state: 'open', version: 5, snapshotCount: 1 } },
+      workspace: { session: { state: 'open', version: 5 } },
     });
     const changed = await service.execute(
       request('decision', {
@@ -308,7 +319,6 @@ describe('relational Council V3 lifecycle', () => {
           expectedVersion: 6,
           reviewReference: 'council-review:2026:10:5',
           idempotencyKey: 'close:synthetic:wrong',
-          justification: 'Revisão desatualizada.',
         }),
       ),
     ).toEqual({
@@ -323,40 +333,36 @@ describe('relational Council V3 lifecycle', () => {
         expectedVersion: 6,
         reviewReference: changed.workspace.session.reviewReference,
         idempotencyKey: 'close:synthetic:0002',
-        justification: 'Segundo fechamento após correção.',
       }),
     );
     expect(closedAgain).toMatchObject({
       state: 'ready',
       workspace: {
-        session: { state: 'closed', version: 7, snapshotCount: 2 },
-        closures: [
-          { sequence: 2, summary: { rejected: 1 } },
-          { sequence: 1, summary: { approved: 1 } },
-        ],
+        session: { state: 'closed', version: 7 },
+        summary: { approved: 0, rejected: 1 },
       },
     });
 
-    const snapshots = (
-      await pg.query(
-        'SELECT f.sequencia,i.decisao,i.favoraveis,i.contrarios FROM gradebook.conselho_fechamento f JOIN gradebook.conselho_fechamento_item i ON i.fechamento_id=f.id WHERE i.aluno_id=1 ORDER BY f.sequencia',
-      )
-    ).rows;
-    expect(snapshots).toEqual([
-      { sequencia: 1, decisao: 1, favoraveis: 2, contrarios: 2 },
-      { sequencia: 2, decisao: 2, favoraveis: 2, contrarios: 2 },
-    ]);
+    // The revised decision replaced the first one: one row, and nothing of what it was before.
+    expect(
+      (await pg.query('SELECT aluno_id,decisao,justificativa FROM gradebook.conselho_decisao'))
+        .rows,
+    ).toEqual([{ aluno_id: 1, decisao: 2, justificativa: 'Deliberação revista em nova sessão.' }]);
+    expect(
+      (await pg.query('SELECT favoraveis,contrarios,versao FROM gradebook.conselho_votacao')).rows,
+    ).toEqual([{ favoraveis: 2, contrarios: 2, versao: 3 }]);
     expect(
       (await pg.query('SELECT count(*)::integer AS count FROM gradebook.conselho_idempotencia'))
         .rows,
     ).toEqual([{ count: 7 }]);
+    // Opening, closing and reopening carry no justification of their own.
     expect(
       (
         await pg.query(
-          'SELECT count(*)::integer AS count FROM gradebook.conselho_decisao_historico',
+          'SELECT operacao,justificativa FROM gradebook.conselho_idempotencia WHERE operacao IN (1,4,5) ORDER BY versao_nova',
         )
-      ).rows,
-    ).toEqual([{ count: 1 }]);
+      ).rows.map((row) => (row as { justificativa: string }).justificativa),
+    ).toEqual(['sem justificativa', 'sem justificativa', 'sem justificativa', 'sem justificativa']);
   }, 30_000);
 
   it('serializes concurrent stale writes with CAS and keeps a retry idempotent', async () => {
@@ -364,7 +370,6 @@ describe('relational Council V3 lifecycle', () => {
     const first = request('reopen', {
       expectedVersion: 7,
       idempotencyKey: 'reopen:concurrency:0001',
-      justification: 'Reabertura para teste de concorrência.',
     });
     expect(await service.execute(first)).toMatchObject({
       state: 'ready',
@@ -375,7 +380,6 @@ describe('relational Council V3 lifecycle', () => {
         request('reopen', {
           expectedVersion: 7,
           idempotencyKey: 'reopen:concurrency:0002',
-          justification: 'Comando concorrente obsoleto.',
         }),
       ),
     ).toEqual({ contractVersion: 3, state: 'version-conflict', currentVersion: 8 });
@@ -419,7 +423,7 @@ async function http(
   return response;
 }
 
-it('uses the shared presentation for the current decision and vote timeline', async () => {
+it('uses the shared presentation for the student with a current decision and count', async () => {
   await pg.exec(`CREATE OR REPLACE VIEW gradebook.student_presentation_v1 AS
     SELECT id AS student_id,ano AS academic_year,
     CASE WHEN id=1 THEN 'NOME CONSELHO SINTETICO' ELSE nome END AS name FROM gradebook.aluno`);
@@ -428,16 +432,12 @@ it('uses the shared presentation for the current decision and vote timeline', as
     expect(result).toMatchObject({
       state: 'ready',
       workspace: {
-        timeline: expect.arrayContaining([
+        students: expect.arrayContaining([
           expect.objectContaining({
-            action: 'decision-recorded',
-            studentId: 1,
-            studentLabel: 'NOME CONSELHO SINTETICO',
-          }),
-          expect.objectContaining({
-            action: 'vote-recorded',
-            studentId: 1,
-            studentLabel: 'NOME CONSELHO SINTETICO',
+            id: 1,
+            name: 'NOME CONSELHO SINTETICO',
+            decision: expect.objectContaining({ code: 2 }),
+            vote: expect.objectContaining({ favoraveis: 2, contrarios: 2 }),
           }),
         ]),
       },

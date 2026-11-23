@@ -38,7 +38,7 @@ const FAILURE: Record<RelationalCouncilFailureV3, string> = {
   'idempotency-conflict': 'A chave desta ação já foi usada com outro conteúdo.',
   'session-not-open': 'Abra a reunião antes de registrar deliberações.',
   'session-already-open': 'A sessão já está aberta. Para corrigir um fechamento, use Reabrir.',
-  'session-closed': 'A sessão está fechada. Reabra-a com justificativa para editar.',
+  'session-closed': 'A sessão está fechada. Reabra-a para editar.',
   'closure-blocked': 'Ainda existem alunos elegíveis sem decisão explícita.',
   'review-conflict': 'A revisão mudou. Confira a fila atual antes de fechar.',
   'student-not-eligible': 'Este aluno não é elegível ao Conselho Final segundo o cálculo vigente.',
@@ -597,16 +597,12 @@ function CouncilStatusV3({
 /** The class session: its state, the justification, and open, reopen or a confirmed close. */
 function CouncilSessionCardV3({
   workspace,
-  reason,
-  onReason,
   confirmClose,
   onConfirmClose,
   busy,
   onSessionCommand,
 }: Readonly<{
   workspace: RelationalCouncilWorkspaceV3;
-  reason: string;
-  onReason: (reason: string) => void;
   confirmClose: boolean;
   onConfirmClose: (confirm: boolean) => void;
   busy: boolean;
@@ -624,25 +620,6 @@ function CouncilSessionCardV3({
         </Chip>
       </Card.Header>
       <Card.Content className="grid gap-3 border-t border-separator pt-4">
-        {/* Opening needs no justification; closing and reopening do. */}
-        {workspace.session.state === 'not-opened' ? null : (
-          <div>
-            <Label
-              htmlFor="council-session-reason"
-              className="mb-1.5 block text-xs font-medium text-muted"
-            >
-              Justificativa da ação na sessão
-            </Label>
-            <textarea
-              id="council-session-reason"
-              className="council-textarea"
-              rows={2}
-              value={reason}
-              onChange={(event) => onReason(event.currentTarget.value)}
-              disabled={busy}
-            />
-          </div>
-        )}
         <div className="flex flex-wrap gap-2">
           {workspace.session.state === 'not-opened' ? (
             <Button variant="primary" isDisabled={busy} onPress={() => onSessionCommand('open')}>
@@ -651,19 +628,15 @@ function CouncilSessionCardV3({
             </Button>
           ) : null}
           {workspace.session.state === 'closed' ? (
-            <Button
-              variant="primary"
-              isDisabled={reason.trim().length < 3 || busy}
-              onPress={() => onSessionCommand('reopen')}
-            >
+            <Button variant="primary" isDisabled={busy} onPress={() => onSessionCommand('reopen')}>
               <RotateCcw size={17} />
-              Reabrir com justificativa
+              Reabrir reunião
             </Button>
           ) : null}
           {workspace.session.state === 'open' && !confirmClose ? (
             <Button
               variant="secondary"
-              isDisabled={workspace.summary.pending > 0 || reason.trim().length < 3 || busy}
+              isDisabled={workspace.summary.pending > 0 || busy}
               onPress={() => onConfirmClose(true)}
             >
               <LockKeyhole size={17} />
@@ -682,7 +655,7 @@ function CouncilSessionCardV3({
             <Alert.Content>
               <Alert.Title>Confirmar fechamento institucional?</Alert.Title>
               <Alert.Description>
-                As edições serão bloqueadas. A correção posterior exige reabertura justificada.
+                As edições serão bloqueadas. Para corrigir depois, reabra a reunião.
               </Alert.Description>
               <div className="mt-3 flex gap-2">
                 <Button
@@ -708,7 +681,6 @@ function CouncilSessionCardV3({
 export function RelationalCouncilPageV3() {
   const state = useRelationalCouncilV3();
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
-  const [sessionReason, setSessionReason] = useState('');
   const [confirmClose, setConfirmClose] = useState(false);
   const [message, setMessage] = useState('');
   const [studentDirty, setStudentDirty] = useState(false);
@@ -722,7 +694,7 @@ export function RelationalCouncilPageV3() {
   const notEligible = workspace?.students.filter((student) => !student.eligibility.eligible) ?? [];
   const selected =
     eligible.find((student) => student.id === selectedStudentId) ?? eligible[0] ?? null;
-  const protectDrafts = studentDirty || sessionReason.length > 0 || confirmClose;
+  const protectDrafts = studentDirty || confirmClose;
   state.protectDrafts(protectDrafts);
   useEffect(() => {
     if (!workspace) {
@@ -735,26 +707,18 @@ export function RelationalCouncilPageV3() {
         : ((pending[0] ?? eligible[0])?.id ?? null),
     );
     setConfirmClose(false);
-    setSessionReason('');
     setStudentDirty(false);
   }, [workspace?.classGroup.id]);
 
   async function sessionCommand(operation: SessionActionV3) {
     if (!workspace) return;
-    const justification = sessionReason.trim();
-    if (operation !== 'open' && justification.length < 3) return;
-    let response;
-    if (operation === 'open') response = await state.command({ operation });
-    else if (operation === 'close')
-      response = await state.command({
-        operation,
-        reviewReference: workspace.session.reviewReference,
-        justification,
-      });
-    else response = await state.command({ operation, justification });
+    const response = await state.command(
+      operation === 'close'
+        ? { operation, reviewReference: workspace.session.reviewReference }
+        : { operation },
+    );
     if (response?.state === 'ready') {
       setMessage(SESSION_DONE[operation]);
-      setSessionReason('');
       setConfirmClose(false);
     }
   }
@@ -762,12 +726,7 @@ export function RelationalCouncilPageV3() {
   return (
     <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-2">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <div>
-          <h2 className="sr-only">Conselho de Classe</h2>
-          <p className="text-xs text-muted">
-            Deliberação humana auditável sobre a elegibilidade calculada do ano selecionado.
-          </p>
-        </div>
+        <h2 className="sr-only">Conselho de Classe</h2>
         <Chip size="sm" variant="soft" color="accent" className="ml-auto">
           <Chip.Label>{state.year} · decisão explícita</Chip.Label>
         </Chip>
@@ -829,8 +788,6 @@ export function RelationalCouncilPageV3() {
               </div>
               <CouncilSessionCardV3
                 workspace={workspace}
-                reason={sessionReason}
-                onReason={setSessionReason}
                 confirmClose={confirmClose}
                 onConfirmClose={setConfirmClose}
                 busy={state.busy.command}

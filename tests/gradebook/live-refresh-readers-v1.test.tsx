@@ -46,8 +46,6 @@ const councilWorkspace = {
       state: 'not-opened',
       version: 0,
       reviewReference: 'synthetic:0',
-      closedAt: null,
-      snapshotCount: 0,
     },
     summary: {
       total: 0,
@@ -60,8 +58,6 @@ const councilWorkspace = {
       notEligible: 0,
     },
     students: [],
-    timeline: [],
-    closures: [],
   },
 } satisfies Awaited<ReturnType<typeof requestRelationalCouncilV3>>;
 let active = true;

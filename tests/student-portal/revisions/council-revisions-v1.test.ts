@@ -25,6 +25,9 @@ beforeAll(async () => {
     readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'),
   );
   await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0023_council_current_state_only_v1.sql', 'utf8'),
+  );
+  await pg.exec(
     readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'),
   );
   await pg.exec(`
@@ -101,7 +104,9 @@ describe('Council producer academic classification', () => {
       const command = request(operation, {
         expectedVersion: version,
         idempotencyKey: crypto.randomUUID(),
-        justification: 'Synthetic decision record',
+        ...(operation === 'decision' || operation === 'vote'
+          ? { justification: 'Synthetic decision record' }
+          : {}),
         ...extra,
       });
       const result = await service.execute(command);

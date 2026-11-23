@@ -12,12 +12,12 @@ export interface CurrentGradebookRecoveryQueryV1 {
 }
 
 export const GRADEBOOK_CURRENT_CATALOG_V1 = {
-  tables: 28,
-  columns: 233,
-  constraints: 203,
-  indexes: 65,
-  foreignKeys: 48,
-  sequences: 13,
+  tables: 22,
+  columns: 167,
+  constraints: 152,
+  indexes: 47,
+  foreignKeys: 38,
+  sequences: 9,
   functions: 4,
   triggers: 3,
 } as const;
@@ -27,15 +27,9 @@ export const GRADEBOOK_CURRENT_TABLES_V1 = [
   'ano_letivo',
   'conselho_anterior_historico',
   'conselho_decisao',
-  'conselho_decisao_comando',
-  'conselho_decisao_historico',
-  'conselho_fechamento',
-  'conselho_fechamento_item',
   'conselho_idempotencia',
   'conselho_sessao',
-  'conselho_sessao_historico',
   'conselho_votacao',
-  'conselho_votacao_historico',
   'disciplina',
   'fechamento',
   'fechamento_historico',
@@ -55,10 +49,6 @@ export const GRADEBOOK_CURRENT_TABLES_V1 = [
 
 export const GRADEBOOK_CURRENT_SEQUENCE_NAMES_V1 = [
   'aluno_id_seq',
-  'conselho_decisao_comando_id_seq',
-  'conselho_fechamento_id_seq',
-  'conselho_sessao_historico_id_seq',
-  'conselho_votacao_historico_id_seq',
   'disciplina_id_seq',
   'importacao_diagnostico_id_seq',
   'importacao_diagnostico_tratamento_id_seq',
@@ -89,6 +79,7 @@ export const GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 = [
   '0019_import_diagnostics_origin_v1.sql',
   '0021_vinculo_fora_da_relacao_v1.sql',
   '0022_drop_boletim_snapshot_v1.sql',
+  '0023_council_current_state_only_v1.sql',
   'current_cross_schema_indexes_v1.sql',
 ] as const;
 

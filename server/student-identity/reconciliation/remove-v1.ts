@@ -26,12 +26,8 @@ const BY_STUDENT_ID_V1 = [
   'gradebook.fechamento',
   'gradebook.fechamento_historico',
   'gradebook.conselho_decisao',
-  'gradebook.conselho_decisao_historico',
   'gradebook.conselho_anterior_historico',
   'gradebook.conselho_votacao',
-  'gradebook.conselho_votacao_historico',
-  'gradebook.conselho_decisao_comando',
-  'gradebook.conselho_fechamento_item',
   'gradebook.conselho_idempotencia',
 ] as const;
 const BY_STUDENT_UID_V1: readonly (readonly [string, string])[] = [

@@ -18,6 +18,9 @@ beforeAll(async () => {
   await pg.exec(
     readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'),
   );
+  await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0023_council_current_state_only_v1.sql', 'utf8'),
+  );
 }, 30_000);
 afterAll(async () => {
   await pg?.close();
@@ -52,29 +55,32 @@ describe('relational Council V3 contract', () => {
     );
   });
 
-  it('opens without a justification and keeps it required for every other command', () => {
-    const open = {
+  it('asks a justification only for what is recorded about a student', () => {
+    const session = {
       contractVersion: 3,
-      operation: 'open',
       year: 2026,
       classId: 1,
       expectedVersion: 0,
-      idempotencyKey: 'open:test:0001',
+      idempotencyKey: 'session:test:0001',
     };
-    expect(relationalCouncilRequestSchemaV3.safeParse(open).success).toBe(true);
-    expect(
-      relationalCouncilRequestSchemaV3.safeParse({ ...open, justification: 'Início.' }).success,
-    ).toBe(true);
-    expect(relationalCouncilRequestSchemaV3.safeParse({ ...open, justification: '' }).success).toBe(
-      false,
-    );
-    for (const operation of ['reopen', 'close'])
+    const commands = [
+      { ...session, operation: 'open' },
+      { ...session, operation: 'reopen' },
+      { ...session, operation: 'close', reviewReference: 'review:test:0001' },
+    ];
+    for (const command of commands) {
+      expect(relationalCouncilRequestSchemaV3.safeParse(command).success).toBe(true);
       expect(
-        relationalCouncilRequestSchemaV3.safeParse({
-          ...open,
-          operation,
-          reviewReference: 'review:test:0001',
-        }).success,
+        relationalCouncilRequestSchemaV3.safeParse({ ...command, justification: 'Motivo.' })
+          .success,
+      ).toBe(false);
+    }
+    for (const record of [
+      { operation: 'decision', decision: 1 },
+      { operation: 'vote', favoraveis: 1, contrarios: 0 },
+    ])
+      expect(
+        relationalCouncilRequestSchemaV3.safeParse({ ...session, ...record, studentId: 2 }).success,
       ).toBe(false);
   });
 
@@ -90,25 +96,27 @@ describe('relational Council V3 contract', () => {
   });
 });
 
-describe('additive Council V3 schema', () => {
-  it('creates only the missing relational facts without touching legacy columns or rows', async () => {
+describe('Council V3 schema with only its current state', () => {
+  it('keeps the session, the count and the idempotency keys, and no history or snapshot', async () => {
     const tables = (
       await pg.query<{ tablename: string }>(
         "SELECT tablename FROM pg_tables WHERE schemaname='gradebook' ORDER BY tablename",
       )
     ).rows.map((row) => row.tablename);
-    expect(tables).toEqual(
-      expect.arrayContaining([
-        'conselho_sessao',
-        'conselho_sessao_historico',
-        'conselho_votacao',
-        'conselho_votacao_historico',
-        'conselho_decisao_comando',
-        'conselho_fechamento',
-        'conselho_fechamento_item',
-        'conselho_idempotencia',
-      ]),
-    );
+    expect(tables.filter((table) => table.startsWith('conselho_'))).toEqual([
+      'conselho_anterior_historico',
+      'conselho_decisao',
+      'conselho_idempotencia',
+      'conselho_sessao',
+      'conselho_votacao',
+    ]);
+    expect(
+      (
+        await pg.query(
+          "SELECT column_name FROM information_schema.columns WHERE table_schema='gradebook' AND table_name='conselho_sessao' AND column_name='fechamento_atual_id'",
+        )
+      ).rows,
+    ).toHaveLength(0);
     expect(
       (
         await pg.query(
@@ -156,13 +164,10 @@ describe('additive Council V3 schema', () => {
       has_table_privilege('gradebook_app','gradebook.conselho_sessao','INSERT') AS session_insert,
       has_table_privilege('gradebook_app','gradebook.conselho_sessao','UPDATE') AS session_update,
       has_table_privilege('gradebook_app','gradebook.conselho_sessao','DELETE') AS session_delete,
-      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','SELECT') AS snapshot_select,
-      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','INSERT') AS snapshot_insert,
-      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','UPDATE') AS snapshot_update,
-      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','DELETE') AS snapshot_delete,
-      has_sequence_privilege('gradebook_app','gradebook.conselho_fechamento_id_seq','USAGE') AS sequence_usage,
-      has_sequence_privilege('gradebook_app','gradebook.conselho_fechamento_id_seq','SELECT') AS sequence_select,
-      has_sequence_privilege('gradebook_app','gradebook.conselho_fechamento_id_seq','UPDATE') AS sequence_update`)
+      has_table_privilege('gradebook_app','gradebook.conselho_idempotencia','SELECT') AS key_select,
+      has_table_privilege('gradebook_app','gradebook.conselho_idempotencia','INSERT') AS key_insert,
+      has_table_privilege('gradebook_app','gradebook.conselho_idempotencia','UPDATE') AS key_update,
+      has_table_privilege('gradebook_app','gradebook.conselho_idempotencia','DELETE') AS key_delete`)
     ).rows;
     expect(backendAccess).toEqual([
       {
@@ -170,13 +175,10 @@ describe('additive Council V3 schema', () => {
         session_insert: true,
         session_update: true,
         session_delete: false,
-        snapshot_select: true,
-        snapshot_insert: true,
-        snapshot_update: false,
-        snapshot_delete: false,
-        sequence_usage: true,
-        sequence_select: true,
-        sequence_update: false,
+        key_select: true,
+        key_insert: true,
+        key_update: false,
+        key_delete: false,
       },
     ]);
   });

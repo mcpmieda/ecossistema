@@ -100,9 +100,12 @@ describe('post-commit notifications at HTTP boundaries', () => {
               ...base,
               expectedVersion: 0,
               idempotencyKey: 'synthetic-request',
-              justification: 'Synthetic test',
-              ...(operation === 'decision' ? { studentId: 1, decision: 1 } : {}),
-              ...(operation === 'vote' ? { studentId: 1, favoraveis: 1, contrarios: 0 } : {}),
+              ...(operation === 'decision'
+                ? { studentId: 1, decision: 1, justification: 'Synthetic test' }
+                : {}),
+              ...(operation === 'vote'
+                ? { studentId: 1, favoraveis: 1, contrarios: 0, justification: 'Synthetic test' }
+                : {}),
               ...(operation === 'close' ? { reviewReference: 'synthetic-review' } : {}),
             };
       const response = await createCouncilWorkspaceRequestHandlerV1()(
@@ -130,7 +133,6 @@ describe('post-commit notifications at HTTP boundaries', () => {
         classId: 1,
         expectedVersion: 0,
         idempotencyKey: 'synthetic-request',
-        justification: 'Synthetic test',
       }),
       {
         ...testEnv,

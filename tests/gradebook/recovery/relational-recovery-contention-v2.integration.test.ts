@@ -89,26 +89,9 @@ async function removeSyntheticDiagnostics(): Promise<void> {
 async function removeSyntheticCouncil(classId: number): Promise<void> {
   await databaseA.transaction(async (transaction) => {
     await transaction.executeNative(
-      'UPDATE gradebook.conselho_sessao SET fechamento_atual_id=NULL WHERE ano=$1 AND turma_id=$2',
+      'DELETE FROM gradebook.conselho_votacao WHERE ano=$1 AND turma_id=$2',
       [2026, classId],
     );
-    await transaction.executeNative(
-      `DELETE FROM gradebook.conselho_fechamento_item WHERE fechamento_id IN
-        (SELECT id FROM gradebook.conselho_fechamento WHERE ano=$1 AND turma_id=$2)`,
-      [2026, classId],
-    );
-    for (const relation of [
-      'conselho_fechamento',
-      'conselho_decisao_comando',
-      'conselho_votacao_historico',
-      'conselho_votacao',
-      'conselho_sessao_historico',
-    ]) {
-      await transaction.executeNative(
-        `DELETE FROM gradebook.${relation} WHERE ano=$1 AND turma_id=$2`,
-        [2026, classId],
-      );
-    }
     await transaction.executeNative(
       'DELETE FROM gradebook.conselho_idempotencia WHERE chave LIKE $1',
       [`${COUNCIL_KEY_PREFIX}:%`],
@@ -336,7 +319,6 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
       classId: candidate.classId,
       expectedVersion: 0,
       idempotencyKey: `${COUNCIL_KEY_PREFIX}:open`,
-      justification: 'Abertura sintética do ensaio local.',
     });
     expect(opened.state).toBe('ready');
     if (opened.state !== 'ready' || opened.operation === 'classes') {
@@ -353,7 +335,6 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
               classId: candidate.classId,
               expectedVersion: 1,
               idempotencyKey: `${COUNCIL_KEY_PREFIX}:close-a`,
-              justification: 'Fechamento concorrente sintético A.',
               reviewReference: opened.workspace.session.reviewReference,
             },
             {
@@ -363,7 +344,6 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
               classId: candidate.classId,
               expectedVersion: 1,
               idempotencyKey: `${COUNCIL_KEY_PREFIX}:close-b`,
-              justification: 'Fechamento concorrente sintético B.',
               reviewReference: opened.workspace.session.reviewReference,
             },
           ]
