@@ -496,6 +496,64 @@
   font-weight: 750;
 }
 
+/* Wide screen: the student takes the room and the queue is a compact list at the right, one
+   line for each student. */
+@media (min-width: 1101px) {
+  .council-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, 16rem);
+  }
+
+  .council-layout > aside {
+    order: 2;
+  }
+
+  .council-layout .council-board {
+    gap: 0.5rem;
+  }
+
+  .council-layout .council-board__column {
+    padding: 0.4rem;
+    border-radius: var(--radius-2xl);
+  }
+
+  .council-layout .council-board__column > header {
+    min-height: 1.7rem;
+    font-size: 0.72rem;
+  }
+
+  .council-layout .council-board__cards {
+    max-height: 30rem;
+    gap: 0.25rem;
+    padding: 0.1rem;
+  }
+
+  .council-layout .council-queue-card {
+    gap: 0.45rem;
+    padding: 0.3rem 0.45rem;
+    border-radius: var(--radius-xl);
+    box-shadow: none;
+  }
+
+  .council-layout .council-queue-card strong {
+    font-size: 0.76rem;
+    -webkit-line-clamp: 1;
+  }
+
+  .council-layout .council-queue-card__detail {
+    display: none;
+  }
+
+  .council-layout .council-queue-card__number {
+    width: 1.45rem;
+    font-size: 0.64rem;
+  }
+
+  .council-layout .council-queue-card > svg {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
+}
+
 /* One column: each group of the queue becomes a row to slide, so the student stays close. */
 @media (max-width: 1100px) {
   .council-layout {

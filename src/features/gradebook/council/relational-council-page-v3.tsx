@@ -191,7 +191,7 @@ function QueueCard({
       <span className="council-queue-card__number">{student.number}</span>
       <span className="min-w-0">
         <strong className="line-clamp-2 break-words text-sm">{student.name}</strong>
-        <span className="block truncate text-xs text-muted">
+        <span className="council-queue-card__detail block truncate text-xs text-muted">
           {student.decision?.label ??
             notice?.[2] ??
             `${countedV3(student.eligibility.failedComponentCount, 'componente', 'componentes')} abaixo`}
