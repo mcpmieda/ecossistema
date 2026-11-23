@@ -132,10 +132,11 @@ type EligibilityOfV3 = {
  * recorded, since the sheet cannot always say they missed it and the Conselho then does. */
 export const relationalCouncilVotableV3 = (student: EligibilityOfV3): boolean =>
   student.eligibility.eligible || student.eligibility.code === 'recovery-pending';
-/** Students the Conselho only takes notice of: the ones the sheet says missed a recovery (N/C).
- * They are not voted on and do not enter the counts of the class. */
+/** Students the Conselho only takes notice of: the ones the sheet already fails, for missing a
+ * recovery (N/C) or by the school's rules (R/R). The Conselho sees their year to confirm it;
+ * they are not voted on and do not enter the counts of the class. */
 export const relationalCouncilInformedV3 = (student: EligibilityOfV3): boolean =>
-  student.eligibility.code === 'failed-no-show';
+  student.eligibility.code === 'failed-no-show' || student.eligibility.code === 'failed-repeat';
 
 const student = z
   .object({

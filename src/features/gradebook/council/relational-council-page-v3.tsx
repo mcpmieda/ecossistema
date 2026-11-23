@@ -45,9 +45,10 @@ const SITUATION_V3 = {
   3: ['Reprovado por falta', 'danger'],
 } as const;
 /** What the card and the queue say of a student out of the ordinary: the one shown only for
- * information (N/C in the sheet) and the one voted on with a recovery still to be recorded. */
+ * information (N/C or R/R in the sheet) and the one voted on with a recovery still to be recorded. */
 const NOTICE_V3 = {
   'failed-no-show': ['Reprovado · N/C', 'danger', 'Não compareceu à recuperação'],
+  'failed-repeat': ['Reprovado · R/R', 'danger', 'Reprovado pelo regimento'],
   'recovery-pending': ['Recuperação pendente', 'warning', 'Recuperação ainda não lançada'],
 } as const;
 const noticeV3 = (student: RelationalCouncilStudentV3) =>
