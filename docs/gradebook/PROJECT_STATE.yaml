@@ -33,6 +33,7 @@ storage:
   relational_bulletin_table_count: 0
   diagnostic_treatment_table_count: 1
   student_identity_table_count: 1
+  council_current_state_migration: 0023-in-tree-pending-production-application-after-code-publication
   import_transport: canonical-v9
   import_service: relational-v11-over-v10
   latest_gradebook_migration: function_execute_hardening_v1
@@ -61,6 +62,7 @@ runtime:
   cross_academic_year_comparison: forbidden
   audit_treatment: append-only-recognized-and-annotation-current-diagnostics-separate
   rr: terminal-failed-outside-council
+  relational_council_lifecycle: session-cas-idempotency-current-state-only-no-history-no-snapshot-unjustified-open-close-reopen
   year_reset: explicit-annual-preview-and-confirmation-portal-guard-required
   academic_browser_persistent_storage: forbidden
   cache_control: no-store

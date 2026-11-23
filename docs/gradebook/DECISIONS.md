@@ -410,14 +410,18 @@ Começa desligado. O inventário do que foi acrescentado e de como remover está
 
 **Alternativa descartada.** Converter as planilhas para `.xlsm` e recalcular pela API do Excel na nuvem: a API não aceita acesso só do aplicativo (exige uma pessoa conectada).
 
-## BN-DEC-049 - Abertura da reunião do Conselho sem justificativa
+## BN-DEC-049 - Conselho só com o estado atual, sem histórico e sem justificativa da reunião
 
-**Data:** 2026-11-23. **Origem:** pedido do responsável (#1558), ao testar a aba Conselho com os dados de 2025: "a partir de agora não precisa mais de justificativa para abrir reunião".
+**Data:** 2026-11-23. **Origem:** pedidos do responsável (#1558), ao testar a aba Conselho com os dados de 2025: "a partir de agora não precisa mais de justificativa para abrir reunião"; e, sobre a linha do tempo e os fechamentos preservados, "uma informação sempre substitui a atual sem snapshots nem histórico, por enquanto". Pediu também a contagem em cada botão de turma, sem texto, e a escolha da turma por botões.
 
-**Decisão.** Substitui o contrato #648 somente quanto à abertura: o comando `open` do Conselho V3 deixa de exigir justificativa (campo opcional). Decisão, contagem de votos, fechamento e reabertura continuam exigindo justificativa; chave de idempotência e versão esperada continuam obrigatórias em todos os comandos.
+**Decisão.** Substitui o contrato #648, e a BN-DEC-022 onde ela preservava históricos de sessão, decisão e votação e fotografias de fechamento do Conselho, somente nestes pontos:
 
-- A tela não pede justificativa enquanto a reunião não foi aberta.
-- Sem justificativa informada, o histórico da sessão e a idempotência gravam o registro fixo `Abertura da reunião.`. As colunas continuam `NOT NULL`; não há migration.
-- Não muda elegibilidade, cálculo, decisões possíveis nem a regra de fechamento.
+- Abrir, fechar e reabrir a reunião não levam justificativa: os comandos `open`, `close` e `reopen` recusam o campo. Só o que é registrado sobre um aluno (decisão e contagem de votos) continua com justificativa. Chave de idempotência e versão esperada continuam obrigatórias em todos os comandos; `close` continua enviando a referência de revisão.
+- Não há linha do tempo nem fotografia de fechamento. Uma informação nova substitui a atual e nada histórico é guardado. Permanecem a sessão (estado e versão), a decisão atual e a contagem atual de cada aluno e as chaves de idempotência.
+- A resposta da turma deixa de trazer `timeline`, `closures`, `session.closedAt`, `session.snapshotCount` e `decision.version`. O contrato continua `contractVersion: 3`.
+- Cada botão de turma mostra aprovados, reprovados e pendentes, sem texto. A operação `classes` aceita `tally: true` e devolve `tally: { approved, rejected, pending }` por turma, calculado da própria leitura da turma; reprovados somam os do Conselho e os por falta.
+- A turma é escolhida por botões, não por seletor.
+- A migration `0023_council_current_state_only_v1.sql` remove do PostgreSQL as tabelas de histórico e de fotografia do Conselho e a coluna `conselho_sessao.fechamento_atual_id`. Ela é aplicada depois de o código ser publicado, porque o código publicado antes ainda lê essas tabelas. Em 23/11/2026 a produção não tinha linha em nenhuma tabela do Conselho.
+- Não muda elegibilidade, cálculo, decisões possíveis, votação nem a regra de fechamento (zero elegíveis pendentes e a mesma referência de revisão).
 
-**Alternativa descartada.** Tornar as colunas de justificativa anuláveis: exigiria migration em produção e novo catálogo para registrar a mesma informação.
+**Alternativa descartada.** Manter as tabelas de histórico sem uso: o responsável pediu que fossem removidas do PostgreSQL.

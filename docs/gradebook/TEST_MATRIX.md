@@ -212,17 +212,18 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 ## F3-648 — Conselho relacional V3
 
 - `F3-648-001`: request/response aceitam somente 2026, limites explícitos e decisões 1/2/3 com os rótulos contratados.
-- `F3-648-002`: abertura, decisão, voto, fechamento e reabertura exigem justificativa, idempotência e CAS da sessão.
-- `F3-648-003`: sessão fechada bloqueia decisão/voto; reabertura justificada preserva fotografias anteriores e permite novo fechamento.
+- `F3-648-002`: abertura, decisão, voto, fechamento e reabertura exigem idempotência e CAS da sessão; só decisão e voto levam justificativa, e `open`/`close`/`reopen` recusam o campo (BN-DEC-049).
+- `F3-648-003`: sessão fechada bloqueia decisão/voto; a reabertura, sem justificativa, permite novo fechamento.
 - `F3-648-004`: fechamento exige referência de revisão corrente e zero estudantes elegíveis pendentes.
-- `F3-648-005`: cada fechamento preserva fotografia por aluno com elegibilidade/motivo/decisão/votos e não é alterado por comandos posteriores.
+- `F3-648-005`: retirado pela BN-DEC-049 (#1558): o fechamento só muda o estado da sessão; não há fotografia, linha do tempo nem histórico, e decisão/contagem nova substitui a atual.
 - `F3-648-006`: somente favoráveis/contrários são persistidos; presentes é derivado e diretor/desempate/voto de minerva não existem no transporte nem no schema.
 - `F3-648-007`: elegibilidade vem do read model relacional central e não é convertida automaticamente em decisão humana.
 - `F3-648-008`: estudante não elegível recebe motivo e não aceita decisão/voto; situação de matrícula e definições incompletas falham de forma explícita.
 - `F3-648-009`: HTTP exige autenticação, `gradebook.persistence.admin`, origem oficial e `no-store`; provider/gate indisponível falha fechado.
 - `F3-648-010`: migration é aditiva/transacional, não altera linhas/colunas legadas e restringe tabelas/sequências à role backend.
-- `F3-648-011`: HeroUI cobre fila, detalhe T1/T2/T3/REC, KPIs, estados vazios/erro/loading, votação, decisão, sessão, timeline e histórico responsivo.
+- `F3-648-011`: HeroUI cobre fila, detalhe T1/T2/T3/REC, KPIs, estados vazios/erro/loading, votação, decisão, sessão e turmas em botões com a contagem de aprovados/reprovados/pendentes; sem linha do tempo nem histórico.
 - `F3-648-012`: `npm run verify`, CI do head, revisão, postflight, deploy e smoke seguem BN-DEC-023; aceite visual conjunto continua explícito e separado.
+- `F3-648-013`: `classes` com `tally: true` devolve aprovados, reprovados (Conselho + falta) e pendentes de cada turma, iguais ao resumo da própria turma.
 
 ## F1-654 — Boletins relacionais V2
 

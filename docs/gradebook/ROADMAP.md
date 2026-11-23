@@ -22,9 +22,9 @@ Concluída e encerrada. A #668 mediu no browser autenticado o payload, p95 de da
 
 ## FINAL-3 — #635: Conselho definitivo
 
-A decisão #648 fixa 2026, os estados 1/2/3, voto opcional somente favoráveis/contrários e desempate do diretor fora do sistema. O V3 relacional entrega turma/aluno, fila, panorama/detalhes, não elegíveis com motivos, sessão, decisão humana, votação, histórico, fechamento e reabertura justificada. Não converte julgamento humano em cálculo nem infere diretor a partir de papel administrativo.
+A decisão #648 fixa 2026, os estados 1/2/3, voto opcional somente favoráveis/contrários e desempate do diretor fora do sistema. O V3 relacional entrega turma/aluno, fila, panorama/detalhes, não elegíveis com motivos, sessão, decisão humana, votação, fechamento e reabertura. Não converte julgamento humano em cálculo nem infere diretor a partir de papel administrativo.
 
-A extensão mínima persiste sessão, idempotência, votos, históricos e fotografias de fechamento sem backfill ou mudança de fatos acadêmicos. CI, migration/postflight, publicação e smoke da #648/#653 estão verdes; a #662 comprovou restart/restauração e contenção CAS em PostgreSQL local. Aceite visual conjunto e piloto anual foram concluídos posteriormente, sem registrar voto de minerva do diretor.
+A extensão mínima persistia sessão, idempotência, votos, históricos e fotografias de fechamento sem backfill ou mudança de fatos acadêmicos. CI, migration/postflight, publicação e smoke da #648/#653 estão verdes; a #662 comprovou restart/restauração e contenção CAS em PostgreSQL local. Aceite visual conjunto e piloto anual foram concluídos posteriormente, sem registrar voto de minerva do diretor. Em 23/11/2026 a BN-DEC-049 (#1558) retirou linha do tempo, históricos, fotografias e a justificativa de abrir, fechar e reabrir: o Conselho guarda só o estado atual. A migration `0023`, que remove essas tabelas, aguarda aplicação em produção.
 
 ## FINAL-4 — #406: piloto do produto inteiro
 
