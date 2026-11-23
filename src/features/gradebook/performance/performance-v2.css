@@ -693,7 +693,6 @@ button.performance-kpi__button:hover {
   display: flex;
   height: 3rem;
   align-items: center;
-  justify-content: center;
   margin-bottom: -4rem;
   background: var(--sheet, var(--background));
   animation: performance-period-bar-in 180ms var(--platform-ease) both;

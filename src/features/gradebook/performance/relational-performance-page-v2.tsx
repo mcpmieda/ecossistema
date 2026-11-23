@@ -90,12 +90,15 @@ const PERIOD_TABS = [
 function PeriodTabsV2({
   period,
   onChange,
+  ref,
 }: {
   readonly period: PerformancePeriodV2;
   readonly onChange: (period: PerformancePeriodV2) => void;
+  readonly ref?: RefObject<HTMLDivElement | null>;
 }) {
   return (
     <Tabs
+      ref={ref}
       className="performance-period-tabs"
       selectedKey={String(period)}
       onSelectionChange={(key) => {
@@ -576,6 +579,25 @@ export function RelationalPerformancePageV2({
     notesBar,
     perspective === 'notes' && state.year !== null && state.filters.classId !== null,
   );
+  // There it stands where the header's own does: the same control, as if it had stayed on screen.
+  const periodTabs = useRef<HTMLDivElement>(null);
+  const alignPeriodBar = useCallback((bar: HTMLDivElement | null) => {
+    if (!bar) return;
+    const align = () => {
+      const own = periodTabs.current?.querySelector('[role="tablist"]');
+      const copy = bar.querySelector('[role="tablist"]');
+      if (!own || !copy) return;
+      bar.style.paddingLeft = '0px';
+      const shift = own.getBoundingClientRect().left - copy.getBoundingClientRect().left;
+      bar.style.paddingLeft = `${Math.max(0, shift)}px`;
+    };
+    align();
+    if (typeof ResizeObserver === 'undefined') return;
+    // The window or the side column changed the width: the header's own moved with it.
+    const observer = new ResizeObserver(align);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, []);
   // Chosen there, the grades keep their height while the other period is read: the page stays put.
   const notesBlock = useRef<HTMLDivElement>(null);
   const hasGrades = state.analysis !== null;
@@ -657,7 +679,7 @@ export function RelationalPerformancePageV2({
             </p>
           ) : null}
         </div>
-        <PeriodTabsV2 period={state.filters.period} onChange={choosePeriod} />
+        <PeriodTabsV2 ref={periodTabs} period={state.filters.period} onChange={choosePeriod} />
         <GradebookYearContextBanner />
       </header>
       <ClassTabsV1
@@ -689,7 +711,11 @@ export function RelationalPerformancePageV2({
             {state.filters.classId !== null ? (
               <PerformanceGridYearV2.Provider value={state.year}>
                 {periodTop !== null ? (
-                  <div className="performance-period-bar" style={{ top: periodTop }}>
+                  <div
+                    ref={alignPeriodBar}
+                    className="performance-period-bar"
+                    style={{ top: periodTop }}
+                  >
                     <PeriodTabsV2 period={state.filters.period} onChange={choosePeriodInPlace} />
                   </div>
                 ) : null}
