@@ -125,13 +125,17 @@ const eligibility = z
     failedComponentCount: count,
   })
   .strict();
-/** Students the Conselho only takes notice of: the ones who missed a recovery (N/C) and the ones
- * whose recovery is still to be recorded. They are not eligible, are never voted on and do not
- * enter the counts of the class. */
-const INFORMED_CODES_V3: readonly string[] = ['failed-no-show', 'recovery-pending'];
-export const relationalCouncilInformedV3 = (student: {
-  readonly eligibility: { readonly code: string };
-}): boolean => INFORMED_CODES_V3.includes(student.eligibility.code);
+type EligibilityOfV3 = {
+  readonly eligibility: { readonly eligible: boolean; readonly code: string };
+};
+/** Students the Conselho votes on: the eligible ones and the ones whose recovery is still to be
+ * recorded, since the sheet cannot always say they missed it and the Conselho then does. */
+export const relationalCouncilVotableV3 = (student: EligibilityOfV3): boolean =>
+  student.eligibility.eligible || student.eligibility.code === 'recovery-pending';
+/** Students the Conselho only takes notice of: the ones the sheet says missed a recovery (N/C).
+ * They are not voted on and do not enter the counts of the class. */
+export const relationalCouncilInformedV3 = (student: EligibilityOfV3): boolean =>
+  student.eligibility.code === 'failed-no-show';
 
 const student = z
   .object({
@@ -175,11 +179,12 @@ const workspace = z
   .strict()
   .superRefine((value, ctx) => {
     const eligible = value.students.filter((item) => item.eligibility.eligible);
+    const votable = value.students.filter(relationalCouncilVotableV3);
     if (
       value.summary.total !== value.students.length ||
       value.summary.eligible !== eligible.length ||
-      value.summary.decided !== eligible.filter((item) => item.decision !== null).length ||
-      value.summary.pending !== eligible.filter((item) => item.decision === null).length ||
+      value.summary.decided !== votable.filter((item) => item.decision !== null).length ||
+      value.summary.pending !== votable.filter((item) => item.decision === null).length ||
       value.summary.notEligible !== value.students.length - eligible.length ||
       value.summary.forInformation !== value.students.filter(relationalCouncilInformedV3).length
     ) {

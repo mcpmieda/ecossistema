@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import {
   relationalCouncilInformedV3,
+  relationalCouncilVotableV3,
   type RelationalCouncilFailureV3,
   type RelationalCouncilStudentV3,
   type RelationalCouncilTallyV3,
@@ -43,14 +44,15 @@ const SITUATION_V3 = {
   2: ['Reprovado pelo Conselho', 'danger'],
   3: ['Reprovado por falta', 'danger'],
 } as const;
-/** A student shown only for information: why, on the card and in the queue. */
-const INFORMED_V3 = {
+/** What the card and the queue say of a student out of the ordinary: the one shown only for
+ * information (N/C in the sheet) and the one voted on with a recovery still to be recorded. */
+const NOTICE_V3 = {
   'failed-no-show': ['Reprovado · N/C', 'danger', 'Não compareceu à recuperação'],
   'recovery-pending': ['Recuperação pendente', 'warning', 'Recuperação ainda não lançada'],
 } as const;
-const informedV3 = (student: RelationalCouncilStudentV3) =>
-  relationalCouncilInformedV3(student)
-    ? INFORMED_V3[student.eligibility.code as keyof typeof INFORMED_V3]
+const noticeV3 = (student: RelationalCouncilStudentV3) =>
+  student.eligibility.code in NOTICE_V3
+    ? NOTICE_V3[student.eligibility.code as keyof typeof NOTICE_V3]
     : null;
 const FAILED_RESULTS_V3: readonly CouncilComponentV3['result'][] = [
   'not-approved',
@@ -167,9 +169,10 @@ function QueueCard({
   readonly selected: boolean;
   readonly onSelect: () => void;
 }) {
-  const informed = informedV3(student);
+  const notice = noticeV3(student);
   let mark = <Clock3 size={17} className="text-warning" aria-label="A deliberar" />;
-  if (informed) mark = <CircleAlert size={17} className="text-muted" aria-hidden="true" />;
+  if (relationalCouncilInformedV3(student))
+    mark = <CircleAlert size={17} className="text-muted" aria-hidden="true" />;
   else if (student.decision)
     mark = <CheckCircle2 size={17} className="text-success" aria-label="Decidido" />;
   return (
@@ -184,8 +187,8 @@ function QueueCard({
       <span className="min-w-0">
         <strong className="line-clamp-2 break-words text-sm">{student.name}</strong>
         <span className="block truncate text-xs text-muted">
-          {informed?.[2] ??
-            student.decision?.label ??
+          {student.decision?.label ??
+            notice?.[2] ??
             `${countedV3(student.eligibility.failedComponentCount, 'componente', 'componentes')} abaixo`}
         </span>
       </span>
@@ -309,9 +312,9 @@ function StudentPanel({
     'Reprovado',
     'danger',
   ];
-  const informed = informedV3(student);
-  if (informed) [situation, tone] = informed;
-  else if (student.decision) [situation, tone] = SITUATION_V3[student.decision.code];
+  const notice = noticeV3(student);
+  if (student.decision) [situation, tone] = SITUATION_V3[student.decision.code];
+  else if (notice) [situation, tone] = notice;
   return (
     <div className="council-deck">
       {[2, 1].flatMap((depth) => [
@@ -438,8 +441,9 @@ export function RelationalCouncilPageV3() {
   const state = useRelationalCouncilV3();
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const workspace = state.workspace;
+  // Who is voted on: the eligible students and the ones with a recovery still to be recorded.
   const eligible = useMemo(
-    () => workspace?.students.filter((student) => student.eligibility.eligible) ?? [],
+    () => workspace?.students.filter(relationalCouncilVotableV3) ?? [],
     [workspace],
   );
   const pending = eligible.filter((student) => !student.decision);

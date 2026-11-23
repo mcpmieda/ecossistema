@@ -8,6 +8,7 @@ import {
   relationalCouncilResponseMatchesV3,
   relationalCouncilInformedV3,
   relationalCouncilTallyV3,
+  relationalCouncilVotableV3,
   relationalCouncilResponseSchemaV3,
   type RelationalCouncilDecisionV3,
   type RelationalCouncilFailureV3,
@@ -262,14 +263,16 @@ async function readWorkspace(
     };
   });
   const eligible = students.filter((student) => student.eligibility.eligible);
+  // The counts follow who is voted on, which includes a recovery still to be recorded.
+  const votable = students.filter(relationalCouncilVotableV3);
   const summary = {
     total: students.length,
     eligible: eligible.length,
-    decided: eligible.filter((student) => student.decision).length,
-    pending: eligible.filter((student) => !student.decision).length,
-    approved: eligible.filter((student) => student.decision?.code === 1).length,
-    rejected: eligible.filter((student) => student.decision?.code === 2).length,
-    absence: eligible.filter((student) => student.decision?.code === 3).length,
+    decided: votable.filter((student) => student.decision).length,
+    pending: votable.filter((student) => !student.decision).length,
+    approved: votable.filter((student) => student.decision?.code === 1).length,
+    rejected: votable.filter((student) => student.decision?.code === 2).length,
+    absence: votable.filter((student) => student.decision?.code === 3).length,
     notEligible: students.length - eligible.length,
     forInformation: students.filter(relationalCouncilInformedV3).length,
   };
