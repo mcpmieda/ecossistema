@@ -61,7 +61,15 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
   z
     .object({ contractVersion: z.literal(3), operation: z.literal('workspace'), year, classId: id })
     .strict(),
-  z.object({ contractVersion: z.literal(3), operation: z.literal('open'), ...command }).strict(),
+  // Opening needs no justification (BN-DEC-049); every other command keeps its own.
+  z
+    .object({
+      contractVersion: z.literal(3),
+      operation: z.literal('open'),
+      ...command,
+      justification: justification.optional(),
+    })
+    .strict(),
   z
     .object({
       contractVersion: z.literal(3),

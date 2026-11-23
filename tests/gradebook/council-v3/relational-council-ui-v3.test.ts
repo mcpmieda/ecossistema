@@ -363,7 +363,8 @@ describe('relational Council V3 client and HeroUI journey', () => {
     await mount();
     await openClass(10);
     await waitFor(() => host.textContent?.includes(student.name) === true);
-    await fill('#council-session-reason', 'Início da reunião sintética.');
+    // Opening asks for no justification: the field only comes with closing and reopening.
+    expect(host.querySelector('#council-session-reason')).toBeNull();
     await click('Abrir reunião');
     const openRequest = requests.filter((request) => request.operation === 'open').at(-1);
     expect(openRequest).toMatchObject({
@@ -371,8 +372,9 @@ describe('relational Council V3 client and HeroUI journey', () => {
       year: 2026,
       classId: 10,
       expectedVersion: 0,
-      justification: 'Início da reunião sintética.',
     });
+    expect(openRequest).not.toHaveProperty('justification');
+    await waitFor(() => host.querySelector('#council-session-reason') !== null);
     expect(String(openRequest?.idempotencyKey)).toMatch(/^open:/u);
     await select('Situação após o Conselho', '2');
     await fill('#decision-reason-1', 'Deliberação humana sintética.');

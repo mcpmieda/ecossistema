@@ -168,13 +168,16 @@ describe('relational Council V3 lifecycle', () => {
 
     expect(
       await service.execute(
-        request('open', {
-          expectedVersion: 0,
-          idempotencyKey: 'open:synthetic:0001',
-          justification: 'Início da reunião.',
-        }),
+        request('open', { expectedVersion: 0, idempotencyKey: 'open:synthetic:0001' }),
       ),
-    ).toMatchObject({ state: 'ready', workspace: { session: { state: 'open', version: 1 } } });
+    ).toMatchObject({
+      state: 'ready',
+      workspace: {
+        session: { state: 'open', version: 1 },
+        // No justification was sent: the history keeps the fixed record of the opening.
+        timeline: [{ action: 'opened', justification: 'Abertura da reunião.' }],
+      },
+    });
     expect(
       await service.execute(
         request('decision', {

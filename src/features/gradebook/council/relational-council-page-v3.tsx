@@ -636,29 +636,28 @@ function CouncilSessionCardV3({
         </Chip>
       </Card.Header>
       <Card.Content className="grid gap-3 border-t border-separator pt-4">
-        <div>
-          <Label
-            htmlFor="council-session-reason"
-            className="mb-1.5 block text-xs font-medium text-muted"
-          >
-            Justificativa da ação na sessão
-          </Label>
-          <textarea
-            id="council-session-reason"
-            className="council-textarea"
-            rows={2}
-            value={reason}
-            onChange={(event) => onReason(event.currentTarget.value)}
-            disabled={busy}
-          />
-        </div>
+        {/* Opening needs no justification; closing and reopening do. */}
+        {workspace.session.state === 'not-opened' ? null : (
+          <div>
+            <Label
+              htmlFor="council-session-reason"
+              className="mb-1.5 block text-xs font-medium text-muted"
+            >
+              Justificativa da ação na sessão
+            </Label>
+            <textarea
+              id="council-session-reason"
+              className="council-textarea"
+              rows={2}
+              value={reason}
+              onChange={(event) => onReason(event.currentTarget.value)}
+              disabled={busy}
+            />
+          </div>
+        )}
         <div className="flex flex-wrap gap-2">
           {workspace.session.state === 'not-opened' ? (
-            <Button
-              variant="primary"
-              isDisabled={reason.trim().length < 3 || busy}
-              onPress={() => onSessionCommand('open')}
-            >
+            <Button variant="primary" isDisabled={busy} onPress={() => onSessionCommand('open')}>
               <CircleDot size={17} />
               Abrir reunião
             </Button>
@@ -838,15 +837,18 @@ export function RelationalCouncilPageV3() {
   }, [workspace?.classGroup.id]);
 
   async function sessionCommand(operation: SessionActionV3) {
-    if (!workspace || sessionReason.trim().length < 3) return;
-    const response =
-      operation === 'close'
-        ? await state.command({
-            operation,
-            reviewReference: workspace.session.reviewReference,
-            justification: sessionReason.trim(),
-          })
-        : await state.command({ operation, justification: sessionReason.trim() });
+    if (!workspace) return;
+    const justification = sessionReason.trim();
+    if (operation !== 'open' && justification.length < 3) return;
+    let response;
+    if (operation === 'open') response = await state.command({ operation });
+    else if (operation === 'close')
+      response = await state.command({
+        operation,
+        reviewReference: workspace.session.reviewReference,
+        justification,
+      });
+    else response = await state.command({ operation, justification });
     if (response?.state === 'ready') {
       setMessage(SESSION_DONE[operation]);
       setSessionReason('');

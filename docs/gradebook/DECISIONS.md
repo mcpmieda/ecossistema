@@ -410,3 +410,14 @@ Começa desligado. O inventário do que foi acrescentado e de como remover está
 
 **Alternativa descartada.** Converter as planilhas para `.xlsm` e recalcular pela API do Excel na nuvem: a API não aceita acesso só do aplicativo (exige uma pessoa conectada).
 
+## BN-DEC-049 - Abertura da reunião do Conselho sem justificativa
+
+**Data:** 2026-11-23. **Origem:** pedido do responsável (#1558), ao testar a aba Conselho com os dados de 2025: "a partir de agora não precisa mais de justificativa para abrir reunião".
+
+**Decisão.** Substitui o contrato #648 somente quanto à abertura: o comando `open` do Conselho V3 deixa de exigir justificativa (campo opcional). Decisão, contagem de votos, fechamento e reabertura continuam exigindo justificativa; chave de idempotência e versão esperada continuam obrigatórias em todos os comandos.
+
+- A tela não pede justificativa enquanto a reunião não foi aberta.
+- Sem justificativa informada, o histórico da sessão e a idempotência gravam o registro fixo `Abertura da reunião.`. As colunas continuam `NOT NULL`; não há migration.
+- Não muda elegibilidade, cálculo, decisões possíveis nem a regra de fechamento.
+
+**Alternativa descartada.** Tornar as colunas de justificativa anuláveis: exigiria migration em produção e novo catálogo para registrar a mesma informação.

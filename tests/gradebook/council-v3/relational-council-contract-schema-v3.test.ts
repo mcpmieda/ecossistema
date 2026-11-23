@@ -52,6 +52,32 @@ describe('relational Council V3 contract', () => {
     );
   });
 
+  it('opens without a justification and keeps it required for every other command', () => {
+    const open = {
+      contractVersion: 3,
+      operation: 'open',
+      year: 2026,
+      classId: 1,
+      expectedVersion: 0,
+      idempotencyKey: 'open:test:0001',
+    };
+    expect(relationalCouncilRequestSchemaV3.safeParse(open).success).toBe(true);
+    expect(
+      relationalCouncilRequestSchemaV3.safeParse({ ...open, justification: 'Início.' }).success,
+    ).toBe(true);
+    expect(relationalCouncilRequestSchemaV3.safeParse({ ...open, justification: '' }).success).toBe(
+      false,
+    );
+    for (const operation of ['reopen', 'close'])
+      expect(
+        relationalCouncilRequestSchemaV3.safeParse({
+          ...open,
+          operation,
+          reviewReference: 'review:test:0001',
+        }).success,
+      ).toBe(false);
+  });
+
   it('derives presentes and rejects contradictory transport data', () => {
     const failure = { contractVersion: 3, state: 'version-conflict', currentVersion: 4 };
     expect(relationalCouncilResponseSchemaV3.safeParse(failure).success).toBe(true);

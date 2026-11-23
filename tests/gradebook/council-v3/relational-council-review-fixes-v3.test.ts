@@ -334,7 +334,6 @@ async function openMeeting() {
   await mount();
   await openClass(10);
   await waitFor(() => host.textContent?.includes(student.name) === true);
-  await fill('#council-session-reason', 'Início da reunião sintética.');
   await click('Abrir reunião');
   await waitFor(() => host.querySelector('#decision-reason-1') !== null);
 }

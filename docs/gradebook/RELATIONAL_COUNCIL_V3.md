@@ -22,7 +22,10 @@ transforma esse cálculo em deliberação humana.
 ## Sessão, concorrência e histórico
 
 Uma turma começa em `not-opened`. Abertura, decisão, votação, fechamento e
-reabertura exigem justificativa, chave de idempotência e versão esperada. Escritas
+reabertura exigem chave de idempotência e versão esperada; todas, menos a abertura,
+exigem justificativa. Desde a BN-DEC-049 (#1558) a abertura dispensa justificativa:
+sem ela, o histórico da sessão e a idempotência gravam o registro fixo
+`Abertura da reunião.`, sem mudança de DDL. Escritas
 de decisão e votação são aceitas somente com a sessão aberta. Cada comando avança
 uma versão global da sessão sob transação `SERIALIZABLE`; leituras usam
 `REPEATABLE READ, READ ONLY`.

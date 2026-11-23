@@ -32,6 +32,10 @@ type Database = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
 type WriteRequest = Exclude<RelationalCouncilRequestV3, { operation: 'classes' | 'workspace' }>;
+/** Opening needs no justification (BN-DEC-049): without one, its history rows keep this record. */
+const OPENING_RECORD_V3 = 'Abertura da reunião.';
+const recordedJustificationV3 = (request: WriteRequest): string =>
+  request.justification ?? OPENING_RECORD_V3;
 
 const OPERATION_CODE = { open: 1, decision: 2, vote: 3, close: 4, reopen: 5 } as const;
 const SESSION_STATE = { open: 1, closed: 2 } as const;
@@ -415,7 +419,7 @@ async function idempotency(
     nullableInteger(row.decisao) === decision &&
     nullableInteger(row.favoraveis) === favoraveis &&
     nullableInteger(row.contrarios) === contrarios &&
-    text(row.justificativa) === request.justification
+    text(row.justificativa) === recordedJustificationV3(request)
     ? 'same'
     : 'conflict';
 }
@@ -438,7 +442,7 @@ async function recordIdempotency(
       request.operation === 'decision' ? request.decision : null,
       request.operation === 'vote' ? request.favoraveis : null,
       request.operation === 'vote' ? request.contrarios : null,
-      request.justification,
+      recordedJustificationV3(request),
       actorId,
     ],
   );
@@ -473,6 +477,7 @@ type OpenRequestV3 = Extract<WriteRequest, { operation: 'open' }>;
 type DecisionRequestV3 = Extract<WriteRequest, { operation: 'decision' }>;
 type VoteRequestV3 = Extract<WriteRequest, { operation: 'vote' }>;
 type CloseRequestV3 = Extract<WriteRequest, { operation: 'close' }>;
+type ReopenRequestV3 = Extract<WriteRequest, { operation: 'reopen' }>;
 type CouncilWorkspaceReadV3 = Exclude<Awaited<ReturnType<typeof readWorkspace>>, string>;
 
 /** Opening the meeting: the class exists, no meeting is open, and the version starts at 1. */
@@ -504,7 +509,7 @@ async function openSessionV3(
       SESSION_EVENT.open,
       null,
       SESSION_STATE.open,
-      request.justification,
+      recordedJustificationV3(request),
       actorId,
       request.idempotencyKey,
     ],
@@ -515,7 +520,7 @@ async function openSessionV3(
 /** Reopening a closed meeting, with its justification in the history. */
 async function reopenSessionV3(
   db: GradebookPostgresTransactionV1,
-  request: WriteRequest,
+  request: ReopenRequestV3,
   actorId: string,
   session: { state: number; currentVersion: number },
 ) {
