@@ -492,12 +492,6 @@ body {
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
-.council-timeline > li {
-  display: grid;
-  grid-template-columns: 1.4rem minmax(0, 1fr);
-  gap: 0.65rem;
-}
-
 @keyframes performance-donut-reveal {
   from {
     opacity: 0;

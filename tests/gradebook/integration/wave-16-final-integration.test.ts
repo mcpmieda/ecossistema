@@ -54,8 +54,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(councilHook).toContain('sequence.current');
     expect(councilHook).toContain('workspaceController.current?.abort()');
     expect(councilPage).toContain('aria-live="polite"');
-    expect(councilPage).toContain('Linha do tempo');
-    expect(councilPage).toContain('Fechamentos preservados');
+    expect(councilPage).not.toMatch(/Linha do tempo|Fechamentos preservados/u);
   });
 
   it('sincroniza F1 como 7/7 e remove os marcadores históricos já satisfeitos da memória central', () => {
