@@ -209,35 +209,48 @@
   font-weight: 700;
 }
 
-/* The student under discussion: the card on top of a pile, the next students behind it. */
+/* The student under discussion: the card on top, with the students before and after it in
+   the queue as smaller cards behind, on each side. */
 .council-deck {
   position: relative;
-  padding: 0 1.75rem;
+  max-width: 44rem;
+  margin-inline: auto;
+  padding: 0 3.25rem;
 }
 
-.council-deck::before,
-.council-deck::after {
+.council-deck > span {
   position: absolute;
   border: 1px solid var(--separator);
   border-radius: var(--radius-3xl);
-  box-shadow: 0 16px 32px -28px var(--foreground);
-  content: '';
+  inset-inline: 3.25rem;
 }
 
-.council-deck::before {
-  inset: 1.2rem 0.85rem;
-  background: color-mix(in oklab, var(--surface) 95%, var(--foreground));
+.council-deck > [data-depth='1'] {
+  background: color-mix(in oklab, var(--surface) 90%, var(--foreground));
+  box-shadow: 0 18px 32px -26px var(--foreground);
+  inset-block: 1.5rem;
 }
 
-.council-deck::after {
-  inset: 2.4rem 0;
-  background: color-mix(in oklab, var(--surface) 89%, var(--foreground));
+.council-deck > [data-depth='2'] {
+  background: color-mix(in oklab, var(--surface) 80%, var(--foreground));
+  inset-block: 3rem;
+  opacity: 0.7;
 }
 
-.council-deck[data-behind='0']::before,
-.council-deck[data-behind='0']::after,
-.council-deck[data-behind='1']::after {
-  content: none;
+.council-deck > [data-side='previous'][data-depth='1'] {
+  transform: translateX(-1.6rem);
+}
+
+.council-deck > [data-side='previous'][data-depth='2'] {
+  transform: translateX(-3rem);
+}
+
+.council-deck > [data-side='next'][data-depth='1'] {
+  transform: translateX(1.6rem);
+}
+
+.council-deck > [data-side='next'][data-depth='2'] {
+  transform: translateX(3rem);
 }
 
 .council-card {
@@ -262,13 +275,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.9rem;
-  padding: 1rem 1.25rem;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem 0.5rem;
 }
 
 .council-card__photo {
-  width: 4rem;
-  height: 4rem;
+  width: 3.25rem;
+  height: 3.25rem;
 }
 
 .council-deck__arrow {
@@ -289,11 +302,11 @@
 }
 
 .council-deck__arrow[data-side='previous'] {
-  left: 0.2rem;
+  left: 0;
 }
 
 .council-deck__arrow[data-side='next'] {
-  right: 0.2rem;
+  right: 0;
 }
 
 .council-deck__arrow:hover {
@@ -306,34 +319,33 @@
 }
 
 /* The year as the report card lays it out: components in columns, each term's mark and REC in
-   rows, the total at the foot. */
+   rows, the total at the foot. Each mark has its own background: above or below the minimum. */
 .council-report__scroll {
   overflow-x: auto;
-  padding: 0 1.25rem 1.25rem;
+  padding: 0 1.1rem 1rem;
   scrollbar-width: thin;
 }
 
 .council-report {
   width: 100%;
-  min-width: 31rem;
+  min-width: 30rem;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
 
 .council-report thead td {
-  width: 5.6rem;
+  width: 5.2rem;
 }
 
 .council-report thead th {
-  height: 6.25rem;
-  padding: 0.4rem 0;
-  border-bottom: 1px solid var(--separator);
+  height: 5.4rem;
+  padding: 0.3rem 0;
   color: var(--muted);
-  font-size: 0.66rem;
+  font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   vertical-align: bottom;
@@ -341,21 +353,12 @@
 
 .council-report thead th > span {
   display: inline-block;
-  max-height: 5.6rem;
+  max-height: 4.9rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-}
-
-.council-report tbody th,
-.council-report tfoot th {
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-align: left;
-  white-space: nowrap;
 }
 
 /* The row labels stay in place while a narrow screen slides the components. */
@@ -365,58 +368,71 @@
   left: 0;
   z-index: 1;
   background: var(--surface);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
 }
 
 .council-report tbody th:not([rowspan]) {
-  left: 3rem;
+  left: 2.8rem;
 }
 
 .council-report tbody th[rowspan] {
-  width: 3rem;
-  border-bottom: 1px solid var(--separator);
+  width: 2.8rem;
   color: inherit;
-  font-size: 0.76rem;
+  font-size: 0.72rem;
+}
+
+.council-report tbody tr:not([data-rec]) > * {
+  border-top: 1px solid var(--separator);
 }
 
 .council-report td,
 .council-report tbody th:not([rowspan]) {
-  height: 2rem;
-  padding: 0 0.15rem;
+  height: 1.8rem;
+  padding: 0.12rem 0.1rem;
 }
 
-.council-report tbody td {
+.council-report td > span {
+  display: inline-block;
+  min-width: 2.3rem;
+  padding: 0.14rem 0.2rem;
+  border-radius: 0.45rem;
   font-weight: 650;
+  line-height: 1.2;
 }
 
-.council-report tbody tr[data-rec] > * {
-  height: 1.6rem;
-  border-bottom: 1px solid var(--separator);
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 500;
+.council-report td > [data-level='at-or-above'] {
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  color: color-mix(in oklab, var(--accent) 78%, var(--foreground));
 }
 
-.council-report tfoot th,
-.council-report tfoot td {
-  height: 2.4rem;
+.council-report td > [data-level='below'] {
+  background: color-mix(in oklab, var(--danger) 15%, transparent);
+  color: color-mix(in oklab, var(--danger) 82%, var(--foreground));
+}
+
+.council-report tbody tr[data-rec] td > span {
+  font-size: 0.72rem;
+  font-weight: 550;
+}
+
+.council-report tfoot > tr > * {
+  height: 2.3rem;
+  border-top: 1px solid var(--separator);
+}
+
+.council-report tfoot th {
   color: inherit;
-  font-size: 0.86rem;
+  font-size: 0.76rem;
   font-weight: 750;
 }
 
-.council-report [data-failed] {
-  background: color-mix(in oklab, var(--danger) 7%, transparent);
-}
-
-.council-report thead th[data-failed] {
-  border-radius: 0.6rem 0.6rem 0 0;
-  color: var(--danger);
-}
-
-.council-report tfoot td[data-failed] {
-  border-radius: 0 0 0.6rem 0.6rem;
-  background: color-mix(in oklab, var(--danger) 16%, transparent);
-  color: var(--danger);
+.council-report tfoot td > span {
+  font-size: 0.84rem;
+  font-weight: 750;
 }
 
 /* One column: each group of the queue becomes a row to slide, so the student stays close. */
@@ -441,25 +457,41 @@
 /* Phone: the four counts stay in one row, without their icons. */
 @media (max-width: 640px) {
   .council-deck {
-    padding: 0 0.6rem;
+    padding: 0 0.9rem;
   }
 
-  .council-deck::before {
-    inset: 0.9rem 0.3rem;
+  .council-deck > span {
+    inset-inline: 0.9rem;
+  }
+
+  .council-deck > [data-side='previous'][data-depth='1'] {
+    transform: translateX(-0.45rem);
+  }
+
+  .council-deck > [data-side='previous'][data-depth='2'] {
+    transform: translateX(-0.9rem);
+  }
+
+  .council-deck > [data-side='next'][data-depth='1'] {
+    transform: translateX(0.45rem);
+  }
+
+  .council-deck > [data-side='next'][data-depth='2'] {
+    transform: translateX(0.9rem);
   }
 
   .council-deck__arrow {
-    top: 2.9rem;
+    top: 2.5rem;
     width: 2rem;
     height: 2rem;
   }
 
   .council-deck__arrow[data-side='previous'] {
-    left: -0.35rem;
+    left: -0.3rem;
   }
 
   .council-deck__arrow[data-side='next'] {
-    right: -0.35rem;
+    right: -0.3rem;
   }
 
   .council-card__header,

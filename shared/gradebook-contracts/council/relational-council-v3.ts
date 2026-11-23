@@ -74,6 +74,8 @@ const grade = z
       'no-show',
       'repeat-failure',
     ]),
+    // Whether the mark reaches the year's minimum, in proportion to its own maximum.
+    level: z.enum(['at-or-above', 'below', 'not-classified']),
   })
   .strict();
 const component = z

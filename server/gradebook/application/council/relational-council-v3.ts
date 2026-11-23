@@ -72,7 +72,12 @@ function cell(
   mode: 'regular' | 'recovery',
 ) {
   const value = performanceCellV2(projection, period, mode);
-  return { valueMilli: value.valueMilli, maximumMilli: value.maximumMilli, state: value.state };
+  return {
+    valueMilli: value.valueMilli,
+    maximumMilli: value.maximumMilli,
+    state: value.state,
+    level: value.level,
+  };
 }
 
 function eligibility(

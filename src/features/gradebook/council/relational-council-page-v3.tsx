@@ -42,11 +42,6 @@ const SITUATION_V3 = {
   2: ['Reprovado pelo Conselho', 'danger'],
   3: ['Reprovado por falta', 'danger'],
 } as const;
-const FAILED_RESULTS_V3: readonly CouncilComponentV3['result'][] = [
-  'not-approved',
-  'failed-no-show',
-  'failed-repeat',
-];
 const TERM_LABELS_V3 = ['1º tri.', '2º tri.', '3º tri.'] as const;
 
 /** One or many, in words: the counts are read aloud and label the summary. */
@@ -188,17 +183,20 @@ function reportMarkV3(grade: CouncilGradeV3): string {
   if (grade.state === 'recovery-pending') return '—';
   return grade.valueMilli === null ? '' : gradeText(grade.valueMilli);
 }
-/** The year's total of a component: after recovery when there was one. */
+/** The year's total of a component: with the recovery once it is complete; until then, and
+ * when the student did not take it, the total of the marks as they are. */
 const finalGradeV3 = (component: CouncilComponentV3): CouncilGradeV3 =>
-  component.recovery.state === 'not-applicable' || component.recovery.state === 'unavailable'
-    ? component.annual
-    : component.recovery;
+  component.recovery.state === 'complete' ? component.recovery : component.annual;
+
+/** One mark of the report card, on its own background: at or above the minimum, or below it. */
+function ReportCellV3({ grade }: { readonly grade: CouncilGradeV3 }) {
+  const mark = reportMarkV3(grade);
+  return <td>{mark ? <span data-level={grade.level}>{mark}</span> : null}</td>;
+}
 
 /** The student's year as the school's report card lays it out: a column for each component, a
- * row for each term's mark and REC, and the year's total. A component not approved is tinted. */
+ * row for each term's mark and REC, and the year's total. */
 function StudentReportV3({ student }: { readonly student: RelationalCouncilStudentV3 }) {
-  const failed = (component: CouncilComponentV3) =>
-    FAILED_RESULTS_V3.includes(component.result) || undefined;
   return (
     <div className="council-report__scroll">
       <table className="council-report" aria-label={`Notas do ano de ${student.name}`}>
@@ -206,7 +204,7 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
           <tr>
             <td colSpan={2} />
             {student.components.map((component) => (
-              <th key={component.offerId} scope="col" data-failed={failed(component)}>
+              <th key={component.offerId} scope="col">
                 <span>{component.subject.label}</span>
               </th>
             ))}
@@ -221,17 +219,13 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
                 </th>
                 <th scope="row">Nota</th>
                 {student.components.map((component) => (
-                  <td key={component.offerId} data-failed={failed(component)}>
-                    {reportMarkV3(component.terms[term]!)}
-                  </td>
+                  <ReportCellV3 key={component.offerId} grade={component.terms[term]!} />
                 ))}
               </tr>
               <tr data-rec>
                 <th scope="row">REC</th>
                 {student.components.map((component) => (
-                  <td key={component.offerId} data-failed={failed(component)}>
-                    {reportMarkV3(component.termRecoveries[term]!)}
-                  </td>
+                  <ReportCellV3 key={component.offerId} grade={component.termRecoveries[term]!} />
                 ))}
               </tr>
             </Fragment>
@@ -243,9 +237,7 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
               Nota final
             </th>
             {student.components.map((component) => (
-              <td key={component.offerId} data-failed={failed(component)}>
-                {reportMarkV3(finalGradeV3(component))}
-              </td>
+              <ReportCellV3 key={component.offerId} grade={finalGradeV3(component)} />
             ))}
           </tr>
         </tfoot>
@@ -259,14 +251,17 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
 function StudentPanel({
   student,
   year,
-  behind,
+  before,
+  after,
   onPrevious,
   onNext,
 }: Readonly<{
   student: RelationalCouncilStudentV3;
   year: number;
-  /** How many students wait behind this card (the pile shows up to two). */
-  behind: number;
+  /** How many students of the queue come before and after this one: the pile shows up to two
+   * cards on each side. */
+  before: number;
+  after: number;
   onPrevious: (() => void) | null;
   onNext: (() => void) | null;
 }>) {
@@ -274,7 +269,13 @@ function StudentPanel({
     ? SITUATION_V3[student.decision.code]
     : (['Reprovado', 'danger'] as const);
   return (
-    <div className="council-deck" data-behind={Math.min(behind, 2)}>
+    <div className="council-deck">
+      {[2, 1].flatMap((depth) => [
+        before >= depth ? (
+          <span key={`previous-${depth}`} data-side="previous" data-depth={depth} />
+        ) : null,
+        after >= depth ? <span key={`next-${depth}`} data-side="next" data-depth={depth} /> : null,
+      ])}
       <article className="council-card" aria-label={student.name}>
         <header className="council-card__header">
           <LinkedStudentPhotoAvatarV1
@@ -286,7 +287,7 @@ function StudentPanel({
             subject={{ source: 'gradebook', academicYear: year, studentIds: [student.id] }}
           />
           <div className="min-w-0 flex-1">
-            <h3 className="break-words text-lg font-bold tracking-tight sm:text-xl">
+            <h3 className="break-words text-base font-bold tracking-tight sm:text-lg">
               {student.name}
             </h3>
             <p className="text-sm text-muted">Nº {student.number}</p>
@@ -403,9 +404,13 @@ export function RelationalCouncilPageV3() {
     eligible.find((student) => student.id === selectedStudentId) ?? eligible[0] ?? null;
   // The pile follows the queue: who is still to be discussed, then who already has a decision.
   const queue = [...pending, ...decided];
+  const position = Math.max(
+    queue.findIndex((student) => student.id === selected?.id),
+    0,
+  );
   const step = (by: -1 | 1) => {
-    const next = queue[queue.findIndex((student) => student.id === selected?.id) + by];
-    return next && selected ? () => setSelectedStudentId(next.id) : null;
+    const next = queue[position + by];
+    return next ? () => setSelectedStudentId(next.id) : null;
   };
   useEffect(() => {
     if (!workspace) {
@@ -538,7 +543,8 @@ export function RelationalCouncilPageV3() {
                   key={selected.id}
                   student={selected}
                   year={workspace.context.year}
-                  behind={queue.length - 1}
+                  before={position}
+                  after={queue.length - 1 - position}
                   onPrevious={step(-1)}
                   onNext={step(1)}
                 />
