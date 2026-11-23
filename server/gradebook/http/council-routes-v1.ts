@@ -54,12 +54,7 @@ function councilStatusV3(
   if (state === 'ready') return 200;
   if (state === 'not-found') return 404;
   if (state === 'invalid-request') return 400;
-  if (
-    state === 'scope-too-large' ||
-    state === 'closure-blocked' ||
-    state === 'student-not-eligible'
-  )
-    return 422;
+  if (state === 'scope-too-large' || state === 'closure-blocked') return 422;
   return state === 'unavailable' ? 503 : 409;
 }
 
@@ -86,10 +81,7 @@ async function serveRelationalCouncilV3(
       env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
       session.oid,
     ).execute(parsed.data);
-    if (
-      response.state === 'ready' &&
-      ['open', 'decision', 'vote', 'close', 'reopen'].includes(response.operation)
-    )
+    if (response.state === 'ready' && ['open', 'close', 'reopen'].includes(response.operation))
       afterCommit?.(session);
     return noStoreJsonV1(response, councilStatusV3(response.state));
   } catch {

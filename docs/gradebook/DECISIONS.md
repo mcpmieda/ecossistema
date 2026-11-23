@@ -424,4 +424,6 @@ Começa desligado. O inventário do que foi acrescentado e de como remover está
 - A migration `0023_council_current_state_only_v1.sql` remove do PostgreSQL as tabelas de histórico e de fotografia do Conselho e a coluna `conselho_sessao.fechamento_atual_id`. Ela é aplicada depois de o código ser publicado, porque o código publicado antes ainda lê essas tabelas. Em 23/11/2026 a produção não tinha linha em nenhuma tabela do Conselho.
 - Não muda elegibilidade, cálculo, decisões possíveis, votação nem a regra de fechamento (zero elegíveis pendentes e a mesma referência de revisão).
 
+**Em refação (23/11/2026).** No mesmo dia o responsável mandou retirar do código as funções "Decisão humana", "Contagem opcional" e "Não elegíveis", porque vai refazê-las: "por enquanto não mecha nas tabelas no portgre pois podemos precisar. ao final, o que sobrar, que ficar sem uso, a gente apaga". Até a nova versão, o contrato não tem os comandos `decision` e `vote` nem o campo `vote`; a decisão atual de `conselho_decisao` continua sendo lida (fila, contagens por turma e regra de fechamento). `conselho_decisao` e `conselho_votacao` ficam como estão. A lista do que apagar, incluindo a `0023`, é revista com ele antes de integrar.
+
 **Alternativa descartada.** Manter as tabelas de histórico sem uso: o responsável pediu que fossem removidas do PostgreSQL.

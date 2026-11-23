@@ -34,10 +34,8 @@ type WriteRequest = Exclude<RelationalCouncilRequestV3, { operation: 'classes' |
 /** Opening, closing and reopening carry no justification (BN-DEC-049): their idempotency row,
  * whose column is not nullable, says so. */
 const NO_JUSTIFICATION_V3 = 'sem justificativa';
-const recordedJustificationV3 = (request: WriteRequest): string =>
-  'justification' in request ? request.justification : NO_JUSTIFICATION_V3;
-
-const OPERATION_CODE = { open: 1, decision: 2, vote: 3, close: 4, reopen: 5 } as const;
+// The codes 2 and 3 belonged to the decision and the count, whose commands are being redone.
+const OPERATION_CODE = { open: 1, close: 4, reopen: 5 } as const;
 const SESSION_STATE = { open: 1, closed: 2 } as const;
 const ALL_STATUSES = [null, 1, 2, 3, 4, 5, 7] as const;
 
@@ -81,18 +79,6 @@ async function first(
 }
 function reviewReference(year: number, classId: number, version: number): string {
   return `council-review:${year}:${classId}:${version}`;
-}
-function voteComparison(
-  favoraveis: number,
-  contrarios: number,
-): 'favoraveis' | 'contrarios' | 'empate' {
-  if (favoraveis === contrarios) {
-    return 'empate';
-  }
-  if (favoraveis > contrarios) {
-    return 'favoraveis';
-  }
-  return 'contrarios';
 }
 function cell(
   projection: PerformanceProjectionV2,
@@ -221,28 +207,18 @@ async function readWorkspace(
     return performance.state === 'scope-too-large' ? 'scope-too-large' : 'unavailable';
   if (performance.operation !== 'matrix') return 'unavailable';
 
-  const [decisionRows, voteRows] = await Promise.all([
-    all(
-      db,
-      `SELECT cd.aluno_id,cd.decisao,cd.justificativa,cd.registrado_em AS updated_at
+  const decisionRows = await all(
+    db,
+    `SELECT cd.aluno_id,cd.decisao,cd.justificativa,cd.registrado_em AS updated_at
       FROM gradebook.conselho_decisao cd JOIN gradebook.vinculo v ON v.aluno_id=cd.aluno_id
       WHERE v.ano=$1 AND v.turma_id=$2 AND v.situacao IS DISTINCT FROM 6`,
-      [year, classId],
-    ),
-    all(
-      db,
-      `SELECT aluno_id,favoraveis,contrarios,versao AS version,justificativa,registrado_em AS updated_at
-      FROM gradebook.conselho_votacao WHERE ano=$1 AND turma_id=$2`,
-      [year, classId],
-    ),
-  ]);
+    [year, classId],
+  );
   const decisions = new Map(decisionRows.map((row) => [integer(row.aluno_id), row]));
-  const votes = new Map(voteRows.map((row) => [integer(row.aluno_id), row]));
   const maxCouncilComponents = integer(base.max_componentes_conselho);
   const students: RelationalCouncilStudentV3[] = performance.rows.map((row) => {
     const projections = projectionMap.get(row.student.id) ?? [];
     const currentDecision = decisions.get(row.student.id);
-    const currentVote = votes.get(row.student.id);
     return {
       id: row.student.id,
       name: row.student.name,
@@ -264,20 +240,6 @@ async function readWorkspace(
               ],
             justification: text(currentDecision.justificativa),
             updatedAt: text(currentDecision.updated_at),
-          }
-        : null,
-      vote: currentVote
-        ? {
-            favoraveis: integer(currentVote.favoraveis),
-            contrarios: integer(currentVote.contrarios),
-            presentes: integer(currentVote.favoraveis) + integer(currentVote.contrarios),
-            comparison: voteComparison(
-              integer(currentVote.favoraveis),
-              integer(currentVote.contrarios),
-            ),
-            justification: text(currentVote.justificativa),
-            version: integer(currentVote.version),
-            updatedAt: text(currentVote.updated_at),
           }
         : null,
       components: performance.offers.map((offering, index) => {
@@ -344,24 +306,15 @@ async function idempotency(
 ): Promise<'new' | 'same' | 'conflict'> {
   const row = await first(
     db,
-    `SELECT operacao,ano,turma_id,aluno_id,versao_anterior AS expected_version,
-      decisao,favoraveis,contrarios,justificativa FROM gradebook.conselho_idempotencia WHERE chave=$1`,
+    `SELECT operacao,ano,turma_id,versao_anterior AS expected_version
+      FROM gradebook.conselho_idempotencia WHERE chave=$1`,
     [request.idempotencyKey],
   );
   if (!row) return 'new';
-  const studentId = 'studentId' in request ? request.studentId : null;
-  const decision = request.operation === 'decision' ? request.decision : null;
-  const favoraveis = request.operation === 'vote' ? request.favoraveis : null;
-  const contrarios = request.operation === 'vote' ? request.contrarios : null;
   return integer(row.operacao) === OPERATION_CODE[request.operation] &&
     integer(row.ano) === request.year &&
     integer(row.turma_id) === request.classId &&
-    nullableInteger(row.aluno_id) === studentId &&
-    integer(row.expected_version) === request.expectedVersion &&
-    nullableInteger(row.decisao) === decision &&
-    nullableInteger(row.favoraveis) === favoraveis &&
-    nullableInteger(row.contrarios) === contrarios &&
-    text(row.justificativa) === recordedJustificationV3(request)
+    integer(row.expected_version) === request.expectedVersion
     ? 'same'
     : 'conflict';
 }
@@ -372,19 +325,15 @@ async function recordIdempotency(
   actorId: string,
 ): Promise<void> {
   await db.executeNative(
-    `INSERT INTO gradebook.conselho_idempotencia (chave,operacao,ano,turma_id,aluno_id,versao_anterior,versao_nova,decisao,favoraveis,contrarios,justificativa,registrado_por) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    `INSERT INTO gradebook.conselho_idempotencia (chave,operacao,ano,turma_id,versao_anterior,versao_nova,justificativa,registrado_por) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
     [
       request.idempotencyKey,
       OPERATION_CODE[request.operation],
       request.year,
       request.classId,
-      'studentId' in request ? request.studentId : null,
       request.expectedVersion,
       newVersion,
-      request.operation === 'decision' ? request.decision : null,
-      request.operation === 'vote' ? request.favoraveis : null,
-      request.operation === 'vote' ? request.contrarios : null,
-      recordedJustificationV3(request),
+      NO_JUSTIFICATION_V3,
       actorId,
     ],
   );
@@ -414,8 +363,6 @@ async function ready(
 }
 
 type OpenRequestV3 = Extract<WriteRequest, { operation: 'open' }>;
-type DecisionRequestV3 = Extract<WriteRequest, { operation: 'decision' }>;
-type VoteRequestV3 = Extract<WriteRequest, { operation: 'vote' }>;
 type CloseRequestV3 = Extract<WriteRequest, { operation: 'close' }>;
 type ReopenRequestV3 = Extract<WriteRequest, { operation: 'reopen' }>;
 type CouncilWorkspaceReadV3 = Exclude<Awaited<ReturnType<typeof readWorkspace>>, string>;
@@ -458,80 +405,6 @@ async function reopenSessionV3(
   return ready(db, request);
 }
 
-/** The same decision or count again changes nothing. */
-function unchangedRecordV3(
-  request: DecisionRequestV3 | VoteRequestV3,
-  student: CouncilWorkspaceReadV3['students'][number],
-) {
-  if (request.operation === 'decision')
-    return (
-      student.decision?.code === request.decision &&
-      student.decision.justification === request.justification
-    );
-  return (
-    student.vote?.favoraveis === request.favoraveis &&
-    student.vote.contrarios === request.contrarios &&
-    student.vote.justification === request.justification
-  );
-}
-
-/** The decision replaces the student's current one: nothing of the one before is kept. */
-async function writeDecisionV3(
-  db: GradebookPostgresTransactionV1,
-  request: DecisionRequestV3,
-  actorId: string,
-) {
-  await db.executeNative(
-    `INSERT INTO gradebook.conselho_decisao (aluno_id,decisao,justificativa,registrado_por,registrado_em) VALUES ($1, $2, $3, $4, transaction_timestamp()) ON CONFLICT (aluno_id) DO UPDATE SET decisao=EXCLUDED.decisao,
-    justificativa=EXCLUDED.justificativa,registrado_por=EXCLUDED.registrado_por,registrado_em=EXCLUDED.registrado_em`,
-    [request.studentId, request.decision, request.justification, actorId],
-  );
-}
-
-/** The count replaces the student's current one, in the session version that recorded it. */
-async function writeVoteV3(
-  db: GradebookPostgresTransactionV1,
-  request: VoteRequestV3,
-  actorId: string,
-  newVersion: number,
-) {
-  await db.executeNative(
-    `INSERT INTO gradebook.conselho_votacao (ano,turma_id,aluno_id,favoraveis,contrarios,versao,justificativa,registrado_por,registrado_em) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, transaction_timestamp()) ON CONFLICT (ano,turma_id,aluno_id) DO UPDATE SET
-    favoraveis=EXCLUDED.favoraveis,contrarios=EXCLUDED.contrarios,versao=EXCLUDED.versao,
-    justificativa=EXCLUDED.justificativa,registrado_por=EXCLUDED.registrado_por,registrado_em=EXCLUDED.registrado_em`,
-    [
-      request.year,
-      request.classId,
-      request.studentId,
-      request.favoraveis,
-      request.contrarios,
-      newVersion,
-      request.justification,
-      actorId,
-    ],
-  );
-}
-
-/** A student's decision or vote count, for an eligible student, in a new session version. */
-async function recordStudentV3(
-  db: GradebookPostgresTransactionV1,
-  request: DecisionRequestV3 | VoteRequestV3,
-  actorId: string,
-  workspace: CouncilWorkspaceReadV3,
-  currentVersion: number,
-) {
-  const student = workspace.students.find((item) => item.id === request.studentId);
-  if (!student) return fail('not-found', currentVersion);
-  if (!student.eligibility.eligible) return fail('student-not-eligible', currentVersion);
-  if (unchangedRecordV3(request, student)) return ready(db, request);
-  const newVersion = await advanceSession(db, request, SESSION_STATE.open, actorId);
-  if (newVersion === null) return fail('version-conflict', currentVersion);
-  await recordIdempotency(db, request, newVersion, actorId);
-  if (request.operation === 'decision') await writeDecisionV3(db, request, actorId);
-  else await writeVoteV3(db, request, actorId, newVersion);
-  return ready(db, request);
-}
-
 /** Closing: the state the operator reviewed and no pending student. Decisions and counts stay as
  * they are; the closed meeting only stops accepting them. */
 async function closeSessionV3(
@@ -571,8 +444,6 @@ async function mutate(
 
   const workspace = await readWorkspace(db, request.year, request.classId);
   if (typeof workspace === 'string') return fail(workspace);
-  if (request.operation === 'decision' || request.operation === 'vote')
-    return recordStudentV3(db, request, actorId, workspace, currentVersion);
   return closeSessionV3(db, request, actorId, workspace, currentVersion);
 }
 
@@ -637,26 +508,13 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
           }
           if (request.operation === 'workspace') return ready(db, request);
           const duplicate = await idempotency(db, request);
-          const previousDecision =
-            request.operation === 'decision'
-              ? await first(
-                  db,
-                  'SELECT decisao FROM gradebook.conselho_decisao WHERE aluno_id=$1',
-                  [request.studentId],
-                )
-              : null;
           const result = await mutate(db, request, actorId);
           // The persisted command proves a write even if rebuilding the response is unavailable.
           if (duplicate === 'new' && (await idempotency(db, request)) === 'same') {
-            const academicChange =
-              request.operation === 'close' ||
-              request.operation === 'reopen' ||
-              (request.operation === 'decision' &&
-                (previousDecision === null ||
-                  integer(previousDecision.decisao) !== request.decision));
+            // Closing and reopening change what the Portal may publish; opening does not.
             await recordResetWriteV1(db, request.year, 'council', {
-              changed: academicChange,
-              studentIds: request.operation === 'decision' ? [request.studentId] : [],
+              changed: request.operation !== 'open',
+              studentIds: [],
             });
           }
           return result;

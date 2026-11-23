@@ -1,6 +1,6 @@
 import './council-v3.css';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Card, Chip, Label, ListBox, Select, Spinner, Table } from '@heroui/react';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Card, Chip, Spinner, Table } from '@heroui/react';
 import {
   Archive,
   Check,
@@ -11,16 +11,13 @@ import {
   RefreshCw,
   RotateCcw,
   Scale,
-  ShieldCheck,
   Users,
-  Vote,
 } from 'lucide-react';
-import {
-  RELATIONAL_COUNCIL_DECISIONS_V3,
-  type RelationalCouncilFailureV3,
-  type RelationalCouncilStudentV3,
-  type RelationalCouncilTallyV3,
-  type RelationalCouncilWorkspaceV3,
+import type {
+  RelationalCouncilFailureV3,
+  RelationalCouncilStudentV3,
+  RelationalCouncilTallyV3,
+  RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { gradeText } from '../performance/performance-display-v2';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
@@ -42,7 +39,6 @@ const FAILURE: Record<RelationalCouncilFailureV3, string> = {
   'session-closed': 'A sessão está fechada. Reabra-a para editar.',
   'closure-blocked': 'Ainda existem alunos elegíveis sem decisão explícita.',
   'review-conflict': 'A revisão mudou. Confira a fila atual antes de fechar.',
-  'student-not-eligible': 'Este aluno não é elegível ao Conselho Final segundo o cálculo vigente.',
 };
 const RESULT_LABEL: Record<RelationalCouncilStudentV3['components'][number]['result'], string> = {
   'in-progress': 'Em curso',
@@ -182,114 +178,8 @@ function Grade({ value, state }: { readonly value: number | null; readonly state
   return <span className={`font-semibold tabular-nums ${tone}`}>{label}</span>;
 }
 
-/** A recorded vote count as the field shows it; empty when no count was recorded. */
-const voteCountTextV3 = (student: RelationalCouncilStudentV3, side: 'favoraveis' | 'contrarios') =>
-  student.vote ? String(student.vote[side]) : '';
-
-/** The recorded decision code as the field shows it; empty when nothing was decided yet. */
-const decisionCodeTextV3 = (student: RelationalCouncilStudentV3) =>
-  student.decision ? String(student.decision.code) : '';
-
-/** The recorded decision and count as comparable text, to tell a real change from a reread. */
-const recordedDecisionKeyV3 = (student: RelationalCouncilStudentV3) =>
-  JSON.stringify([decisionCodeTextV3(student), student.decision?.justification ?? '']);
-const recordedVoteKeyV3 = (student: RelationalCouncilStudentV3) =>
-  JSON.stringify([
-    voteCountTextV3(student, 'favoraveis'),
-    voteCountTextV3(student, 'contrarios'),
-    student.vote?.justification ?? '',
-  ]);
-
-/** Both counts as whole numbers, and who was present (their sum) once both are given. */
-function voteNumbersV3(favoraveis: string, contrarios: string) {
-  const favorableNumber = /^\d+$/u.test(favoraveis) ? Number(favoraveis) : null;
-  const contraryNumber = /^\d+$/u.test(contrarios) ? Number(contrarios) : null;
-  const present =
-    favorableNumber !== null && contraryNumber !== null ? favorableNumber + contraryNumber : null;
-  return { favorableNumber, contraryNumber, present };
-}
-
-/**
- * One section (decision or vote) after its record was read again. A draft is what differs from
- * both the record it started from and the record now: it is kept when the record changed under it
- * (someone else wrote), otherwise the section shows the new record. A section whose record did
- * not change keeps its draft, and so its dirty mark.
- */
-export function reconcileDraftV3(
-  recordedBefore: string,
-  recordedNow: string,
-  draft: string,
-): { readonly reset: boolean; readonly kept: boolean; readonly dirty: boolean } {
-  const changed = recordedBefore !== recordedNow;
-  const kept = changed && draft !== recordedBefore && draft !== recordedNow;
-  return { reset: changed && !kept, kept, dirty: kept || (!changed && draft !== recordedNow) };
-}
-
-/** What the panel shows when someone else changed this student while a draft was open. */
-function changedElsewhereTextV3(student: RelationalCouncilStudentV3): string {
-  const decision = student.decision
-    ? `${RELATIONAL_COUNCIL_DECISIONS_V3[student.decision.code]} (${student.decision.justification})`
-    : 'sem decisão';
-  const vote = student.vote
-    ? ` · contagem ${student.vote.favoraveis} × ${student.vote.contrarios}`
-    : '';
-  return `O que você digitou foi mantido e não foi gravado. Registro atual: ${decision}${vote}. Confira antes de gravar de novo.`;
-}
-
-function StudentPanel({
-  student,
-  sessionOpen,
-  busy,
-  onCommand,
-  onMessage,
-  onDirtyChange,
-}: {
-  readonly student: RelationalCouncilStudentV3;
-  readonly sessionOpen: boolean;
-  readonly busy: boolean;
-  readonly onCommand: ReturnType<typeof useRelationalCouncilV3>['command'];
-  readonly onMessage: (message: string) => void;
-  readonly onDirtyChange: (dirty: boolean) => void;
-}) {
-  // No decision yet starts empty: the deliberation is chosen, never preselected.
-  const [decision, setDecision] = useState(decisionCodeTextV3(student));
-  const [decisionReason, setDecisionReason] = useState(student.decision?.justification ?? '');
-  const [favoraveis, setFavoraveis] = useState(voteCountTextV3(student, 'favoraveis'));
-  const [contrarios, setContrarios] = useState(voteCountTextV3(student, 'contrarios'));
-  const [voteReason, setVoteReason] = useState(student.vote?.justification ?? '');
-  // A reread brings new objects with the same content; only a real change replaces what is typed.
-  // When someone else changed this student while a draft was open, the draft is kept and a warning
-  // shows what is recorded now. The panel is keyed by student, so the id never changes here.
-  const recordedDecision = recordedDecisionKeyV3(student);
-  const recordedVote = recordedVoteKeyV3(student);
-  const recordedBefore = useRef({ decision: recordedDecision, vote: recordedVote });
-  const [changedElsewhere, setChangedElsewhere] = useState(false);
-  useEffect(() => {
-    const before = recordedBefore.current;
-    recordedBefore.current = { decision: recordedDecision, vote: recordedVote };
-    const decisionSection = reconcileDraftV3(
-      before.decision,
-      recordedDecision,
-      JSON.stringify([decision, decisionReason.trim()]),
-    );
-    const voteSection = reconcileDraftV3(
-      before.vote,
-      recordedVote,
-      JSON.stringify([favoraveis, contrarios, voteReason.trim()]),
-    );
-    if (decisionSection.reset) {
-      setDecision(decisionCodeTextV3(student));
-      setDecisionReason(student.decision?.justification ?? '');
-    }
-    if (voteSection.reset) {
-      setFavoraveis(voteCountTextV3(student, 'favoraveis'));
-      setContrarios(voteCountTextV3(student, 'contrarios'));
-      setVoteReason(student.vote?.justification ?? '');
-    }
-    setChangedElsewhere(decisionSection.kept || voteSection.kept);
-    onDirtyChange(decisionSection.dirty || voteSection.dirty);
-  }, [recordedDecision, recordedVote, onDirtyChange]);
-  const { favorableNumber, contraryNumber, present } = voteNumbersV3(favoraveis, contrarios);
+/** The eligible student under discussion: who it is, why it is eligible and the year's results. */
+function StudentPanel({ student }: { readonly student: RelationalCouncilStudentV3 }) {
   return (
     <div className="grid min-w-0 gap-4">
       <Card className="overflow-hidden">
@@ -310,23 +200,13 @@ function StudentPanel({
           </Chip>
         </Card.Header>
         <Card.Content className="grid gap-4 pt-4">
-          {changedElsewhere ? (
-            <Alert status="warning">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>Outra pessoa alterou este aluno</Alert.Title>
-                <Alert.Description>{changedElsewhereTextV3(student)}</Alert.Description>
-              </Alert.Content>
-            </Alert>
-          ) : null}
           <Alert status={student.eligibility.eligible ? 'success' : 'default'}>
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Title>{student.eligibility.label}</Alert.Title>
-              <Alert.Description>
-                {student.calculatedResult ??
-                  'O resultado calculado ainda não emite decisão humana.'}
-              </Alert.Description>
+              {student.calculatedResult ? (
+                <Alert.Description>{student.calculatedResult}</Alert.Description>
+              ) : null}
             </Alert.Content>
           </Alert>
           <Table>
@@ -381,203 +261,6 @@ function StudentPanel({
           </Table>
         </Card.Content>
       </Card>
-
-      {student.eligibility.eligible ? (
-        <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-          <Card>
-            <Card.Header>
-              <div>
-                <Card.Title>Decisão humana</Card.Title>
-                <Card.Description>
-                  O sistema registra a deliberação; não a infere pelas notas ou pelos votos.
-                </Card.Description>
-              </div>
-            </Card.Header>
-            <Card.Content className="grid gap-3">
-              <Select
-                selectedKey={decision || null}
-                placeholder="Escolha a situação"
-                isDisabled={!sessionOpen || busy}
-                onSelectionChange={(key) => {
-                  if (key !== null) {
-                    onDirtyChange(true);
-                    setDecision(String(key));
-                  }
-                }}
-              >
-                <Label className="text-xs font-medium text-muted">Situação após o Conselho</Label>
-                <Select.Trigger>
-                  <Select.Value />
-                  <Select.Indicator />
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {Object.entries(RELATIONAL_COUNCIL_DECISIONS_V3).map(([code, label]) => (
-                      <ListBox.Item key={code} id={code} textValue={label}>
-                        {label}
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-              <div>
-                <Label
-                  htmlFor={`decision-reason-${student.id}`}
-                  className="mb-1.5 block text-xs font-medium text-muted"
-                >
-                  Justificativa da decisão
-                </Label>
-                <textarea
-                  id={`decision-reason-${student.id}`}
-                  value={decisionReason}
-                  onChange={(event) => {
-                    onDirtyChange(true);
-                    setDecisionReason(event.currentTarget.value);
-                  }}
-                  disabled={!sessionOpen || busy}
-                  rows={3}
-                  className="council-textarea"
-                />
-              </div>
-              <Button
-                variant="primary"
-                isDisabled={
-                  !sessionOpen || busy || decision === '' || decisionReason.trim().length < 3
-                }
-                onPress={async () => {
-                  const response = await onCommand({
-                    operation: 'decision',
-                    studentId: student.id,
-                    decision: Number(decision) as 1 | 2 | 3,
-                    justification: decisionReason.trim(),
-                  });
-                  if (response?.state === 'ready') {
-                    onDirtyChange(false);
-                    onMessage('Decisão registrada.');
-                  }
-                }}
-              >
-                <ShieldCheck size={17} />
-                {student.decision ? 'Atualizar decisão' : 'Registrar decisão'}
-              </Button>
-            </Card.Content>
-          </Card>
-          <Card>
-            <Card.Header>
-              <div>
-                <Card.Title>Contagem opcional</Card.Title>
-                <Card.Description>
-                  Somente votos favoráveis e contrários. Presentes é calculado pela soma.
-                </Card.Description>
-              </div>
-            </Card.Header>
-            <Card.Content className="grid gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label
-                    htmlFor={`votes-for-${student.id}`}
-                    className="text-xs font-medium text-muted"
-                  >
-                    Favoráveis
-                  </Label>
-                  <input
-                    id={`votes-for-${student.id}`}
-                    inputMode="numeric"
-                    value={favoraveis}
-                    onChange={(event) => {
-                      onDirtyChange(true);
-                      setFavoraveis(event.currentTarget.value);
-                    }}
-                    disabled={!sessionOpen || busy}
-                    className="council-number-input"
-                  />
-                </div>
-                <div>
-                  <Label
-                    htmlFor={`votes-against-${student.id}`}
-                    className="text-xs font-medium text-muted"
-                  >
-                    Contrários
-                  </Label>
-                  <input
-                    id={`votes-against-${student.id}`}
-                    inputMode="numeric"
-                    value={contrarios}
-                    onChange={(event) => {
-                      onDirtyChange(true);
-                      setContrarios(event.currentTarget.value);
-                    }}
-                    disabled={!sessionOpen || busy}
-                    className="council-number-input"
-                  />
-                </div>
-              </div>
-              <PresentCountV3
-                present={present}
-                tie={present !== null && favorableNumber === contraryNumber}
-              />
-              <div>
-                <Label
-                  htmlFor={`vote-reason-${student.id}`}
-                  className="mb-1.5 block text-xs font-medium text-muted"
-                >
-                  Justificativa do registro
-                </Label>
-                <textarea
-                  id={`vote-reason-${student.id}`}
-                  value={voteReason}
-                  onChange={(event) => {
-                    onDirtyChange(true);
-                    setVoteReason(event.currentTarget.value);
-                  }}
-                  disabled={!sessionOpen || busy}
-                  rows={3}
-                  className="council-textarea"
-                />
-              </div>
-              <Button
-                variant="secondary"
-                isDisabled={
-                  !sessionOpen || busy || present === null || voteReason.trim().length < 3
-                }
-                onPress={async () => {
-                  if (favorableNumber === null || contraryNumber === null) return;
-                  const response = await onCommand({
-                    operation: 'vote',
-                    studentId: student.id,
-                    favoraveis: favorableNumber,
-                    contrarios: contraryNumber,
-                    justification: voteReason.trim(),
-                  });
-                  if (response?.state === 'ready') {
-                    onDirtyChange(false);
-                    onMessage('Contagem registrada; nenhuma decisão foi criada automaticamente.');
-                  }
-                }}
-              >
-                <Vote size={17} />
-                {student.vote ? 'Atualizar contagem' : 'Registrar contagem'}
-              </Button>
-            </Card.Content>
-          </Card>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-/** Present = favourable + contrary; a tie is decided outside the system. */
-function PresentCountV3({ present, tie }: Readonly<{ present: number | null; tie: boolean }>) {
-  return (
-    <div className="flex min-h-8 items-center gap-2 text-sm">
-      <Users size={16} />
-      <span>{present === null ? 'Informe as duas contagens' : `${present} presente(s)`}</span>
-      {tie ? (
-        <Chip size="sm" color="warning" variant="soft">
-          <Chip.Label>Empate · decisão fora do sistema</Chip.Label>
-        </Chip>
-      ) : null}
     </div>
   );
 }
@@ -709,7 +392,6 @@ export function RelationalCouncilPageV3() {
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
   const [message, setMessage] = useState('');
-  const [studentDirty, setStudentDirty] = useState(false);
   const workspace = state.workspace;
   const eligible = useMemo(
     () => workspace?.students.filter((student) => student.eligibility.eligible) ?? [],
@@ -717,10 +399,9 @@ export function RelationalCouncilPageV3() {
   );
   const pending = eligible.filter((student) => !student.decision);
   const decided = eligible.filter((student) => student.decision);
-  const notEligible = workspace?.students.filter((student) => !student.eligibility.eligible) ?? [];
   const selected =
     eligible.find((student) => student.id === selectedStudentId) ?? eligible[0] ?? null;
-  const protectDrafts = studentDirty || confirmClose;
+  const protectDrafts = confirmClose;
   state.protectDrafts(protectDrafts);
   useEffect(() => {
     // What was confirmed in one class does not follow to the next.
@@ -735,7 +416,6 @@ export function RelationalCouncilPageV3() {
         : ((pending[0] ?? eligible[0])?.id ?? null),
     );
     setConfirmClose(false);
-    setStudentDirty(false);
   }, [workspace?.classGroup.id]);
 
   async function sessionCommand(operation: SessionActionV3) {
@@ -867,57 +547,16 @@ export function RelationalCouncilPageV3() {
                     </div>
                   </aside>
                   <main className="min-w-0">
-                    {selected ? (
-                      <StudentPanel
-                        key={selected.id}
-                        student={selected}
-                        sessionOpen={workspace.session.state === 'open'}
-                        busy={state.busy.command}
-                        onCommand={state.command}
-                        onMessage={setMessage}
-                        onDirtyChange={setStudentDirty}
-                      />
-                    ) : null}
+                    {selected ? <StudentPanel key={selected.id} student={selected} /> : null}
                   </main>
                 </div>
               ) : (
                 <Alert status="default">
                   <Alert.Content>
                     <Alert.Title>Nenhum aluno elegível nesta turma</Alert.Title>
-                    <Alert.Description>
-                      Os motivos calculados permanecem disponíveis abaixo; nenhuma decisão foi
-                      inventada.
-                    </Alert.Description>
                   </Alert.Content>
                 </Alert>
               )}
-              {notEligible.length ? (
-                <details className="rounded-2xl border border-separator bg-surface p-4">
-                  <summary className="flex cursor-pointer list-none items-center gap-2 font-medium">
-                    <Users size={17} />
-                    Não elegíveis{' '}
-                    <Chip size="sm" variant="soft">
-                      <Chip.Label>{notEligible.length}</Chip.Label>
-                    </Chip>
-                    <span className="ml-auto text-xs text-muted">Ver motivos</span>
-                  </summary>
-                  <ul className="mt-3 grid gap-2">
-                    {notEligible.map((student) => (
-                      <li
-                        key={student.id}
-                        className="flex flex-col gap-1 rounded-xl bg-surface-secondary p-3 sm:flex-row sm:items-center"
-                      >
-                        <span className="font-medium">
-                          Nº {student.number} · {student.name}
-                        </span>
-                        <span className="text-xs text-muted sm:ml-auto">
-                          {student.eligibility.label}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ) : null}
             </>
           ) : null}
         </div>

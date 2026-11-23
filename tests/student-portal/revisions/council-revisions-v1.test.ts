@@ -92,7 +92,7 @@ async function counters() {
 }
 
 describe('Council producer academic classification', () => {
-  it('distinguishes decisions/closure from administrative votes, justification and replay', async () => {
+  it('counts closing and reopening as academic changes, and opening and a replay as none', async () => {
     const service = createRelationalCouncilV3(database, ACTOR);
     let expected = await counters();
     const execute = async (
@@ -104,9 +104,6 @@ describe('Council producer academic classification', () => {
       const command = request(operation, {
         expectedVersion: version,
         idempotencyKey: crypto.randomUUID(),
-        ...(operation === 'decision' || operation === 'vote'
-          ? { justification: 'Synthetic decision record' }
-          : {}),
         ...extra,
       });
       const result = await service.execute(command);
@@ -117,26 +114,22 @@ describe('Council producer academic classification', () => {
       expect(await counters()).toEqual(expected);
       return result;
     };
-    await execute('open', 0, {}, false);
-    await execute('decision', 1, { studentId: 1, decision: 1 }, true);
-    await execute(
-      'decision',
-      2,
-      { studentId: 1, decision: 1, justification: 'Synthetic updated justification' },
-      false,
-    );
-    const voted = await execute('vote', 3, { studentId: 1, favoraveis: 2, contrarios: 1 }, false);
-    if (voted.state !== 'ready' || voted.operation === 'classes')
+    const opened = await execute('open', 0, {}, false);
+    if (opened.state !== 'ready' || opened.operation === 'classes')
       throw new Error('synthetic-workspace-missing');
-    await execute('close', 4, { reviewReference: voted.workspace.session.reviewReference }, true);
-    await execute('reopen', 5, {}, true);
-    await execute('decision', 6, { studentId: 1, decision: 2 }, true);
+    // Nothing records a decision for now; one already in the table is what lets the meeting close.
+    await pg.query(
+      'INSERT INTO gradebook.conselho_decisao (aluno_id,decisao,justificativa,registrado_por) VALUES (1,1,$1,$2)',
+      ['Synthetic decision record', ACTOR],
+    );
+    await execute('close', 1, { reviewReference: opened.workspace.session.reviewReference }, true);
+    await execute('reopen', 2, {}, true);
     expect(
       (
         await pg.query(
           "SELECT student_ids FROM student_portal.revision_event WHERE cause='council' AND affects_academic AND cardinality(student_ids)>0",
         )
       ).rows,
-    ).toEqual([{ student_ids: [1] }, { student_ids: [1] }]);
+    ).toEqual([]);
   });
 });

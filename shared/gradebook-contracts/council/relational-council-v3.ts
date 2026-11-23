@@ -44,10 +44,10 @@ const idempotencyKey = z
   .max(120)
   .regex(/^[A-Za-z0-9._:-]+$/u, 'invalid idempotency key');
 const decisionCode = z.union([z.literal(1), z.literal(2), z.literal(3)]);
-// Every write carries the expected version and its idempotency key. Only what is recorded about a
-// student carries a justification: the meeting opens, closes and reopens without one (BN-DEC-049).
+// Every write carries the expected version and its idempotency key. The meeting opens, closes and
+// reopens without a justification (BN-DEC-049); recording a decision or a count is being redone and
+// has no command for now.
 const sessionCommand = { year, classId: id, expectedVersion: version, idempotencyKey };
-const studentCommand = { ...sessionCommand, justification, studentId: id };
 
 export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation', [
   z
@@ -66,23 +66,6 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
     .strict(),
   z
     .object({ contractVersion: z.literal(3), operation: z.literal('open'), ...sessionCommand })
-    .strict(),
-  z
-    .object({
-      contractVersion: z.literal(3),
-      operation: z.literal('decision'),
-      ...studentCommand,
-      decision: decisionCode,
-    })
-    .strict(),
-  z
-    .object({
-      contractVersion: z.literal(3),
-      operation: z.literal('vote'),
-      ...studentCommand,
-      favoraveis: count,
-      contrarios: count,
-    })
     .strict(),
   z
     .object({
@@ -142,22 +125,6 @@ const decision = z
     updatedAt: z.string().datetime({ offset: true }),
   })
   .strict();
-const vote = z
-  .object({
-    favoraveis: count,
-    contrarios: count,
-    presentes: count,
-    comparison: z.enum(['favoraveis', 'contrarios', 'empate']),
-    justification,
-    version: version.positive(),
-    updatedAt: z.string().datetime({ offset: true }),
-  })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (value.presentes !== value.favoraveis + value.contrarios) {
-      ctx.addIssue({ code: 'custom', message: 'presentes must be derived from votes' });
-    }
-  });
 const eligibility = z
   .object({
     eligible: z.boolean(),
@@ -185,7 +152,6 @@ const student = z
     eligibility,
     calculatedResult: label.nullable(),
     decision: decision.nullable(),
-    vote: vote.nullable(),
     components: z.array(component).max(RELATIONAL_COUNCIL_LIMITS_V3.offers),
   })
   .strict();
@@ -249,7 +215,6 @@ const failureState = z.enum([
   'session-closed',
   'closure-blocked',
   'review-conflict',
-  'student-not-eligible',
 ]);
 export type RelationalCouncilFailureV3 = z.infer<typeof failureState>;
 /** Where a class stands: eligible students approved, rejected (by the Council or for absence) and
@@ -295,7 +260,7 @@ export const relationalCouncilResponseSchemaV3 = z.union([
     .object({
       contractVersion: z.literal(3),
       state: z.literal('ready'),
-      operation: z.enum(['workspace', 'open', 'decision', 'vote', 'close', 'reopen']),
+      operation: z.enum(['workspace', 'open', 'close', 'reopen']),
       workspace,
     })
     .strict(),

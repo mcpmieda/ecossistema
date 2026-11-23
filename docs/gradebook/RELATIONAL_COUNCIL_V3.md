@@ -114,6 +114,11 @@ de `conselho_decisao` e `conselho_anterior_historico` (baseline, sem alteração
 Reset anual, exclusão de aluno, verificação PostgreSQL do CI e catálogo de
 recuperação já seguem a nova lista de tabelas.
 
+Em refação desde 23/11/2026 (BN-DEC-049): as funções de registrar decisão, registrar contagem e
+listar não elegíveis saíram da tela, do contrato (`decision`, `vote`, campo `vote`) e do serviço.
+A decisão atual continua sendo lida de `conselho_decisao`; `conselho_votacao` não é lida nem
+gravada. Nenhuma tabela foi alterada por isso.
+
 ## Limites do aceite
 
 Testes PGlite/HTTP/React cobrem contrato, grants, ciclo completo, reabertura,

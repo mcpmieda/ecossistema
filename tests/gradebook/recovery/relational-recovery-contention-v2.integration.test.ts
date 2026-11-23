@@ -96,6 +96,11 @@ async function removeSyntheticCouncil(classId: number): Promise<void> {
       'DELETE FROM gradebook.conselho_idempotencia WHERE chave LIKE $1',
       [`${COUNCIL_KEY_PREFIX}:%`],
     );
+    // The synthetic decisions carry the prefix as their justification.
+    await transaction.executeNative(
+      'DELETE FROM gradebook.conselho_decisao WHERE justificativa=$1',
+      [COUNCIL_KEY_PREFIX],
+    );
     await transaction.executeNative(
       'DELETE FROM gradebook.conselho_sessao WHERE ano=$1 AND turma_id=$2',
       [2026, classId],
@@ -287,10 +292,9 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
       throw new Error('recovery-council-classes-not-ready');
     }
 
-    let candidate:
-      | { readonly classId: number; readonly studentId: number }
-      | { readonly classId: number; readonly studentId: null }
-      | null = null;
+    // Closing needs a class with no eligible student pending. Nothing records a decision for now,
+    // so the class with the fewest pending gets synthetic ones, removed with the session below.
+    let candidate: { readonly classId: number; readonly pending: readonly number[] } | null = null;
     for (const classGroup of classes.classes) {
       const workspace = await councilA.execute({
         contractVersion: 3,
@@ -299,18 +303,23 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
         classId: classGroup.id,
       });
       if (workspace.state !== 'ready' || workspace.operation === 'classes') continue;
-      const eligible = workspace.workspace.students.find((student) => student.eligibility.eligible);
-      if (eligible) {
-        candidate = { classId: classGroup.id, studentId: eligible.id };
-        break;
-      }
-      if (candidate === null && workspace.workspace.summary.pending === 0) {
-        candidate = { classId: classGroup.id, studentId: null };
-      }
+      const pending = workspace.workspace.students
+        .filter((student) => student.eligibility.eligible && student.decision === null)
+        .map((student) => student.id);
+      if (candidate === null || pending.length < candidate.pending.length)
+        candidate = { classId: classGroup.id, pending };
+      if (pending.length === 0) break;
     }
     expect(candidate).not.toBeNull();
     if (candidate === null) throw new Error('recovery-council-candidate-missing');
     await removeSyntheticCouncil(candidate.classId);
+    await databaseA.transaction(async (transaction) => {
+      for (const studentId of candidate.pending)
+        await transaction.executeNative(
+          'INSERT INTO gradebook.conselho_decisao (aluno_id,decisao,justificativa,registrado_por) VALUES ($1, 1, $2, $3)',
+          [studentId, COUNCIL_KEY_PREFIX, ACTOR_ID],
+        );
+    });
 
     const opened = await councilA.execute({
       contractVersion: 3,
@@ -325,54 +334,16 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
       throw new Error('recovery-council-open-not-ready');
     }
 
-    const commands: readonly [RelationalCouncilRequestV3, RelationalCouncilRequestV3] =
-      candidate.studentId === null
-        ? [
-            {
-              contractVersion: 3,
-              operation: 'close',
-              year: 2026,
-              classId: candidate.classId,
-              expectedVersion: 1,
-              idempotencyKey: `${COUNCIL_KEY_PREFIX}:close-a`,
-              reviewReference: opened.workspace.session.reviewReference,
-            },
-            {
-              contractVersion: 3,
-              operation: 'close',
-              year: 2026,
-              classId: candidate.classId,
-              expectedVersion: 1,
-              idempotencyKey: `${COUNCIL_KEY_PREFIX}:close-b`,
-              reviewReference: opened.workspace.session.reviewReference,
-            },
-          ]
-        : [
-            {
-              contractVersion: 3,
-              operation: 'vote',
-              year: 2026,
-              classId: candidate.classId,
-              studentId: candidate.studentId,
-              favoraveis: 2,
-              contrarios: 1,
-              expectedVersion: 1,
-              idempotencyKey: `${COUNCIL_KEY_PREFIX}:vote-a`,
-              justification: 'Votação concorrente sintética A.',
-            },
-            {
-              contractVersion: 3,
-              operation: 'vote',
-              year: 2026,
-              classId: candidate.classId,
-              studentId: candidate.studentId,
-              favoraveis: 1,
-              contrarios: 2,
-              expectedVersion: 1,
-              idempotencyKey: `${COUNCIL_KEY_PREFIX}:vote-b`,
-              justification: 'Votação concorrente sintética B.',
-            },
-          ];
+    const close = (key: string): RelationalCouncilRequestV3 => ({
+      contractVersion: 3,
+      operation: 'close',
+      year: 2026,
+      classId: candidate.classId,
+      expectedVersion: 1,
+      idempotencyKey: `${COUNCIL_KEY_PREFIX}:${key}`,
+      reviewReference: opened.workspace.session.reviewReference,
+    });
+    const commands = [close('close-a'), close('close-b')] as const;
 
     const settled = await Promise.allSettled([
       councilA.execute(commands[0]),

@@ -27,17 +27,15 @@ afterAll(async () => {
 });
 
 describe('relational Council V3 contract', () => {
-  it('accepts valid academic-year commands with CAS, idempotency and justification', () => {
+  it('accepts valid academic-year commands with CAS and idempotency', () => {
     const valid = {
       contractVersion: 3,
-      operation: 'decision',
+      operation: 'close',
       year: 2026,
       classId: 1,
-      studentId: 2,
-      decision: 1,
       expectedVersion: 3,
-      idempotencyKey: 'decision:test:0001',
-      justification: 'Deliberação registrada.',
+      idempotencyKey: 'close:test:0001',
+      reviewReference: 'review:test:0001',
     };
     expect(relationalCouncilRequestSchemaV3.safeParse(valid).success).toBe(true);
     expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, year: 2025 }).success).toBe(true);
@@ -55,7 +53,7 @@ describe('relational Council V3 contract', () => {
     );
   });
 
-  it('asks a justification only for what is recorded about a student', () => {
+  it('opens, closes and reopens with no justification and has no decision or count command', () => {
     const session = {
       contractVersion: 3,
       year: 2026,
@@ -80,19 +78,23 @@ describe('relational Council V3 contract', () => {
       { operation: 'vote', favoraveis: 1, contrarios: 0 },
     ])
       expect(
-        relationalCouncilRequestSchemaV3.safeParse({ ...session, ...record, studentId: 2 }).success,
+        relationalCouncilRequestSchemaV3.safeParse({
+          ...session,
+          ...record,
+          studentId: 2,
+          justification: 'Registro.',
+        }).success,
       ).toBe(false);
   });
 
-  it('derives presentes and rejects contradictory transport data', () => {
+  it('carries no count, presentes, director or tie-break in the transport', () => {
     const failure = { contractVersion: 3, state: 'version-conflict', currentVersion: 4 };
     expect(relationalCouncilResponseSchemaV3.safeParse(failure).success).toBe(true);
     const source = readFileSync(
       'shared/gradebook-contracts/council/relational-council-v3.ts',
       'utf8',
     );
-    expect(source).toContain('presentes !== value.favoraveis + value.contrarios');
-    expect(source).not.toMatch(/tieBreak|desempate|director|diretor/iu);
+    expect(source).not.toMatch(/presentes|favoraveis|tieBreak|desempate|director|diretor/iu);
   });
 });
 

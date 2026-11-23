@@ -29,7 +29,6 @@ const student: RelationalCouncilStudentV3 = {
   },
   calculatedResult: null,
   decision: null,
-  vote: null,
   components: [
     {
       offerId: 10,
@@ -156,54 +155,6 @@ beforeEach(() => {
           reviewReference: 'council-review:2026:10:1',
         },
       });
-    if (body.operation === 'decision')
-      current = workspace({
-        ...current,
-        session: {
-          ...current.session,
-          state: 'open',
-          version: 2,
-          reviewReference: 'council-review:2026:10:2',
-        },
-        summary: { ...current.summary, decided: 1, pending: 0, rejected: 1 },
-        students: [
-          {
-            ...student,
-            decision: {
-              code: 2,
-              label: 'REPROVADO PELO CONSELHO',
-              justification: String(body.justification),
-              updatedAt: '2026-09-11T04:02:00.000Z',
-            },
-          },
-          nonEligible,
-        ],
-      });
-    if (body.operation === 'vote')
-      current = workspace({
-        ...current,
-        session: {
-          ...current.session,
-          state: 'open',
-          version: 3,
-          reviewReference: 'council-review:2026:10:3',
-        },
-        students: [
-          {
-            ...current.students[0]!,
-            vote: {
-              favoraveis: Number(body.favoraveis),
-              contrarios: Number(body.contrarios),
-              presentes: Number(body.favoraveis) + Number(body.contrarios),
-              comparison: 'empate',
-              justification: String(body.justification),
-              version: 3,
-              updatedAt: '2026-09-11T04:03:00.000Z',
-            },
-          },
-          nonEligible,
-        ],
-      });
     return reply({
       contractVersion: 3,
       state: 'ready',
@@ -243,18 +194,6 @@ async function mount() {
   );
   await waitFor(() => requests.some((request) => request.operation === 'classes'));
 }
-async function select(label: string, value: string) {
-  const root = [...host.querySelectorAll<HTMLElement>('[data-slot="select"]')].find(
-    (element) => element.querySelector('[data-slot="label"]')?.textContent === label,
-  );
-  const control = root?.querySelector('select') as HTMLSelectElement | null;
-  expect(control).not.toBeNull();
-  await act(async () => {
-    control!.value = value;
-    control!.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-  await settle();
-}
 async function openClass(id: number) {
   const tab = () =>
     host.querySelector<HTMLElement>(
@@ -270,21 +209,6 @@ async function click(label: string) {
   );
   expect(button).toBeDefined();
   await act(async () => button!.click());
-  await settle();
-}
-async function fill(selector: string, value: string) {
-  const input = host.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector);
-  expect(input).not.toBeNull();
-  await act(async () => {
-    const setter = Object.getOwnPropertyDescriptor(
-      input instanceof HTMLTextAreaElement
-        ? HTMLTextAreaElement.prototype
-        : HTMLInputElement.prototype,
-      'value',
-    )!.set!;
-    setter.call(input, value);
-    input!.dispatchEvent(new Event('input', { bubbles: true }));
-  });
   await settle();
 }
 
@@ -318,7 +242,7 @@ describe('relational Council V3 client and HeroUI journey', () => {
     expect(host.textContent).toContain('Decididos');
     expect(host.textContent).toContain('1º tri.');
     expect(host.textContent).toContain('REC');
-    expect(host.textContent).toContain('Não elegíveis');
+    expect(host.textContent).not.toMatch(/Não elegíveis|Decisão humana|Contagem opcional/u);
     expect(host.textContent).not.toMatch(/Linha do tempo|Fechamentos preservados|snapshot/iu);
     expect(host.textContent).not.toMatch(
       /Conselho anterior|ano anterior|catálogo legado|voto de minerva|diretor/iu,
@@ -330,15 +254,15 @@ describe('relational Council V3 client and HeroUI journey', () => {
     );
     expect(tally?.getAttribute('aria-label')).toBe('1 pendente(s)');
     expect(tally?.textContent).toBe('1');
-    // The classes are tabs: the only select left is the student's formal status.
+    // The classes are tabs, and no form is left on the page.
     expect(
       host.querySelectorAll('[role="tablist"][aria-label="Turmas do Conselho"] [role="tab"]')
         .length,
     ).toBeGreaterThan(0);
-    expect(host.querySelectorAll('[data-slot="select"]')).toHaveLength(1);
+    expect(host.querySelectorAll('[data-slot="select"]')).toHaveLength(0);
   });
 
-  it('opens the meeting, records an exact formal status and keeps tied votes numerical only', async () => {
+  it('opens the meeting with no justification and offers no decision or count form', async () => {
     await mount();
     await openClass(10);
     await waitFor(() => host.textContent?.includes(student.name) === true);
@@ -353,34 +277,14 @@ describe('relational Council V3 client and HeroUI journey', () => {
       expectedVersion: 0,
     });
     expect(openRequest).not.toHaveProperty('justification');
-    await waitFor(() => host.querySelector('#decision-reason-1') !== null);
+    await waitFor(() => host.textContent?.includes('Sessão aberta') === true);
     expect(host.querySelector('#council-session-reason')).toBeNull();
     expect(String(openRequest?.idempotencyKey)).toMatch(/^open:/u);
-    await select('Situação após o Conselho', '2');
-    await fill('#decision-reason-1', 'Deliberação humana sintética.');
-    await click('Registrar decisão');
-    expect(requests.filter((request) => request.operation === 'decision').at(-1)).toMatchObject({
-      operation: 'decision',
-      studentId: 1,
-      decision: 2,
-      expectedVersion: 1,
-    });
-    expect(host.textContent).toContain('REPROVADO PELO CONSELHO');
-    await fill('#votes-for-1', '2');
-    await fill('#votes-against-1', '2');
-    await fill('#vote-reason-1', 'Contagem numérica sintética.');
-    await click('Registrar contagem');
-    const voteRequest = requests.filter((request) => request.operation === 'vote').at(-1);
-    expect(voteRequest).toMatchObject({
-      operation: 'vote',
-      favoraveis: 2,
-      contrarios: 2,
-      expectedVersion: 2,
-    });
-    expect(voteRequest).not.toHaveProperty('presentes');
-    expect(voteRequest).not.toHaveProperty('desempate');
-    expect(host.textContent).toContain('4 presente(s)');
-    expect(host.textContent).toContain('Empate · decisão fora do sistema');
+    // Recording a decision or a count is being redone: the open meeting offers neither form.
+    expect(host.textContent).not.toMatch(/Decisão humana|Contagem opcional|Não elegíveis/u);
+    expect(
+      host.querySelectorAll('[data-slot="select"], textarea, input[type="number"]'),
+    ).toHaveLength(0);
   }, 15_000);
 
   it('keeps the active surface disconnected from legacy year and Council clients', () => {

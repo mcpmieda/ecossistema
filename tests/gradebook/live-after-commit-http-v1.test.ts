@@ -87,7 +87,7 @@ describe('post-commit notifications at HTTP boundaries', () => {
       expect(drainLive).not.toHaveBeenCalled();
     },
   );
-  it.each(['workspace', 'decision', 'vote', 'close', 'open', 'reopen'])(
+  it.each(['workspace', 'close', 'open', 'reopen'])(
     'notifies committed council %s only when it mutates',
     async (operation) => {
       mocks.execute.mockResolvedValue({ contractVersion: 3, state: 'ready', operation });
@@ -100,12 +100,6 @@ describe('post-commit notifications at HTTP boundaries', () => {
               ...base,
               expectedVersion: 0,
               idempotencyKey: 'synthetic-request',
-              ...(operation === 'decision'
-                ? { studentId: 1, decision: 1, justification: 'Synthetic test' }
-                : {}),
-              ...(operation === 'vote'
-                ? { studentId: 1, favoraveis: 1, contrarios: 0, justification: 'Synthetic test' }
-                : {}),
               ...(operation === 'close' ? { reviewReference: 'synthetic-review' } : {}),
             };
       const response = await createCouncilWorkspaceRequestHandlerV1()(
