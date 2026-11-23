@@ -44,11 +44,27 @@ const SITUATION_V3 = {
   3: ['Reprovado por falta', 'danger'],
 } as const;
 /** What the card and the queue say of a student out of the ordinary: the one shown only for
- * information (N/C or R/R in the sheet) and the one voted on with a recovery still to be recorded. */
+ * information (N/C or R/R in the sheet) and the one voted on with a recovery still to be
+ * recorded. `reason`, when there is one, goes in a second chip under the year's end. */
 const NOTICE_V3 = {
-  'failed-no-show': ['Reprovado · N/C', 'danger', 'Não compareceu à recuperação'],
-  'failed-repeat': ['Reprovado · R/R', 'danger', 'Reprovado pelo regimento'],
-  'recovery-pending': ['Recuperação pendente', 'warning', 'Recuperação ainda não lançada'],
+  'failed-no-show': {
+    situation: 'Reprovado',
+    tone: 'danger',
+    reason: 'Não compareceu',
+    queue: 'Não compareceu à recuperação',
+  },
+  'failed-repeat': {
+    situation: 'Reprovado',
+    tone: 'danger',
+    reason: 'Pelo regimento',
+    queue: 'Reprovado pelo regimento',
+  },
+  'recovery-pending': {
+    situation: 'Recuperação pendente',
+    tone: 'warning',
+    reason: null,
+    queue: 'Recuperação ainda não lançada',
+  },
 } as const;
 const noticeV3 = (student: RelationalCouncilStudentV3) =>
   student.eligibility.code in NOTICE_V3
@@ -193,7 +209,7 @@ function QueueCard({
         <strong className="line-clamp-2 break-words text-sm">{student.name}</strong>
         <span className="council-queue-card__detail block truncate text-xs text-muted">
           {student.decision?.label ??
-            notice?.[2] ??
+            notice?.queue ??
             `${countedV3(student.eligibility.failedComponentCount, 'componente', 'componentes')} abaixo`}
         </span>
       </span>
@@ -308,12 +324,16 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
 }
 
 /** The year's end of a student and its tone: not approved until the Conselho says otherwise. */
-function situationV3(
-  student: RelationalCouncilStudentV3,
-): readonly [string, 'success' | 'danger' | 'warning'] {
-  if (student.decision) return SITUATION_V3[student.decision.code];
-  const notice = noticeV3(student);
-  return notice ? [notice[0], notice[1]] : ['Reprovado', 'danger'];
+function situationV3(student: RelationalCouncilStudentV3): {
+  readonly situation: string;
+  readonly tone: 'success' | 'danger' | 'warning';
+  readonly reason: string | null;
+} {
+  if (student.decision) {
+    const [situation, tone] = SITUATION_V3[student.decision.code];
+    return { situation, tone, reason: null };
+  }
+  return noticeV3(student) ?? { situation: 'Reprovado', tone: 'danger', reason: null };
 }
 
 /** What a student's card shows: the photo, the year's end and the report card. */
@@ -321,7 +341,7 @@ function StudentCardV3({
   student,
   year,
 }: Readonly<{ student: RelationalCouncilStudentV3; year: number }>) {
-  const [situation, tone] = situationV3(student);
+  const { situation, tone, reason } = situationV3(student);
   return (
     <>
       <header className="council-card__header">
@@ -339,9 +359,12 @@ function StudentCardV3({
           </h3>
           <p className="text-sm text-muted">Nº {student.number}</p>
         </div>
-        <Chip className="council-card__situation" color={tone} size="lg" variant="soft">
-          <Chip.Label>{situation}</Chip.Label>
-        </Chip>
+        <div className="council-card__status">
+          <Chip className="council-card__situation" color={tone} size="lg" variant="soft">
+            <Chip.Label>{situation}</Chip.Label>
+          </Chip>
+          {reason ? <span className="council-card__reason">{reason}</span> : null}
+        </div>
       </header>
       <StudentReportV3 student={student} />
     </>
@@ -384,7 +407,7 @@ function StudentDeckV3({
               key={student.id}
               className="council-card"
               data-offset={offset}
-              data-tone={situationV3(student)[1]}
+              data-tone={situationV3(student).tone}
               aria-label={student.name}
               // Only the card on top is read and reached; its neighbours are drawn for the slide.
               inert={offset !== 0}
