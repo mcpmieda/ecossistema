@@ -209,66 +209,83 @@
   font-weight: 700;
 }
 
-/* The student under discussion: the card on top, with the students before and after it in
-   the queue as smaller cards behind, on each side. */
+/* The queue as a pile: the student under discussion on top and the students before and after
+   behind it, on each side. Every card lies in the same place and is moved by its distance from
+   the top, so going through the queue slides each card to its next place. */
 .council-deck {
   position: relative;
+  display: grid;
   max-width: 44rem;
   margin-inline: auto;
   padding: 0 3.25rem;
 }
 
-.council-deck > span {
-  position: absolute;
-  border: 1px solid var(--separator);
-  border-radius: var(--radius-3xl);
-  inset-inline: 3.25rem;
-}
-
-.council-deck > [data-depth='1'] {
-  background: color-mix(in oklab, var(--surface) 90%, var(--foreground));
-  box-shadow: 0 18px 32px -26px var(--foreground);
-  inset-block: 1.5rem;
-}
-
-.council-deck > [data-depth='2'] {
-  background: color-mix(in oklab, var(--surface) 80%, var(--foreground));
-  inset-block: 3rem;
-  opacity: 0.7;
-}
-
-.council-deck > [data-side='previous'][data-depth='1'] {
-  transform: translateX(-1.6rem);
-}
-
-.council-deck > [data-side='previous'][data-depth='2'] {
-  transform: translateX(-3rem);
-}
-
-.council-deck > [data-side='next'][data-depth='1'] {
-  transform: translateX(1.6rem);
-}
-
-.council-deck > [data-side='next'][data-depth='2'] {
-  transform: translateX(3rem);
-}
-
 .council-card {
-  position: relative;
-  z-index: 1;
+  z-index: 3;
   overflow: hidden;
+  min-width: 0;
   border: 1px solid var(--separator);
   border-radius: var(--radius-3xl);
   background: var(--surface);
   box-shadow: 0 24px 48px -36px var(--foreground);
-  animation: council-card-in 220ms var(--platform-ease);
+  grid-area: 1 / 1;
+  transition:
+    transform 460ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 460ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 460ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 460ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: council-card-in 320ms ease-out;
 }
 
+/* A card that joins the pile fades in where it belongs. */
 @keyframes council-card-in {
   from {
     opacity: 0;
-    transform: scale(0.97);
   }
+}
+
+.council-card > * {
+  transition: opacity 240ms ease 140ms;
+}
+
+.council-card:not([data-offset='0']) {
+  box-shadow: 0 16px 32px -28px var(--foreground);
+  pointer-events: none;
+}
+
+.council-card:not([data-offset='0']) > * {
+  opacity: 0;
+  transition-delay: 0ms;
+  transition-duration: 160ms;
+}
+
+.council-card[data-offset='-1'],
+.council-card[data-offset='1'] {
+  z-index: 2;
+  background: color-mix(in oklab, var(--surface) 90%, var(--foreground));
+}
+
+.council-card[data-offset='-2'],
+.council-card[data-offset='2'] {
+  z-index: 1;
+  background: color-mix(in oklab, var(--surface) 80%, var(--foreground));
+  opacity: 0.7;
+}
+
+.council-card[data-offset='-1'] {
+  transform: translateX(-8%) scale(0.92);
+}
+
+.council-card[data-offset='1'] {
+  transform: translateX(8%) scale(0.92);
+}
+
+.council-card[data-offset='-2'] {
+  transform: translateX(-15%) scale(0.84);
+}
+
+.council-card[data-offset='2'] {
+  transform: translateX(15%) scale(0.84);
 }
 
 .council-card__header {
@@ -287,7 +304,7 @@
 .council-deck__arrow {
   position: absolute;
   top: 50%;
-  z-index: 2;
+  z-index: 4;
   display: grid;
   width: 2.25rem;
   height: 2.25rem;
@@ -328,7 +345,7 @@
 
 .council-report {
   width: 100%;
-  min-width: 30rem;
+  min-width: 33rem;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
@@ -474,24 +491,20 @@
     padding: 0 0.9rem;
   }
 
-  .council-deck > span {
-    inset-inline: 0.9rem;
+  .council-card[data-offset='-1'] {
+    transform: translateX(-5%) scale(0.94);
   }
 
-  .council-deck > [data-side='previous'][data-depth='1'] {
-    transform: translateX(-0.45rem);
+  .council-card[data-offset='1'] {
+    transform: translateX(5%) scale(0.94);
   }
 
-  .council-deck > [data-side='previous'][data-depth='2'] {
-    transform: translateX(-0.9rem);
+  .council-card[data-offset='-2'] {
+    transform: translateX(-9%) scale(0.88);
   }
 
-  .council-deck > [data-side='next'][data-depth='1'] {
-    transform: translateX(0.45rem);
-  }
-
-  .council-deck > [data-side='next'][data-depth='2'] {
-    transform: translateX(0.9rem);
+  .council-card[data-offset='2'] {
+    transform: translateX(9%) scale(0.88);
   }
 
   .council-deck__arrow {
@@ -535,7 +548,9 @@
     transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
   }
 
-  .council-card {
+  .council-card,
+  .council-card > * {
+    transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
     animation: none;
   }
 }

@@ -294,25 +294,11 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
   );
 }
 
-/** The eligible student under discussion, as the card on top of the pile: the photo, the year's
- * end and the report card. The arrows bring the next student of the queue to the top. */
-function StudentPanel({
+/** What a student's card shows: the photo, the year's end and the report card. */
+function StudentCardV3({
   student,
   year,
-  before,
-  after,
-  onPrevious,
-  onNext,
-}: Readonly<{
-  student: RelationalCouncilStudentV3;
-  year: number;
-  /** How many students of the queue come before and after this one: the pile shows up to two
-   * cards on each side. */
-  before: number;
-  after: number;
-  onPrevious: (() => void) | null;
-  onNext: (() => void) | null;
-}>) {
+}: Readonly<{ student: RelationalCouncilStudentV3; year: number }>) {
   let [situation, tone]: readonly [string, 'success' | 'danger' | 'warning'] = [
     'Reprovado',
     'danger',
@@ -321,53 +307,82 @@ function StudentPanel({
   if (student.decision) [situation, tone] = SITUATION_V3[student.decision.code];
   else if (notice) [situation, tone] = notice;
   return (
+    <>
+      <header className="council-card__header">
+        <LinkedStudentPhotoAvatarV1
+          decorative
+          size="lg"
+          loading="eager"
+          className="pa-student-avatar council-card__photo"
+          fallbackTone={student.id % 6}
+          subject={{ source: 'gradebook', academicYear: year, studentIds: [student.id] }}
+        />
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words text-base font-bold tracking-tight sm:text-lg">
+            {student.name}
+          </h3>
+          <p className="text-sm text-muted">Nº {student.number}</p>
+        </div>
+        <Chip color={tone} variant="soft">
+          <Chip.Label>{situation}</Chip.Label>
+        </Chip>
+      </header>
+      <StudentReportV3 student={student} />
+    </>
+  );
+}
+
+/** The queue as a pile of cards: the student under discussion on top, up to two students before
+ * and two after it behind, on each side. Each student keeps its own card, so moving through the
+ * queue slides the cards from one place of the pile to the next. */
+function StudentDeckV3({
+  queue,
+  position,
+  year,
+  onStep,
+}: Readonly<{
+  queue: readonly RelationalCouncilStudentV3[];
+  position: number;
+  year: number;
+  onStep: (by: -1 | 1) => void;
+}>) {
+  return (
     <div className="council-deck">
-      {[2, 1].flatMap((depth) => [
-        before >= depth ? (
-          <span key={`previous-${depth}`} data-side="previous" data-depth={depth} />
-        ) : null,
-        after >= depth ? <span key={`next-${depth}`} data-side="next" data-depth={depth} /> : null,
-      ])}
-      <article className="council-card" aria-label={student.name}>
-        <header className="council-card__header">
-          <LinkedStudentPhotoAvatarV1
-            decorative
-            size="lg"
-            loading="eager"
-            className="pa-student-avatar council-card__photo"
-            fallbackTone={student.id % 6}
-            subject={{ source: 'gradebook', academicYear: year, studentIds: [student.id] }}
-          />
-          <div className="min-w-0 flex-1">
-            <h3 className="break-words text-base font-bold tracking-tight sm:text-lg">
-              {student.name}
-            </h3>
-            <p className="text-sm text-muted">Nº {student.number}</p>
-          </div>
-          <Chip color={tone} variant="soft">
-            <Chip.Label>{situation}</Chip.Label>
-          </Chip>
-        </header>
-        <StudentReportV3 student={student} />
-      </article>
-      {onPrevious ? (
+      {queue.map((student, index) => {
+        const offset = index - position;
+        if (Math.abs(offset) > 2) return null;
+        return (
+          <article
+            key={student.id}
+            className="council-card"
+            data-offset={offset}
+            aria-label={student.name}
+            // Only the card on top is read and reached; its neighbours are drawn for the slide.
+            inert={offset !== 0}
+            aria-hidden={offset !== 0 || undefined}
+          >
+            {Math.abs(offset) <= 1 ? <StudentCardV3 student={student} year={year} /> : null}
+          </article>
+        );
+      })}
+      {position > 0 ? (
         <button
           type="button"
           className="council-deck__arrow"
           data-side="previous"
           aria-label="Aluno anterior"
-          onClick={onPrevious}
+          onClick={() => onStep(-1)}
         >
           <ChevronLeft size={18} />
         </button>
       ) : null}
-      {onNext ? (
+      {position < queue.length - 1 ? (
         <button
           type="button"
           className="council-deck__arrow"
           data-side="next"
           aria-label="Próximo aluno"
-          onClick={onNext}
+          onClick={() => onStep(1)}
         >
           <ChevronRight size={18} />
         </button>
@@ -464,7 +479,7 @@ export function RelationalCouncilPageV3() {
   );
   const step = (by: -1 | 1) => {
     const next = queue[position + by];
-    return next ? () => setSelectedStudentId(next.id) : null;
+    if (next) setSelectedStudentId(next.id);
   };
   useEffect(() => {
     if (!workspace) {
@@ -614,14 +629,11 @@ export function RelationalCouncilPageV3() {
             </aside>
             <main className="min-w-0">
               {selected ? (
-                <StudentPanel
-                  key={selected.id}
-                  student={selected}
+                <StudentDeckV3
+                  queue={queue}
+                  position={position}
                   year={workspace.context.year}
-                  before={position}
-                  after={queue.length - 1 - position}
-                  onPrevious={step(-1)}
-                  onNext={step(1)}
+                  onStep={step}
                 />
               ) : null}
             </main>
