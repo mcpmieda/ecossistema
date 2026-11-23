@@ -8,6 +8,8 @@ import {
   previewReconciliationV1,
 } from '../student-portal-admin-preview/preview-fetch-v1';
 import { previewAuditV1 } from './audit-preview-v1';
+import { auditPendingSnapshotV1 } from '../platform/audit-pending-v1';
+import { resumeGradebookYearV1 } from '../platform/gradebook-year-provider';
 import { previewOneDriveSyncV1 } from './onedrive-sync-preview-v1';
 import { previewGroupsV1 } from './groups-preview-v1';
 
@@ -93,16 +95,41 @@ function viewPreferencesV1(init: RequestInit | undefined): Response {
   return json({ contractVersion: 1, state: 'ready', views });
 }
 
+/** The Banco's year, kept in this browser: reloading the preview returns to the year in use
+ * instead of the newest one. The Centro itself keeps the year for the visit only. */
+const YEAR_KEY_V1 = 'adm-preview.gradebook-year';
+let yearRestoredV1 = false;
+try {
+  const remembered = Number(window.localStorage.getItem(YEAR_KEY_V1));
+  if (Number.isSafeInteger(remembered) && remembered > 0) resumeGradebookYearV1(remembered);
+} catch {
+  /* opens on the newest year */
+}
+function rememberYearV1(): void {
+  const year = auditPendingSnapshotV1().year;
+  // Before the first catalogue is answered the year on screen is not the person's choice yet.
+  if (!yearRestoredV1 || year === null) return;
+  try {
+    window.localStorage.setItem(YEAR_KEY_V1, String(year));
+  } catch {
+    /* kept for this load */
+  }
+}
+
 /** The Painel lists its own synthetic classes; every other Banco read goes to the local
- * development backend, which runs the real handlers over an in-memory database. */
+ * development backend, which runs the real handlers over a local database. */
 function gradebookV1({ input, init, path }: PreviewRequestV1): Promise<Response> | Response {
-  if (
-    window.location.hash.startsWith('#/painel-do-aluno') &&
-    path === '/api/gradebook/operational-workspace' &&
-    typeof init?.body === 'string'
-  )
+  const workspace =
+    path === '/api/gradebook/operational-workspace' && typeof init?.body === 'string';
+  if (workspace && window.location.hash.startsWith('#/painel-do-aluno'))
     return previewFetch(path, init);
-  return nativeFetch(input, init);
+  rememberYearV1();
+  const answer = nativeFetch(input, init);
+  if (workspace && (init.body as string).includes('"operation":"bootstrap"'))
+    void answer.finally(() => {
+      yearRestoredV1 = true;
+    });
+  return answer;
 }
 
 /** The Coletor's automatic report with a difference and a row left out (synthetic names). */
