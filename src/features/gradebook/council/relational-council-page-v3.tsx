@@ -854,8 +854,8 @@ export function RelationalCouncilPageV3() {
   }
 
   return (
-    <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-4">
-      <header className="flex min-h-12 flex-wrap items-center gap-3">
+    <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-2">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <div>
           <h2 className="sr-only">Conselho de Classe</h2>
           <p className="text-xs text-muted">
