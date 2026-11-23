@@ -202,12 +202,10 @@ function QueueCard({
   );
 }
 
-/** A mark of the report card: its value, N/C or R/R, a dash while a REC is still to come and
- * nothing where there is no mark to show. */
+/** A mark of the report card: its value, N/C or R/R, and nothing where there is no mark to show. */
 function reportMarkV3(grade: CouncilGradeV3): string {
   if (grade.state === 'no-show') return 'N/C';
   if (grade.state === 'repeat-failure') return 'R/R';
-  if (grade.state === 'recovery-pending') return '—';
   return grade.valueMilli === null ? '' : REPORT_MARK_V3.format(grade.valueMilli / 1000);
 }
 /** The year's total of a component: with the recovery once it is complete; until then, and
@@ -223,6 +221,15 @@ function ReportCellV3({
   readonly grade: CouncilGradeV3;
   readonly failed: true | undefined;
 }) {
+  // A recovery the student owes and the sheet has not brought yet: a mark of its own, no number.
+  if (grade.state === 'recovery-pending')
+    return (
+      <td data-failed={failed}>
+        <span data-level="pending" role="img" aria-label="Recuperação ainda não lançada">
+          <Clock3 size={12} strokeWidth={2.6} />
+        </span>
+      </td>
+    );
   const mark = reportMarkV3(grade);
   return <td data-failed={failed}>{mark ? <span data-level={grade.level}>{mark}</span> : null}</td>;
 }
