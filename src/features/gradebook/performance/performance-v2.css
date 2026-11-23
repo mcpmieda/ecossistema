@@ -684,6 +684,33 @@ button.performance-kpi__button:hover {
   height: 2.25rem;
 }
 
+/* The period again, floating at the foot of the grades once the header's own has scrolled away. */
+.performance-period-float {
+  position: sticky;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  z-index: 12;
+  align-self: center;
+  max-width: 100%;
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 1px var(--separator),
+    0 14px 30px -14px rgb(0 0 0 / 0.5);
+  animation: performance-period-float-in 200ms var(--platform-ease) both;
+}
+
+@keyframes performance-period-float-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .performance-period-float {
+    animation: none;
+  }
+}
+
 /* Desempenho charts: fixed, compact proportions instead of stretching with the window. */
 .performance-dashboard-grid {
   display: grid;

@@ -1,6 +1,6 @@
 import './performance-v2.css';
 import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { Alert, Button, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
 import { usePerformanceAnalyticsV6 } from './use-performance-analytics-v6';
 import {
@@ -86,6 +86,70 @@ const PERIOD_TABS = [
   { id: '3', label: '3º tri' },
   { id: 'annual', label: 'Ano' },
 ] as const;
+
+function PeriodTabsV2({
+  period,
+  onChange,
+  ref,
+}: {
+  readonly period: PerformancePeriodV2;
+  readonly onChange: (period: PerformancePeriodV2) => void;
+  readonly ref?: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <Tabs
+      ref={ref}
+      className="performance-period-tabs"
+      selectedKey={String(period)}
+      onSelectionChange={(key) => {
+        if (key === String(period)) return;
+        onChange(key === 'annual' ? 'annual' : (Number(key) as PerformancePeriodV2));
+      }}
+    >
+      <Tabs.ListContainer>
+        <Tabs.List aria-label="Período">
+          {PERIOD_TABS.map((item) => (
+            <Tabs.Tab key={item.id} id={item.id}>
+              {item.label}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs.ListContainer>
+    </Tabs>
+  );
+}
+
+/** True once the element has scrolled out of sight, the part under the shell's bars included. */
+function useScrolledAwayV2(target: RefObject<HTMLElement | null>, enabled: boolean): boolean {
+  const [away, setAway] = useState(false);
+  useEffect(() => {
+    const element = target.current;
+    if (!enabled || !element || typeof IntersectionObserver === 'undefined') return;
+    let observer: IntersectionObserver | null = null;
+    const watch = () => {
+      observer?.disconnect();
+      const top = Math.max(
+        0,
+        ...[...document.querySelectorAll('.shell-topbar, .shell-areabar:not(:empty)')].map(
+          (bar) => bar.getBoundingClientRect().bottom,
+        ),
+      );
+      observer = new IntersectionObserver(([entry]) => setAway(!entry?.isIntersecting), {
+        rootMargin: `-${Math.round(top)}px 0px 0px 0px`,
+      });
+      observer.observe(element);
+    };
+    watch();
+    // The bars change height between the phone and the computer layouts.
+    window.addEventListener('resize', watch);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', watch);
+    };
+  }, [target, enabled]);
+  return enabled && away;
+}
 
 function PerformanceSelect({
   id,
@@ -484,6 +548,31 @@ export function RelationalPerformancePageV2({
     [],
   );
   const changePeriod = useCallback((period: 1 | 2 | 3) => void select({ period }), [select]);
+  const choosePeriod = useCallback(
+    (period: PerformancePeriodV2) => void select({ period }),
+    [select],
+  );
+  // The period within reach at the foot of the grades once the header's own has scrolled away.
+  const periodTabs = useRef<HTMLDivElement>(null);
+  const periodAway = useScrolledAwayV2(
+    periodTabs,
+    perspective === 'notes' && state.year !== null && state.filters.classId !== null,
+  );
+  // Chosen there, the grades keep their height while the other period is read: the page stays put.
+  const notesBlock = useRef<HTMLDivElement>(null);
+  const hasGrades = state.analysis !== null;
+  const choosePeriodInPlace = useCallback(
+    (period: PerformancePeriodV2) => {
+      const block = notesBlock.current;
+      if (block && hasGrades) block.style.minHeight = `${block.offsetHeight}px`;
+      void select({ period });
+    },
+    [select, hasGrades],
+  );
+  const readingGrades = state.busy.matrix;
+  useEffect(() => {
+    if (!readingGrades) notesBlock.current?.style.removeProperty('min-height');
+  }, [readingGrades, hasGrades]);
   const focusOffer = useCallback(
     (offerId: number) => void select({ lens: 'assessments', offerId }),
     [select],
@@ -550,27 +639,7 @@ export function RelationalPerformancePageV2({
             </p>
           ) : null}
         </div>
-        <Tabs
-          className="performance-period-tabs"
-          selectedKey={String(state.filters.period)}
-          onSelectionChange={(key) => {
-            if (key === String(state.filters.period)) return;
-            void state.select({
-              period: key === 'annual' ? 'annual' : (Number(key) as PerformancePeriodV2),
-            });
-          }}
-        >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label="Período">
-              {PERIOD_TABS.map((item) => (
-                <Tabs.Tab key={item.id} id={item.id}>
-                  {item.label}
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs.ListContainer>
-        </Tabs>
+        <PeriodTabsV2 ref={periodTabs} period={state.filters.period} onChange={choosePeriod} />
         <GradebookYearContextBanner />
       </header>
       <ClassTabsV1
@@ -597,10 +666,12 @@ export function RelationalPerformancePageV2({
               ))}
             </Tabs.List>
           </Tabs.ListContainer>
-          <Tabs.Panel id="notes" className="grid min-w-0 gap-4">
+          {/* A column, not a grid: the floating period sticks along all of it, not to a row of its own. */}
+          <Tabs.Panel id="notes" className="flex min-w-0 flex-col gap-4">
             {state.filters.classId !== null ? (
               <PerformanceGridYearV2.Provider value={state.year}>
                 <Tabs
+                  ref={notesBlock}
                   selectedKey={state.filters.lens}
                   className="performance-lens-tabs min-w-0"
                   onSelectionChange={(key) => {
@@ -736,6 +807,11 @@ export function RelationalPerformancePageV2({
                     </Tabs.Panel>
                   ))}
                 </Tabs>
+                {periodAway ? (
+                  <div className="performance-period-float">
+                    <PeriodTabsV2 period={state.filters.period} onChange={choosePeriodInPlace} />
+                  </div>
+                ) : null}
               </PerformanceGridYearV2.Provider>
             ) : (
               <p className="py-16 text-center text-sm text-muted">Escolha uma turma.</p>
