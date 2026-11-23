@@ -354,8 +354,12 @@
   text-align: center;
 }
 
-.council-report thead td {
-  width: 5.2rem;
+.council-report col:first-child {
+  width: 2.8rem;
+}
+
+.council-report col:nth-child(2) {
+  width: 2.4rem;
 }
 
 .council-report thead th {
@@ -397,7 +401,6 @@
 }
 
 .council-report tbody th[rowspan] {
-  width: 2.8rem;
   color: inherit;
   font-size: 0.72rem;
 }
@@ -415,7 +418,8 @@
 .council-report td > span {
   display: inline-block;
   min-width: 2.3rem;
-  padding: 0.14rem 0.2rem;
+  max-width: 100%;
+  padding: 0.14rem 0.12rem;
   border-radius: 0.45rem;
   font-weight: 650;
   line-height: 1.2;
@@ -462,7 +466,7 @@
 }
 
 .council-report tfoot td > span {
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   font-weight: 750;
 }
 

@@ -236,6 +236,12 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
   return (
     <div className="council-report__scroll">
       <table className="council-report" aria-label={`Notas do ano de ${student.name}`}>
+        {/* The two label columns have their own widths: the second one stays beside the first
+            when a narrow screen slides the components. */}
+        <colgroup>
+          <col />
+          <col />
+        </colgroup>
         <thead>
           <tr>
             <td colSpan={2} />
