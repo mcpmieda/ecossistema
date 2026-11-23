@@ -684,29 +684,29 @@ button.performance-kpi__button:hover {
   height: 2.25rem;
 }
 
-/* The period again, floating at the foot of the grades once the header's own has scrolled away. */
-.performance-period-float {
+/* The period again, stuck under the shell's bars once the bar of the grades has scrolled away: a
+   strip of the page's own colour, so the grades pass under it and nothing floats over them. The
+   margin takes back its height and the gap after it: nothing moves when it comes and goes. */
+.performance-period-bar {
   position: sticky;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  z-index: 12;
-  align-self: center;
-  max-width: 100%;
-  border-radius: 999px;
-  box-shadow:
-    0 0 0 1px var(--separator),
-    0 14px 30px -14px rgb(0 0 0 / 0.5);
-  animation: performance-period-float-in 200ms var(--platform-ease) both;
+  z-index: 14;
+  display: flex;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: -4rem;
+  background: var(--sheet, var(--background));
+  animation: performance-period-bar-in 180ms var(--platform-ease) both;
 }
 
-@keyframes performance-period-float-in {
+@keyframes performance-period-bar-in {
   from {
     opacity: 0;
-    transform: translateY(0.5rem);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .performance-period-float {
+  .performance-period-bar {
     animation: none;
   }
 }

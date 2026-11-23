@@ -90,15 +90,12 @@ const PERIOD_TABS = [
 function PeriodTabsV2({
   period,
   onChange,
-  ref,
 }: {
   readonly period: PerformancePeriodV2;
   readonly onChange: (period: PerformancePeriodV2) => void;
-  readonly ref?: RefObject<HTMLDivElement | null>;
 }) {
   return (
     <Tabs
-      ref={ref}
       className="performance-period-tabs"
       selectedKey={String(period)}
       onSelectionChange={(key) => {
@@ -120,24 +117,45 @@ function PeriodTabsV2({
   );
 }
 
-/** True once the element has scrolled out of sight, the part under the shell's bars included. */
-function useScrolledAwayV2(target: RefObject<HTMLElement | null>, enabled: boolean): boolean {
-  const [away, setAway] = useState(false);
+/**
+ * Once the element has scrolled out of sight under the shell's bars: how far below the top of what
+ * scrolls those bars end, for something else to stick there. Null while it is in sight.
+ */
+function useScrolledAwayV2(target: RefObject<HTMLElement | null>, enabled: boolean): number | null {
+  const [state, setState] = useState({ away: false, top: 0 });
   useEffect(() => {
     const element = target.current;
     if (!enabled || !element || typeof IntersectionObserver === 'undefined') return;
     let observer: IntersectionObserver | null = null;
-    const watch = () => {
-      observer?.disconnect();
-      const top = Math.max(
+    const measure = () => {
+      const bars = Math.max(
         0,
         ...[...document.querySelectorAll('.shell-topbar, .shell-areabar:not(:empty)')].map(
           (bar) => bar.getBoundingClientRect().bottom,
         ),
       );
-      observer = new IntersectionObserver(([entry]) => setAway(!entry?.isIntersecting), {
-        rootMargin: `-${Math.round(top)}px 0px 0px 0px`,
-      });
+      // On a computer the page scrolls inside the sheet: what sticks there is measured from where
+      // the sheet's content starts, after its own padding.
+      const sheet = element.closest('main');
+      const box = sheet === null ? null : getComputedStyle(sheet);
+      const inside =
+        sheet !== null && box !== null && box.overflowY !== 'visible'
+          ? sheet.getBoundingClientRect().top + (Number.parseFloat(box.paddingTop) || 0)
+          : 0;
+      return { bars: Math.round(bars), top: Math.round(bars - inside) };
+    };
+    const watch = () => {
+      observer?.disconnect();
+      const watched = measure();
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          // Measured again when it matters: the shell may not have settled when this first ran.
+          const now = measure();
+          if (now.bars !== watched.bars) watch();
+          else setState({ away: !entry?.isIntersecting, top: now.top });
+        },
+        { rootMargin: `-${watched.bars}px 0px 0px 0px` },
+      );
       observer.observe(element);
     };
     watch();
@@ -148,7 +166,7 @@ function useScrolledAwayV2(target: RefObject<HTMLElement | null>, enabled: boole
       window.removeEventListener('resize', watch);
     };
   }, [target, enabled]);
-  return enabled && away;
+  return enabled && state.away ? state.top : null;
 }
 
 function PerformanceSelect({
@@ -552,10 +570,10 @@ export function RelationalPerformancePageV2({
     (period: PerformancePeriodV2) => void select({ period }),
     [select],
   );
-  // The period within reach at the foot of the grades once the header's own has scrolled away.
-  const periodTabs = useRef<HTMLDivElement>(null);
-  const periodAway = useScrolledAwayV2(
-    periodTabs,
+  // The period again, stuck under the shell's bars, once the bar of the grades has scrolled away.
+  const notesBar = useRef<HTMLDivElement>(null);
+  const periodTop = useScrolledAwayV2(
+    notesBar,
     perspective === 'notes' && state.year !== null && state.filters.classId !== null,
   );
   // Chosen there, the grades keep their height while the other period is read: the page stays put.
@@ -639,7 +657,7 @@ export function RelationalPerformancePageV2({
             </p>
           ) : null}
         </div>
-        <PeriodTabsV2 ref={periodTabs} period={state.filters.period} onChange={choosePeriod} />
+        <PeriodTabsV2 period={state.filters.period} onChange={choosePeriod} />
         <GradebookYearContextBanner />
       </header>
       <ClassTabsV1
@@ -666,10 +684,15 @@ export function RelationalPerformancePageV2({
               ))}
             </Tabs.List>
           </Tabs.ListContainer>
-          {/* A column, not a grid: the floating period sticks along all of it, not to a row of its own. */}
+          {/* A column, not a grid: the period bar sticks along all of it, not to a row of its own. */}
           <Tabs.Panel id="notes" className="flex min-w-0 flex-col gap-4">
             {state.filters.classId !== null ? (
               <PerformanceGridYearV2.Provider value={state.year}>
+                {periodTop !== null ? (
+                  <div className="performance-period-bar" style={{ top: periodTop }}>
+                    <PeriodTabsV2 period={state.filters.period} onChange={choosePeriodInPlace} />
+                  </div>
+                ) : null}
                 <Tabs
                   ref={notesBlock}
                   selectedKey={state.filters.lens}
@@ -682,7 +705,7 @@ export function RelationalPerformancePageV2({
                       void state.select({ lens: key as PerformanceLensV3 });
                   }}
                 >
-                  <div className="performance-notes-bar">
+                  <div ref={notesBar} className="performance-notes-bar">
                     <Tabs.ListContainer className="h-10 max-w-full self-start">
                       <Tabs.List aria-label="Lentes de Desempenho">
                         {PERFORMANCE_LENSES_V3.map((lens) => (
@@ -807,11 +830,6 @@ export function RelationalPerformancePageV2({
                     </Tabs.Panel>
                   ))}
                 </Tabs>
-                {periodAway ? (
-                  <div className="performance-period-float">
-                    <PeriodTabsV2 period={state.filters.period} onChange={choosePeriodInPlace} />
-                  </div>
-                ) : null}
               </PerformanceGridYearV2.Provider>
             ) : (
               <p className="py-16 text-center text-sm text-muted">Escolha uma turma.</p>

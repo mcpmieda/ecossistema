@@ -601,7 +601,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     const last = requests.filter((value) => value.operation === 'dashboard').at(-1);
     expect([last?.period, last?.includePrevious]).toEqual([3, true]);
   });
-  it('offers the period again at the foot of the grades once the header control scrolls away', async () => {
+  it('offers the period again under the bars once the bar of the grades scrolls away', async () => {
     type Watcher = { notify: (entries: { isIntersecting: boolean }[]) => void; target?: Element };
     const watchers: Watcher[] = [];
     vi.stubGlobal(
@@ -624,7 +624,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     const scroll = (isIntersecting: boolean) =>
       act(async () =>
         watchers
-          .filter((watcher) => watcher.target?.classList.contains('performance-period-tabs'))
+          .filter((watcher) => watcher.target?.classList.contains('performance-notes-bar'))
           .at(-1)!
           .notify([{ isIntersecting }]),
       );
