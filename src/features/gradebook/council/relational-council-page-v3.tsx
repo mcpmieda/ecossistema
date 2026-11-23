@@ -549,8 +549,9 @@ export function RelationalCouncilPageV3() {
             />
             <Metric
               icon={<Scale size={19} />}
-              label={workspace.summary.eligible === 1 ? 'elegível' : 'elegíveis'}
-              value={workspace.summary.eligible}
+              // Who is voted on, so that it is always the sum of the two counts beside it.
+              label={eligible.length === 1 ? 'elegível' : 'elegíveis'}
+              value={eligible.length}
             />
             <Metric
               icon={<Clock3 size={19} />}
