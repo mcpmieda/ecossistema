@@ -92,44 +92,28 @@ async function counters() {
 }
 
 describe('Council producer academic classification', () => {
-  it('counts closing and reopening as academic changes, and opening and a replay as none', async () => {
+  it('records opening as a write that changes nothing the Portal publishes, and only once', async () => {
     const service = createRelationalCouncilV3(database, ACTOR);
-    let expected = await counters();
-    const execute = async (
-      operation: string,
-      version: number,
-      extra: Record<string, unknown>,
-      academic: boolean,
-    ) => {
-      const command = request(operation, {
-        expectedVersion: version,
-        idempotencyKey: crypto.randomUUID(),
-        ...extra,
-      });
-      const result = await service.execute(command);
-      expect(result).toMatchObject({ state: 'ready' });
-      expected = { academic: expected.academic + (academic ? 1 : 0), reset: expected.reset + 1 };
-      expect(await counters()).toEqual(expected);
-      expect(await service.execute(command)).toMatchObject({ state: 'ready' });
-      expect(await counters()).toEqual(expected);
-      return result;
-    };
-    const opened = await execute('open', 0, {}, false);
-    if (opened.state !== 'ready' || opened.operation === 'classes')
-      throw new Error('synthetic-workspace-missing');
-    // Nothing records a decision for now; one already in the table is what lets the meeting close.
-    await pg.query(
-      'INSERT INTO gradebook.conselho_decisao (aluno_id,decisao,justificativa,registrado_por) VALUES (1,1,$1,$2)',
-      ['Synthetic decision record', ACTOR],
-    );
-    await execute('close', 1, { reviewReference: opened.workspace.session.reviewReference }, true);
-    await execute('reopen', 2, {}, true);
+    const before = await counters();
+    expect(await service.execute(request('open'))).toMatchObject({
+      state: 'ready',
+      workspace: { session: { state: 'open' } },
+    });
+    // The year reset learns of the write; the Portal's academic data version stays where it was.
+    const after = { academic: before.academic, reset: before.reset + 1 };
+    expect(await counters()).toEqual(after);
+    // Opening again writes nothing, so it records nothing.
+    expect(await service.execute(request('open'))).toMatchObject({
+      state: 'ready',
+      workspace: { session: { state: 'open' } },
+    });
+    expect(await counters()).toEqual(after);
     expect(
       (
         await pg.query(
-          "SELECT student_ids FROM student_portal.revision_event WHERE cause='council' AND affects_academic AND cardinality(student_ids)>0",
+          "SELECT affects_academic,affects_reset,student_ids FROM student_portal.revision_event WHERE cause='council'",
         )
       ).rows,
-    ).toEqual([]);
+    ).toEqual([{ affects_academic: false, affects_reset: true, student_ids: [] }]);
   });
 });

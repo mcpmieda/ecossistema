@@ -26,70 +26,132 @@ afterAll(async () => {
   await pg?.close();
 });
 
+const open = { contractVersion: 3, operation: 'open', year: 2026, classId: 1 };
+const accepts = (value: unknown) => relationalCouncilRequestSchemaV3.safeParse(value).success;
+const answers = (value: unknown) => relationalCouncilResponseSchemaV3.safeParse(value).success;
+const workspace = {
+  context: { year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 },
+  classGroup: { id: 1, label: 'S1', name: 'TURMA SINTETICA' },
+  readAt: '2026-11-23T12:00:00.000Z',
+  authority: 'calculated-eligibility-explicit-human-decision',
+  session: { state: 'not-opened' },
+  summary: {
+    total: 0,
+    eligible: 0,
+    decided: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    absence: 0,
+    notEligible: 0,
+  },
+  students: [],
+};
+const ready = { contractVersion: 3, state: 'ready', operation: 'workspace', workspace };
+const classes = {
+  contractVersion: 3,
+  state: 'ready',
+  operation: 'classes',
+  year: 2026,
+  classes: [{ id: 1, label: 'S1', name: 'TURMA SINTETICA', sessionState: 'not-opened' }],
+  nextOffset: null,
+};
+
 describe('relational Council V3 contract', () => {
-  it('accepts valid academic-year commands with CAS and idempotency', () => {
-    const valid = {
-      contractVersion: 3,
-      operation: 'close',
-      year: 2026,
-      classId: 1,
-      expectedVersion: 3,
-      idempotencyKey: 'close:test:0001',
-      reviewReference: 'review:test:0001',
-    };
-    expect(relationalCouncilRequestSchemaV3.safeParse(valid).success).toBe(true);
-    expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, year: 2025 }).success).toBe(true);
-    expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, year: 1999 }).success).toBe(
-      false,
-    );
-    expect(
-      relationalCouncilRequestSchemaV3.safeParse({ ...valid, expectedVersion: -1 }).success,
-    ).toBe(false);
-    expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, tieBreak: true }).success).toBe(
-      false,
-    );
-    expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, presentes: 3 }).success).toBe(
-      false,
-    );
+  it('opens the meeting of a class with its four fields only, in a valid academic year', () => {
+    expect(accepts(open)).toBe(true);
+    expect(accepts({ ...open, year: 2025 })).toBe(true);
+    expect(accepts({ ...open, year: 1999 })).toBe(false);
+    expect(accepts({ ...open, classId: 0 })).toBe(false);
+    for (const extra of [
+      { expectedVersion: 0 },
+      { idempotencyKey: 'open:test:0001' },
+      { justification: 'Motivo.' },
+      { reviewReference: 'review:test:0001' },
+      { tieBreak: true },
+      { presentes: 3 },
+    ])
+      expect(accepts({ ...open, ...extra })).toBe(false);
   });
 
-  it('opens, closes and reopens with no justification and has no decision or count command', () => {
-    const session = {
-      contractVersion: 3,
-      year: 2026,
-      classId: 1,
-      expectedVersion: 0,
-      idempotencyKey: 'session:test:0001',
-    };
-    const commands = [
-      { ...session, operation: 'open' },
-      { ...session, operation: 'reopen' },
-      { ...session, operation: 'close', reviewReference: 'review:test:0001' },
-    ];
-    for (const command of commands) {
-      expect(relationalCouncilRequestSchemaV3.safeParse(command).success).toBe(true);
-      expect(
-        relationalCouncilRequestSchemaV3.safeParse({ ...command, justification: 'Motivo.' })
-          .success,
-      ).toBe(false);
-    }
+  it('has no close, reopen, decision or count command', () => {
+    for (const operation of ['close', 'reopen'])
+      expect(accepts({ ...open, operation })).toBe(false);
+    // Not even in the shape the earlier version accepted.
+    expect(
+      accepts({
+        ...open,
+        operation: 'close',
+        expectedVersion: 1,
+        idempotencyKey: 'close:test:0001',
+        reviewReference: 'review:test:0001',
+      }),
+    ).toBe(false);
     for (const record of [
       { operation: 'decision', decision: 1 },
       { operation: 'vote', favoraveis: 1, contrarios: 0 },
     ])
+      expect(accepts({ ...open, ...record, studentId: 2, justification: 'Registro.' })).toBe(false);
+  });
+
+  it('reads the classes, with their tally only when asked, and one workspace', () => {
+    const list = { contractVersion: 3, operation: 'classes', year: 2026, offset: 0, limit: 100 };
+    expect(accepts(list)).toBe(true);
+    expect(accepts({ ...list, tally: true })).toBe(true);
+    expect(accepts({ ...list, tally: 'yes' })).toBe(false);
+    expect(accepts({ ...open, operation: 'workspace' })).toBe(true);
+    expect(accepts({ ...open, operation: 'workspace', tally: true })).toBe(false);
+  });
+
+  it('answers a meeting that is either not opened or open, with nothing else about it', () => {
+    for (const state of ['not-opened', 'open']) {
+      expect(answers({ ...ready, workspace: { ...workspace, session: { state } } })).toBe(true);
       expect(
-        relationalCouncilRequestSchemaV3.safeParse({
-          ...session,
-          ...record,
-          studentId: 2,
-          justification: 'Registro.',
-        }).success,
+        answers({ ...classes, classes: [{ ...classes.classes[0], sessionState: state }] }),
+      ).toBe(true);
+    }
+    expect(answers({ ...ready, operation: 'open' })).toBe(true);
+    expect(answers({ ...ready, workspace: { ...workspace, session: { state: 'closed' } } })).toBe(
+      false,
+    );
+    expect(
+      answers({ ...classes, classes: [{ ...classes.classes[0], sessionState: 'closed' }] }),
+    ).toBe(false);
+    for (const operation of ['close', 'reopen'])
+      expect(answers({ ...ready, operation })).toBe(false);
+    for (const extra of [{ version: 1 }, { reviewReference: 'council-review:2026:1:1' }])
+      expect(
+        answers({ ...ready, workspace: { ...workspace, session: { state: 'open', ...extra } } }),
       ).toBe(false);
+    expect(answers({ ...classes, classes: [{ ...classes.classes[0], sessionVersion: 1 }] })).toBe(
+      false,
+    );
+  });
+
+  it('fails only as invalid, not authorized, not found, unavailable or too large', () => {
+    for (const state of [
+      'invalid-request',
+      'not-authorized',
+      'not-found',
+      'unavailable',
+      'scope-too-large',
+    ]) {
+      expect(answers({ contractVersion: 3, state })).toBe(true);
+      expect(answers({ contractVersion: 3, state, currentVersion: 4 })).toBe(false);
+    }
+    for (const state of [
+      'version-conflict',
+      'idempotency-conflict',
+      'session-not-open',
+      'session-already-open',
+      'session-closed',
+      'closure-blocked',
+      'review-conflict',
+    ])
+      expect(answers({ contractVersion: 3, state })).toBe(false);
   });
 
   it('carries no count, presentes, director or tie-break in the transport', () => {
-    const failure = { contractVersion: 3, state: 'version-conflict', currentVersion: 4 };
-    expect(relationalCouncilResponseSchemaV3.safeParse(failure).success).toBe(true);
     const source = readFileSync(
       'shared/gradebook-contracts/council/relational-council-v3.ts',
       'utf8',

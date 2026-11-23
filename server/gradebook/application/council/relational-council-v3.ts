@@ -30,30 +30,19 @@ type Row = Record<string, unknown>;
 type Database = GradebookPostgresWritePortV1 & {
   transaction<T>(operation: (database: GradebookPostgresTransactionV1) => Promise<T>): Promise<T>;
 };
-type WriteRequest = Exclude<RelationalCouncilRequestV3, { operation: 'classes' | 'workspace' }>;
-/** Opening, closing and reopening carry no justification (BN-DEC-049): their idempotency row,
- * whose column is not nullable, says so. */
-const NO_JUSTIFICATION_V3 = 'sem justificativa';
-// The codes 2 and 3 belonged to the decision and the count, whose commands are being redone.
-const OPERATION_CODE = { open: 1, close: 4, reopen: 5 } as const;
-const SESSION_STATE = { open: 1, closed: 2 } as const;
+type OpenRequestV3 = Extract<RelationalCouncilRequestV3, { operation: 'open' }>;
+// The column also accepts 2, the closed meeting of the earlier version: closing no longer exists.
+const SESSION_OPEN_V3 = 1;
 const ALL_STATUSES = [null, 1, 2, 3, 4, 5, 7] as const;
 
-const fail = (
-  state: RelationalCouncilFailureV3,
-  currentVersion?: number | null,
-): RelationalCouncilResponseV3 => ({
+const fail = (state: RelationalCouncilFailureV3): RelationalCouncilResponseV3 => ({
   contractVersion: 3,
   state,
-  ...(currentVersion === undefined ? {} : { currentVersion }),
 });
 function integer(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value))
     throw new Error('invalid-council-row');
   return value;
-}
-function nullableInteger(value: unknown): number | null {
-  return value === null || value === undefined ? null : integer(value);
 }
 function text(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0)
@@ -76,9 +65,6 @@ async function first(
   values: readonly GradebookPostgresScalarV1[] = [],
 ): Promise<Row | null> {
   return (await db.query<Row>(sql, values))[0] ?? null;
-}
-function reviewReference(year: number, classId: number, version: number): string {
-  return `council-review:${year}:${classId}:${version}`;
 }
 function cell(
   projection: PerformanceProjectionV2,
@@ -176,7 +162,7 @@ async function readWorkspace(
   const base = await first(
     db,
     `SELECT t.id,t.codigo,t.nome,y.minimo_aprovacao,y.max_componentes_conselho,
-      s.estado,s.versao AS version,
+      s.estado,
       to_char(transaction_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS read_at
     FROM gradebook.turma t JOIN gradebook.ano_letivo y ON y.ano=t.ano
     LEFT JOIN gradebook.conselho_sessao s ON s.ano=t.ano AND s.turma_id=t.id
@@ -184,7 +170,6 @@ async function readWorkspace(
     [year, classId],
   );
   if (!base) return 'not-found';
-  const version = nullableInteger(base.version) ?? 0;
   const projectionMap = new Map<number, readonly PerformanceProjectionV2[]>();
   const performance = await readRelationalPerformanceV2(
     db,
@@ -280,78 +265,12 @@ async function readWorkspace(
     classGroup: { id: integer(base.id), label: text(base.codigo), name: text(base.nome) },
     readAt: text(base.read_at),
     authority: 'calculated-eligibility-explicit-human-decision',
-    session: {
-      state: sessionStateOf(base.estado),
-      version,
-      reviewReference: reviewReference(year, classId, version),
-    },
+    session: { state: sessionStateOf(base.estado) },
     summary,
     students,
   };
 }
 
-async function currentSession(
-  db: GradebookPostgresTransactionV1,
-  request: WriteRequest,
-): Promise<Row | null> {
-  return first(
-    db,
-    'SELECT estado,versao AS version FROM gradebook.conselho_sessao WHERE ano=$1 AND turma_id=$2 FOR UPDATE',
-    [request.year, request.classId],
-  );
-}
-async function idempotency(
-  db: GradebookPostgresTransactionV1,
-  request: WriteRequest,
-): Promise<'new' | 'same' | 'conflict'> {
-  const row = await first(
-    db,
-    `SELECT operacao,ano,turma_id,versao_anterior AS expected_version
-      FROM gradebook.conselho_idempotencia WHERE chave=$1`,
-    [request.idempotencyKey],
-  );
-  if (!row) return 'new';
-  return integer(row.operacao) === OPERATION_CODE[request.operation] &&
-    integer(row.ano) === request.year &&
-    integer(row.turma_id) === request.classId &&
-    integer(row.expected_version) === request.expectedVersion
-    ? 'same'
-    : 'conflict';
-}
-async function recordIdempotency(
-  db: GradebookPostgresTransactionV1,
-  request: WriteRequest,
-  newVersion: number,
-  actorId: string,
-): Promise<void> {
-  await db.executeNative(
-    `INSERT INTO gradebook.conselho_idempotencia (chave,operacao,ano,turma_id,versao_anterior,versao_nova,justificativa,registrado_por) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-    [
-      request.idempotencyKey,
-      OPERATION_CODE[request.operation],
-      request.year,
-      request.classId,
-      request.expectedVersion,
-      newVersion,
-      NO_JUSTIFICATION_V3,
-      actorId,
-    ],
-  );
-}
-async function advanceSession(
-  db: GradebookPostgresTransactionV1,
-  request: WriteRequest,
-  state: 1 | 2,
-  actorId: string,
-): Promise<number | null> {
-  const row = await first(
-    db,
-    `UPDATE gradebook.conselho_sessao SET estado=$1,versao=versao+1,atualizado_por=$2,atualizado_em=transaction_timestamp()
-    WHERE ano=$3 AND turma_id=$4 AND versao=$5 RETURNING versao AS version`,
-    [state, actorId, request.year, request.classId, request.expectedVersion],
-  );
-  return row ? integer(row.version) : null;
-}
 async function ready(
   db: GradebookPostgresTransactionV1,
   request: Exclude<RelationalCouncilRequestV3, { operation: 'classes' }>,
@@ -362,12 +281,7 @@ async function ready(
     : { contractVersion: 3, state: 'ready', operation: request.operation, workspace };
 }
 
-type OpenRequestV3 = Extract<WriteRequest, { operation: 'open' }>;
-type CloseRequestV3 = Extract<WriteRequest, { operation: 'close' }>;
-type ReopenRequestV3 = Extract<WriteRequest, { operation: 'reopen' }>;
-type CouncilWorkspaceReadV3 = Exclude<Awaited<ReturnType<typeof readWorkspace>>, string>;
-
-/** Opening the meeting: the class exists, no meeting is open, and the version starts at 1. */
+/** Opening the meeting of a class. It opens once: asking again answers with the open meeting. */
 async function openSessionV3(
   db: GradebookPostgresTransactionV1,
   request: OpenRequestV3,
@@ -379,78 +293,19 @@ async function openSessionV3(
     [request.year, request.classId],
   );
   if (!classRow) return fail('not-found');
-  const session = await currentSession(db, request);
-  if (session) return fail('session-already-open', integer(session.version));
-  if (request.expectedVersion !== 0) return fail('version-conflict', 0);
-  await db.executeNative(
-    `INSERT INTO gradebook.conselho_sessao (ano,turma_id,estado,versao,atualizado_por) VALUES ($1, $2, $3, $4, $5)`,
-    [request.year, request.classId, SESSION_STATE.open, 1, actorId],
+  const opened = await db.executeNative(
+    `INSERT INTO gradebook.conselho_sessao (ano,turma_id,estado,versao,atualizado_por) VALUES ($1, $2, $3, 1, $4)
+    ON CONFLICT (ano,turma_id) DO NOTHING RETURNING turma_id`,
+    [request.year, request.classId, SESSION_OPEN_V3, actorId],
   );
-  await recordIdempotency(db, request, 1, actorId);
+  // The year reset must know of the write; nothing the Portal publishes changed.
+  if (opened.rows.length) await recordResetWriteV1(db, request.year, 'council');
   return ready(db, request);
 }
 
-/** Reopening a closed meeting: it accepts decisions and counts again. */
-async function reopenSessionV3(
-  db: GradebookPostgresTransactionV1,
-  request: ReopenRequestV3,
-  actorId: string,
-  session: { state: number; currentVersion: number },
-) {
-  const { state, currentVersion } = session;
-  if (state !== SESSION_STATE.closed) return fail('session-already-open', currentVersion);
-  const newVersion = await advanceSession(db, request, SESSION_STATE.open, actorId);
-  if (newVersion === null) return fail('version-conflict', currentVersion);
-  await recordIdempotency(db, request, newVersion, actorId);
-  return ready(db, request);
-}
-
-/** Closing: the state the operator reviewed and no pending student. Decisions and counts stay as
- * they are; the closed meeting only stops accepting them. */
-async function closeSessionV3(
-  db: GradebookPostgresTransactionV1,
-  request: CloseRequestV3,
-  actorId: string,
-  workspace: CouncilWorkspaceReadV3,
-  currentVersion: number,
-) {
-  if (workspace.session.reviewReference !== request.reviewReference)
-    return fail('review-conflict', currentVersion);
-  if (workspace.summary.pending > 0) return fail('closure-blocked', currentVersion);
-  const newVersion = await advanceSession(db, request, SESSION_STATE.closed, actorId);
-  if (newVersion === null) return fail('version-conflict', currentVersion);
-  await recordIdempotency(db, request, newVersion, actorId);
-  return ready(db, request);
-}
-
-async function mutate(
-  db: GradebookPostgresTransactionV1,
-  request: WriteRequest,
-  actorId: string,
-): Promise<RelationalCouncilResponseV3> {
-  const duplicate = await idempotency(db, request);
-  if (duplicate === 'conflict') return fail('idempotency-conflict');
-  if (duplicate === 'same') return ready(db, request);
-  if (request.operation === 'open') return openSessionV3(db, request, actorId);
-
-  const session = await currentSession(db, request);
-  if (!session) return fail('session-not-open', 0);
-  const currentVersion = integer(session.version);
-  if (currentVersion !== request.expectedVersion) return fail('version-conflict', currentVersion);
-  const state = integer(session.estado);
-  if (request.operation === 'reopen')
-    return reopenSessionV3(db, request, actorId, { state, currentVersion });
-  if (state !== SESSION_STATE.open) return fail('session-closed', currentVersion);
-
-  const workspace = await readWorkspace(db, request.year, request.classId);
-  if (typeof workspace === 'string') return fail(workspace);
-  return closeSessionV3(db, request, actorId, workspace, currentVersion);
-}
-
-/** The meeting's state from its row: none yet, open, or closed. */
+/** The meeting's state from its row: none yet, or open. */
 function sessionStateOf(estado: unknown) {
-  if (estado === null) return 'not-opened';
-  return integer(estado) === SESSION_STATE.open ? 'open' : 'closed';
+  return estado === null ? 'not-opened' : 'open';
 }
 
 export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1, actorId: string) {
@@ -463,61 +318,45 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
       const request = parsed.data;
       const executeTransaction = () =>
         (database as Database).transaction(async (db) => {
-          if (request.operation === 'classes' || request.operation === 'workspace') {
-            await db.executeNative(
-              'SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY',
-              [],
-            );
-          } else {
+          if (request.operation === 'open') {
             await db.executeNative('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE', []);
             await lockResetWriterV1(db, request.year);
+            return openSessionV3(db, request, actorId);
           }
-          if (request.operation === 'classes') {
-            const rows = await all(
-              db,
-              `SELECT t.id,t.codigo,t.nome,s.estado,s.versao AS version
+          await db.executeNative('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
+          if (request.operation === 'workspace') return ready(db, request);
+          const rows = await all(
+            db,
+            `SELECT t.id,t.codigo,t.nome,s.estado
           FROM gradebook.turma t LEFT JOIN gradebook.conselho_sessao s ON s.ano=t.ano AND s.turma_id=t.id
           WHERE t.ano=$1 ORDER BY t.codigo COLLATE "C",t.id LIMIT $2 OFFSET $3`,
-              [request.year, request.limit + 1, request.offset],
-            );
-            const classes = [];
-            for (const row of rows.slice(0, request.limit)) {
-              // The tally is the class's own reading, so it can never disagree with its workspace.
-              const workspace = request.tally
-                ? await readWorkspace(db, request.year, integer(row.id))
-                : null;
-              classes.push({
-                id: integer(row.id),
-                label: text(row.codigo),
-                name: text(row.nome),
-                sessionState: sessionStateOf(row.estado),
-                sessionVersion: nullableInteger(row.version) ?? 0,
-                ...(workspace !== null && typeof workspace !== 'string'
-                  ? { tally: relationalCouncilTallyV3(workspace.summary) }
-                  : {}),
-              });
-            }
-            return {
-              contractVersion: 3,
-              state: 'ready',
-              operation: 'classes',
-              year: request.year,
-              classes,
-              nextOffset: rows.length > request.limit ? request.offset + request.limit : null,
-            };
-          }
-          if (request.operation === 'workspace') return ready(db, request);
-          const duplicate = await idempotency(db, request);
-          const result = await mutate(db, request, actorId);
-          // The persisted command proves a write even if rebuilding the response is unavailable.
-          if (duplicate === 'new' && (await idempotency(db, request)) === 'same') {
-            // Closing and reopening change what the Portal may publish; opening does not.
-            await recordResetWriteV1(db, request.year, 'council', {
-              changed: request.operation !== 'open',
-              studentIds: [],
+            [request.year, request.limit + 1, request.offset],
+          );
+          const classes = [];
+          for (const row of rows.slice(0, request.limit)) {
+            // The tally is the class's own reading, so it can never disagree with its workspace.
+            // A class whose reading failed goes without one.
+            const workspace = request.tally
+              ? await readWorkspace(db, request.year, integer(row.id))
+              : null;
+            classes.push({
+              id: integer(row.id),
+              label: text(row.codigo),
+              name: text(row.nome),
+              sessionState: sessionStateOf(row.estado),
+              ...(workspace !== null && typeof workspace !== 'string'
+                ? { tally: relationalCouncilTallyV3(workspace.summary) }
+                : {}),
             });
           }
-          return result;
+          return {
+            contractVersion: 3,
+            state: 'ready',
+            operation: 'classes',
+            year: request.year,
+            classes,
+            nextOffset: rows.length > request.limit ? request.offset + request.limit : null,
+          };
         });
       let response: unknown;
       try {

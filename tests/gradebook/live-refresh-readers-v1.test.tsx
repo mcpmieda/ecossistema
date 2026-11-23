@@ -28,9 +28,7 @@ const councilCatalog = {
   state: 'ready',
   operation: 'classes',
   year: 2026,
-  classes: [
-    { id: 10, label: '6A', name: 'Turma sintética', sessionState: 'not-opened', sessionVersion: 0 },
-  ],
+  classes: [{ id: 10, label: '6A', name: 'Turma sintética', sessionState: 'not-opened' }],
   nextOffset: null,
 } satisfies Awaited<ReturnType<typeof requestRelationalCouncilV3>>;
 const councilWorkspace = {
@@ -42,11 +40,7 @@ const councilWorkspace = {
     classGroup: { id: 10, label: '6A', name: 'Turma sintética' },
     readAt: '2026-09-26T12:00:00.000Z',
     authority: 'calculated-eligibility-explicit-human-decision',
-    session: {
-      state: 'not-opened',
-      version: 0,
-      reviewReference: 'synthetic:0',
-    },
+    session: { state: 'not-opened' },
     summary: {
       total: 0,
       eligible: 0,
@@ -88,7 +82,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('backs off Council failures, stops dependent reads and preserves protected work while hidden', async () => {
+it('backs off Council failures, stops dependent reads and keeps the workspace while hidden', async () => {
   const send = vi.mocked(requestRelationalCouncilV3);
   send.mockImplementation(async (request) =>
     request.operation === 'classes' ? councilCatalog : councilWorkspace,
@@ -116,16 +110,12 @@ it('backs off Council failures, stops dependent reads and preserves protected wo
   await advance(120_000);
   expect(send).toHaveBeenCalledTimes(2);
   expect(hook.result.current.workspace).toEqual(councilWorkspace.workspace);
-  hook.result.current.protectDrafts(true);
-  active = true;
-  hook.rerender();
-  await advance(2_000);
-  expect(send).toHaveBeenCalledTimes(2);
-  hook.result.current.protectDrafts(false);
   send.mockImplementation(async (request) =>
     request.operation === 'classes' ? councilCatalog : councilWorkspace,
   );
-  await advance(1_000);
+  active = true;
+  hook.rerender();
+  await advance(3_000);
   expect(send.mock.calls.slice(2).map(([request]) => request.operation)).toEqual([
     'classes',
     'workspace',

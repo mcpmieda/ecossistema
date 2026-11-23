@@ -42,7 +42,6 @@ const ACTOR_ID = '11111111-1111-4111-8111-111111111111';
 const DIAGNOSTIC_FILE = 'recovery-rehearsal-662.xlsx';
 const DIAGNOSTIC_HASH_A = 'a'.repeat(64);
 const DIAGNOSTIC_HASH_B = 'b'.repeat(64);
-const COUNCIL_KEY_PREFIX = 'recovery662:contention';
 const ALL_STATUSES = [null, 1, 2, 3, 4, 5, 7] as const;
 
 type Row = Record<string, unknown>;
@@ -91,15 +90,6 @@ async function removeSyntheticCouncil(classId: number): Promise<void> {
     await transaction.executeNative(
       'DELETE FROM gradebook.conselho_votacao WHERE ano=$1 AND turma_id=$2',
       [2026, classId],
-    );
-    await transaction.executeNative(
-      'DELETE FROM gradebook.conselho_idempotencia WHERE chave LIKE $1',
-      [`${COUNCIL_KEY_PREFIX}:%`],
-    );
-    // The synthetic decisions carry the prefix as their justification.
-    await transaction.executeNative(
-      'DELETE FROM gradebook.conselho_decisao WHERE justificativa=$1',
-      [COUNCIL_KEY_PREFIX],
     );
     await transaction.executeNative(
       'DELETE FROM gradebook.conselho_sessao WHERE ano=$1 AND turma_id=$2',
@@ -278,77 +268,27 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
     await removeSyntheticDiagnostics();
   }, 120_000);
 
-  it('serializes stale Council commands with CAS and keeps the winner idempotent', async () => {
+  it('opens one Council meeting when two connections open the same class at once', async () => {
     const councilA = createRelationalCouncilV3(databaseA, ACTOR_ID);
     const councilB = createRelationalCouncilV3(databaseB, ACTOR_ID);
-    const classes = await councilA.execute({
-      contractVersion: 3,
-      operation: 'classes',
-      year: 2026,
-      offset: 0,
-      limit: 100,
-    });
-    if (classes.state !== 'ready' || classes.operation !== 'classes') {
-      throw new Error('recovery-council-classes-not-ready');
-    }
+    const [firstClass] = await rows(
+      databaseA,
+      'SELECT id FROM gradebook.turma WHERE ano=$1 ORDER BY id LIMIT 1',
+      [2026],
+    );
+    expect(firstClass).toBeDefined();
+    const classId = Number(firstClass!.id);
+    await removeSyntheticCouncil(classId);
 
-    // Closing needs a class with no eligible student pending. Nothing records a decision for now,
-    // so the class with the fewest pending gets synthetic ones, removed with the session below.
-    let candidate: { readonly classId: number; readonly pending: readonly number[] } | null = null;
-    for (const classGroup of classes.classes) {
-      const workspace = await councilA.execute({
-        contractVersion: 3,
-        operation: 'workspace',
-        year: 2026,
-        classId: classGroup.id,
-      });
-      if (workspace.state !== 'ready' || workspace.operation === 'classes') continue;
-      const pending = workspace.workspace.students
-        .filter((student) => student.eligibility.eligible && student.decision === null)
-        .map((student) => student.id);
-      if (candidate === null || pending.length < candidate.pending.length)
-        candidate = { classId: classGroup.id, pending };
-      if (pending.length === 0) break;
-    }
-    expect(candidate).not.toBeNull();
-    if (candidate === null) throw new Error('recovery-council-candidate-missing');
-    await removeSyntheticCouncil(candidate.classId);
-    await databaseA.transaction(async (transaction) => {
-      for (const studentId of candidate.pending)
-        await transaction.executeNative(
-          'INSERT INTO gradebook.conselho_decisao (aluno_id,decisao,justificativa,registrado_por) VALUES ($1, 1, $2, $3)',
-          [studentId, COUNCIL_KEY_PREFIX, ACTOR_ID],
-        );
-    });
-
-    const opened = await councilA.execute({
+    // Whoever loses the race meets the other's row: a serialization abort the service retries
+    // once, or a conflict that inserts nothing. Either way it answers with the open meeting.
+    const open: RelationalCouncilRequestV3 = {
       contractVersion: 3,
       operation: 'open',
       year: 2026,
-      classId: candidate.classId,
-      expectedVersion: 0,
-      idempotencyKey: `${COUNCIL_KEY_PREFIX}:open`,
-    });
-    expect(opened.state).toBe('ready');
-    if (opened.state !== 'ready' || opened.operation === 'classes') {
-      throw new Error('recovery-council-open-not-ready');
-    }
-
-    const close = (key: string): RelationalCouncilRequestV3 => ({
-      contractVersion: 3,
-      operation: 'close',
-      year: 2026,
-      classId: candidate.classId,
-      expectedVersion: 1,
-      idempotencyKey: `${COUNCIL_KEY_PREFIX}:${key}`,
-      reviewReference: opened.workspace.session.reviewReference,
-    });
-    const commands = [close('close-a'), close('close-b')] as const;
-
-    const settled = await Promise.allSettled([
-      councilA.execute(commands[0]),
-      councilB.execute(commands[1]),
-    ]);
+      classId,
+    };
+    const settled = await Promise.allSettled([councilA.execute(open), councilB.execute(open)]);
     expect(settled.every((item) => item.status === 'fulfilled')).toBe(true);
     const responses = settled
       .filter(
@@ -356,18 +296,31 @@ integration('relational recovery and contention V2 on disposable PostgreSQL', ()
           item.status === 'fulfilled',
       )
       .map((item) => item.value);
-    expect(responses.map((response) => response.state).sort()).toEqual([
-      'ready',
-      'version-conflict',
-    ]);
-    const winnerIndex = responses.findIndex((response) => response.state === 'ready');
-    expect(winnerIndex).toBeGreaterThanOrEqual(0);
-    const retry = await councilB.execute(commands[winnerIndex]);
-    expect(retry.state).toBe('ready');
-    if (retry.state !== 'ready' || retry.operation === 'classes') {
-      throw new Error('recovery-council-idempotent-retry-failed');
+    expect(responses).toHaveLength(2);
+    for (const response of responses) {
+      expect(response.state).toBe('ready');
+      if (response.state !== 'ready' || response.operation === 'classes') {
+        throw new Error('recovery-council-open-not-ready');
+      }
+      expect(response.workspace.session.state).toBe('open');
     }
-    expect(retry.workspace.session.version).toBe(2);
-    await removeSyntheticCouncil(candidate.classId);
+
+    expect(
+      await rows(
+        databaseA,
+        `SELECT estado::integer AS estado,versao::integer AS versao
+          FROM gradebook.conselho_sessao WHERE ano=$1 AND turma_id=$2`,
+        [2026, classId],
+      ),
+    ).toEqual([{ estado: 1, versao: 1 }]);
+    expect(
+      await rows(
+        databaseA,
+        `SELECT count(*)::integer AS count
+          FROM gradebook.conselho_idempotencia WHERE ano=$1 AND turma_id=$2`,
+        [2026, classId],
+      ),
+    ).toEqual([{ count: 0 }]);
+    await removeSyntheticCouncil(classId);
   }, 120_000);
 });

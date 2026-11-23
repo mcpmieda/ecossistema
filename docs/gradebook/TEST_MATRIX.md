@@ -212,16 +212,16 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 ## F3-648 — Conselho relacional V3
 
 - `F3-648-001`: request/response aceitam somente 2026, limites explícitos e decisões 1/2/3 com os rótulos contratados.
-- `F3-648-002`: abertura, decisão, voto, fechamento e reabertura exigem idempotência e CAS da sessão; só decisão e voto levam justificativa, e `open`/`close`/`reopen` recusam o campo (BN-DEC-049).
-- `F3-648-003`: sessão fechada bloqueia decisão/voto; a reabertura, sem justificativa, permite novo fechamento.
-- `F3-648-004`: fechamento exige referência de revisão corrente e zero estudantes elegíveis pendentes.
-- `F3-648-005`: retirado pela BN-DEC-049 (#1558): o fechamento só muda o estado da sessão; não há fotografia, linha do tempo nem histórico, e decisão/contagem nova substitui a atual.
+- `F3-648-002`: `open` leva só `{ year, classId }` e recusa justificativa, versão esperada e chave de idempotência; `close`, `reopen`, `decision` e `vote` não existem no contrato (BN-DEC-049 e complemento de 23/11/2026).
+- `F3-648-003`: abrir grava a sessão uma vez e abrir de novo responde a reunião já aberta; `session.state` só admite `not-opened | open` e as falhas são somente `invalid-request`, `not-authorized`, `not-found`, `unavailable` e `scope-too-large`.
+- `F3-648-004`: retirado pelo complemento da BN-DEC-049 (#1558): não há fechamento nem reabertura; a turma concluída é derivada de zero elegíveis pendentes com a reunião aberta.
+- `F3-648-005`: retirado pela BN-DEC-049 (#1558): não há fotografia, linha do tempo nem histórico, e a decisão nova substitui a atual.
 - `F3-648-006`: somente favoráveis/contrários são persistidos; presentes é derivado e diretor/desempate/voto de minerva não existem no transporte nem no schema.
 - `F3-648-007`: elegibilidade vem do read model relacional central e não é convertida automaticamente em decisão humana.
 - `F3-648-008`: estudante não elegível recebe motivo e não aceita decisão/voto; situação de matrícula e definições incompletas falham de forma explícita.
 - `F3-648-009`: HTTP exige autenticação, `gradebook.persistence.admin`, origem oficial e `no-store`; provider/gate indisponível falha fechado.
 - `F3-648-010`: migration é aditiva/transacional, não altera linhas/colunas legadas e restringe tabelas/sequências à role backend.
-- `F3-648-011`: HeroUI cobre fila, detalhe T1/T2/T3/REC, KPIs, estados vazios/erro/loading, votação, decisão, sessão e turmas em botões com a contagem de aprovados/reprovados/pendentes; sem linha do tempo nem histórico.
+- `F3-648-011`: HeroUI cobre fila em dois grupos (A deliberar/Decididos), detalhe T1/T2/T3/REC, KPIs, estados vazios/erro/loading, a linha da reunião (Ainda não iniciada/Aberta/Concluída) com "Abrir reunião" só em turma com elegíveis e ainda não aberta, e turmas em botões com a contagem de aprovados/reprovados/pendentes, o marcador de contagem ainda não lida e o aviso de leitura que falhou; sem fechar/reabrir, formulário de decisão ou contagem, linha do tempo ou histórico.
 - `F3-648-012`: `npm run verify`, CI do head, revisão, postflight, deploy e smoke seguem BN-DEC-023; aceite visual conjunto continua explícito e separado.
 - `F3-648-013`: `classes` com `tally: true` devolve aprovados, reprovados (Conselho + falta) e pendentes de cada turma, iguais ao resumo da própria turma.
 
@@ -280,7 +280,7 @@ A aba Boletins do Banco de Notas foi removida em 20/11/2026 (pedido do responsá
 - `F14-662-006`: banco recuperado serve turmas, comparação T2×T1, Auditoria e Conselho.
 - `F14-662-007`: duas conexões provam espera no advisory lock e último snapshot de diagnósticos completo, sem mistura.
 - `F14-662-008`: falha intencional após DELETE reverte a transação e preserva o conjunto diagnóstico anterior.
-- `F14-662-009`: corrida SERIALIZABLE do Conselho repete uma vez SQLSTATE 40001; CAS resulta em um vencedor, um `version-conflict` e retry idempotente.
+- `F14-662-009`: corrida SERIALIZABLE do Conselho repete uma vez SQLSTATE 40001; desde o complemento da BN-DEC-049 (23/11/2026) a corrida é de dois `open` na mesma turma, não mais de dois `close` com CAS: não há `version-conflict` e a reunião fica aberta uma única vez.
 - `F14-662-010`: massa sintética é removida; backup/restore gerenciado, RPO/RTO, configurações externas, piloto e visual permanecem explicitamente fora do aceite.
 
 ## F14-664 — Retirada seletiva da Auditoria V1

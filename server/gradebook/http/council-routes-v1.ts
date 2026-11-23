@@ -1,4 +1,3 @@
-import type { GradebookAfterCommitV1 } from './live-after-commit-v1';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -47,15 +46,12 @@ async function councilSessionV1(
   }
 }
 
-/** The HTTP status of a V3 answer: ready, not found, invalid, unprocessable, unavailable or conflict. */
-function councilStatusV3(
-  state: RelationalCouncilResponseV3['state'],
-): 200 | 404 | 400 | 422 | 503 | 409 {
+/** The HTTP status of a V3 answer: ready, not found, invalid, unprocessable or unavailable. */
+function councilStatusV3(state: RelationalCouncilResponseV3['state']): 200 | 404 | 400 | 422 | 503 {
   if (state === 'ready') return 200;
   if (state === 'not-found') return 404;
   if (state === 'invalid-request') return 400;
-  if (state === 'scope-too-large' || state === 'closure-blocked') return 422;
-  return state === 'unavailable' ? 503 : 409;
+  return state === 'scope-too-large' ? 422 : 503;
 }
 
 /** The relational Conselho (V3): only on PostgreSQL, and in production only once enabled. */
@@ -63,7 +59,6 @@ async function serveRelationalCouncilV3(
   payload: unknown,
   env: RuntimeEnv,
   session: CouncilSessionV1,
-  afterCommit: GradebookAfterCommitV1 | undefined,
 ): Promise<Response> {
   const parsed = relationalCouncilRequestSchemaV3.safeParse(payload);
   if (!parsed.success) return noStoreJsonV1({ contractVersion: 3, state: 'invalid-request' }, 400);
@@ -81,8 +76,6 @@ async function serveRelationalCouncilV3(
       env.GRADEBOOK_DATABASE as GradebookPostgresWritePortV1,
       session.oid,
     ).execute(parsed.data);
-    if (response.state === 'ready' && ['open', 'close', 'reopen'].includes(response.operation))
-      afterCommit?.(session);
     return noStoreJsonV1(response, councilStatusV3(response.state));
   } catch {
     return noStoreJsonV1({ contractVersion: 3, state: 'unavailable' }, 503);
@@ -92,9 +85,8 @@ async function serveRelationalCouncilV3(
 export function createCouncilWorkspaceRequestHandlerV1(): (
   request: Request,
   env: RuntimeEnv,
-  afterCommit?: GradebookAfterCommitV1,
 ) => Promise<Response | null> {
-  return async (request, env, afterCommit) => {
+  return async (request, env) => {
     if (new URL(request.url).pathname !== GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1) return null;
 
     enforceOfficialOrigin(request, env);
@@ -117,7 +109,7 @@ export function createCouncilWorkspaceRequestHandlerV1(): (
       'contractVersion' in payload &&
       payload.contractVersion === 3
     )
-      return serveRelationalCouncilV3(payload, env, session, afterCommit);
+      return serveRelationalCouncilV3(payload, env, session);
     return retiredGradebookRequestV1(payload);
   };
 }

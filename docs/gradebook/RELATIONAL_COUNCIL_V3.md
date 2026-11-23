@@ -17,8 +17,17 @@ transforma esse cálculo em deliberação humana.
 - só o estado atual é guardado (BN-DEC-049, #1558): a sessão, a decisão e a
   contagem de votos de cada aluno. Uma informação nova substitui a atual; não há
   linha do tempo, histórico nem fotografia de fechamento;
-- abrir, fechar e reabrir a reunião não levam justificativa; decisão e contagem
-  de votos levam;
+- a reunião de uma turma só abre, sem justificativa; não existem fechar nem
+  reabrir. A turma aparece como concluída quando todos os elegíveis têm decisão:
+  é um estado derivado, não gravado, e a decisão pode mudar a qualquer momento,
+  mesmo depois disso;
+- antes de a reunião estar aberta nada pode ser inserido, só visualizado. É a
+  regra para as funções de decisão e contagem que serão refeitas; hoje `open` é o
+  único comando de escrita;
+- turma sem alunos elegíveis não tem reunião a abrir: a tela não mostra o botão;
+- a elegibilidade é calculada na hora, pelas notas, sem trava no sistema: uma
+  nota corrigida que chegue durante o Conselho muda a lista. O controle é
+  operacional e fora do sistema (ver a seção de 23/11/2026);
 - a lista de turmas pode trazer, a pedido (`tally: true`), a contagem de
   aprovados, reprovados (pelo Conselho ou por falta) e pendentes de cada turma;
 - `conselho_anterior` não participa da elegibilidade nem da interface ativa. As
@@ -28,30 +37,41 @@ transforma esse cálculo em deliberação humana.
 
 ## Sessão e concorrência
 
-Uma turma começa em `not-opened`. Abertura, decisão, votação, fechamento e
-reabertura exigem chave de idempotência e versão esperada. Desde a BN-DEC-049
-(#1558), abertura, fechamento e reabertura não levam justificativa e o contrato
-recusa o campo nesses comandos; decisão e votação continuam exigindo. Na linha de
-idempotência desses três comandos, a coluna `justificativa` (`NOT NULL`) recebe o
-texto fixo `sem justificativa`. Escritas de decisão e votação são aceitas
-somente com a sessão aberta. Cada comando avança uma versão global da sessão sob
-transação `SERIALIZABLE`; leituras usam `REPEATABLE READ, READ ONLY`.
+Uma turma começa em `not-opened`. O único comando de escrita é `open`, com
+`{ year, classId }`: não leva versão esperada, chave de idempotência nem
+justificativa, e o contrato estrito recusa esses campos. Ele insere a linha de
+`conselho_sessao` (estado 1, versão 1) com `ON CONFLICT DO NOTHING`; abrir de
+novo responde a reunião já aberta, portanto o comando é idempotente e duas
+aberturas simultâneas terminam as duas em `ready`. Uma linha com estado 2,
+fechada pela versão anterior, é lida como aberta. `open` roda em transação
+`SERIALIZABLE`, sob o bloqueio de escritor do reset do ano e com uma nova
+tentativa em SQLSTATE 40001; leituras usam `REPEATABLE READ, READ ONLY`.
 
-O fechamento requer zero estudantes elegíveis pendentes e a mesma referência de
-revisão exibida ao operador. Ele só muda o estado da sessão; não grava
-fotografia. Reabrir permite novo fechamento. Uma decisão ou contagem nova
-substitui a anterior: não há histórico de sessão, decisão ou votação.
+Abrir registra a escrita para o reset do ano sem mudança acadêmica: a versão de
+dados do Portal não muda e a rota não dispara mais o aviso pós-commit ao Portal.
+Não há fechamento nem reabertura. "Concluída" não é estado da sessão: a tela a
+deriva de `session.state: 'open'` com `summary.pending` igual a zero. Uma decisão
+nova substitui a anterior: não há histórico de sessão, decisão ou votação.
 
-A resposta da turma traz `session` como `{ state, version, reviewReference }`.
-Saíram `timeline`, `closures`, `session.closedAt`, `session.snapshotCount` e
-`decision.version`. Os estados de falha não mudaram (`closure-blocked` e
-`review-conflict` continuam). O contrato segue `contractVersion: 3`.
+Requests: `classes` (`year`, `offset`, `limit` e `tally` opcional), `workspace` e
+`open` (os dois com `{ year, classId }`). A resposta da turma traz `session` como
+`{ state }`, com `not-opened | open`; em `classes`, `sessionState` tem os mesmos
+dois valores. Saíram `close`, `reopen`, `reviewReference`, `session.version`,
+`sessionVersion`, `currentVersion`, `expectedVersion` e `idempotencyKey`, além de
+`timeline`, `closures`, `session.closedAt`, `session.snapshotCount` e
+`decision.version`, retirados antes. Saíram também as falhas `version-conflict`,
+`idempotency-conflict`, `session-not-open`, `session-already-open`,
+`session-closed`, `closure-blocked` e `review-conflict`; restam
+`invalid-request`, `not-authorized`, `not-found`, `unavailable` e
+`scope-too-large`. HTTP: 200, 400, 404, 422 (`scope-too-large`) e 503; não há
+mais 409. O contrato segue `contractVersion: 3`.
 
 ## Persistência mínima
 
-O serviço grava somente em `conselho_sessao` (estado e versão),
-`conselho_decisao` (decisão atual, substituída quando muda), `conselho_votacao`
-(contagem atual) e `conselho_idempotencia`.
+O serviço grava somente em `conselho_sessao`, e só ao abrir a reunião (estado 1,
+versão 1; a linha não é mais atualizada). `conselho_decisao` é só lida (decisão
+atual). `conselho_votacao` e `conselho_idempotencia` ficam sem uso pelo código.
+As quatro tabelas permanecem no banco.
 
 `migrations/gradebook-simplified/0003_council_session_v3.sql` acrescentou oito
 tabelas e quatro sequências ao schema relacional da época; a `0023` remove cinco
@@ -119,10 +139,49 @@ listar não elegíveis saíram da tela, do contrato (`decision`, `vote`, campo `
 A decisão atual continua sendo lida de `conselho_decisao`; `conselho_votacao` não é lida nem
 gravada. Nenhuma tabela foi alterada por isso.
 
+## A reunião só abre — 23/11/2026
+
+Complemento do responsável à BN-DEC-049 (#1558, PR rascunho #1559), no mesmo dia:
+
+- a reunião de uma turma só abre. "Fechar" e "Reabrir" não existem mais; a turma
+  aparece como concluída sozinha quando todos os elegíveis têm decisão, e a
+  decisão pode mudar a qualquer momento, mesmo depois disso;
+- antes de a reunião estar aberta, nada pode ser inserido, só visualizado;
+- turma sem alunos elegíveis não tem reunião a abrir;
+- a elegibilidade continua calculada na hora, pelas notas. Se uma nota corrigida
+  chegar durante o Conselho, a lista muda. Não há trava no sistema: os alunos
+  serão reconferidos antes de a decisão terminar e a escola combinou não enviar
+  notas ao sistema nesse período;
+- sem histórico, não há como desfazer uma troca de decisão por engano: risco
+  aceito pelo responsável;
+- divulgação ao aluno: como a decisão vale assim que registrada, haverá
+  futuramente um controle interno para mostrar o resultado no Portal a partir de
+  uma data. **Não implementado**; só registrado como intenção.
+
+Tela: a linha "Reunião" mostra o estado (Ainda não iniciada, Aberta ou Concluída)
+e o botão "Abrir reunião" só enquanto a reunião não está aberta e só em turma com
+elegíveis. A fila tem dois grupos empilhados, "A deliberar" e "Decididos", que
+viram faixas horizontais em telas estreitas; o resumo de quatro números fica em
+uma linha também no celular. Nos botões de turma, as contagens têm forma além da
+cor (✓ aprovados, ✕ reprovados, ● pendentes), um marcador enquanto a contagem não
+chegou e um aviso quando a leitura da turma falhou. As últimas contagens lidas
+ficam guardadas enquanto o Centro está aberto e aparecem de imediato ao voltar à
+aba, sendo substituídas pela leitura seguinte.
+
+As contagens das outras turmas continuam atualizadas só ao entrar na aba; a turma
+aberta se atualiza sozinha. Foi mantido assim porque reler todas as turmas custa
+uma leitura inteira por turma: em 23/11/2026, no banco de produção com os dados
+de 2025, cerca de 0,15 s só na consulta das notas de cada turma; com as demais consultas e o
+transporte, uns 3 s para as 14.
+
+Nenhuma migration nova. `conselho_idempotencia` e `conselho_votacao` ficam sem
+uso pelo código e `conselho_decisao` é só lida; as três entram na lista do que
+revisar com o responsável antes de integrar, junto com a `0023`.
+
 ## Limites do aceite
 
-Testes PGlite/HTTP/React cobrem contrato, grants, ciclo completo, reabertura,
-idempotência, CAS, autorização e estados da interface. Eles não
+Testes PGlite/HTTP/React cobrem contrato, grants, abertura da reunião (inclusive
+repetida), contagens por turma, autorização e estados da interface. Eles não
 substituem restauração institucional, ensaio de contenção PostgreSQL
 multi-sessão, aceite acadêmico #347 nem a validação visual única com o
 responsável. Boletins seguem a adaptação própria #654; Relatórios continuam pendentes na FINAL-1.

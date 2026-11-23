@@ -18,7 +18,6 @@ export const RELATIONAL_COUNCIL_DECISIONS_V3 = Object.freeze({
 
 const id = z.number().int().min(1).max(2_147_483_647);
 const count = z.number().int().min(0).max(100_000);
-const version = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const milli = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const year = z
   .number()
@@ -37,18 +36,7 @@ const justification = z
   .min(3)
   .max(2_000)
   .refine((value) => !value.includes('\0'));
-const idempotencyKey = z
-  .string()
-  .trim()
-  .min(8)
-  .max(120)
-  .regex(/^[A-Za-z0-9._:-]+$/u, 'invalid idempotency key');
 const decisionCode = z.union([z.literal(1), z.literal(2), z.literal(3)]);
-// Every write carries the expected version and its idempotency key. The meeting opens, closes and
-// reopens without a justification (BN-DEC-049); recording a decision or a count is being redone and
-// has no command for now.
-const sessionCommand = { year, classId: id, expectedVersion: version, idempotencyKey };
-
 export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation', [
   z
     .object({
@@ -64,19 +52,10 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
   z
     .object({ contractVersion: z.literal(3), operation: z.literal('workspace'), year, classId: id })
     .strict(),
+  // The only write: the meeting of a class opens once and stays open (BN-DEC-049). Recording a
+  // decision is being redone and has no command for now.
   z
-    .object({ contractVersion: z.literal(3), operation: z.literal('open'), ...sessionCommand })
-    .strict(),
-  z
-    .object({
-      contractVersion: z.literal(3),
-      operation: z.literal('close'),
-      ...sessionCommand,
-      reviewReference: z.string().trim().min(8).max(200),
-    })
-    .strict(),
-  z
-    .object({ contractVersion: z.literal(3), operation: z.literal('reopen'), ...sessionCommand })
+    .object({ contractVersion: z.literal(3), operation: z.literal('open'), year, classId: id })
     .strict(),
 ]);
 export type RelationalCouncilRequestV3 = z.infer<typeof relationalCouncilRequestSchemaV3>;
@@ -155,13 +134,8 @@ const student = z
     components: z.array(component).max(RELATIONAL_COUNCIL_LIMITS_V3.offers),
   })
   .strict();
-const session = z
-  .object({
-    state: z.enum(['not-opened', 'open', 'closed']),
-    version,
-    reviewReference: z.string().trim().min(8).max(200),
-  })
-  .strict();
+const sessionState = z.enum(['not-opened', 'open']);
+const session = z.object({ state: sessionState }).strict();
 const summary = z
   .object({
     total: count,
@@ -208,13 +182,6 @@ const failureState = z.enum([
   'not-found',
   'unavailable',
   'scope-too-large',
-  'version-conflict',
-  'idempotency-conflict',
-  'session-not-open',
-  'session-already-open',
-  'session-closed',
-  'closure-blocked',
-  'review-conflict',
 ]);
 export type RelationalCouncilFailureV3 = z.infer<typeof failureState>;
 /** Where a class stands: eligible students approved, rejected (by the Council or for absence) and
@@ -230,13 +197,7 @@ export const relationalCouncilTallyV3 = (
 });
 
 export const relationalCouncilResponseSchemaV3 = z.union([
-  z
-    .object({
-      contractVersion: z.literal(3),
-      state: failureState,
-      currentVersion: version.nullable().optional(),
-    })
-    .strict(),
+  z.object({ contractVersion: z.literal(3), state: failureState }).strict(),
   z
     .object({
       contractVersion: z.literal(3),
@@ -247,8 +208,7 @@ export const relationalCouncilResponseSchemaV3 = z.union([
         .array(
           reference.extend({
             name: label,
-            sessionState: z.enum(['not-opened', 'open', 'closed']),
-            sessionVersion: version,
+            sessionState,
             tally: tally.optional(),
           }),
         )
@@ -260,7 +220,7 @@ export const relationalCouncilResponseSchemaV3 = z.union([
     .object({
       contractVersion: z.literal(3),
       state: z.literal('ready'),
-      operation: z.enum(['workspace', 'open', 'close', 'reopen']),
+      operation: z.enum(['workspace', 'open']),
       workspace,
     })
     .strict(),

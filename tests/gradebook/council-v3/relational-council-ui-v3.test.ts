@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationalCouncilPageV3 } from '../../../src/features/gradebook/council/relational-council-page-v3';
 import { requestRelationalCouncilV3 } from '../../../src/features/gradebook/council/relational-council-client-v3';
 import { GradebookYearProvider } from '../../../src/platform/gradebook-year-provider';
-import type {
-  RelationalCouncilStudentV3,
-  RelationalCouncilWorkspaceV3,
+import {
+  relationalCouncilTallyV3,
+  type RelationalCouncilStudentV3,
+  type RelationalCouncilTallyV3,
+  type RelationalCouncilWorkspaceV3,
 } from '../../../shared/gradebook-contracts/council/relational-council-v3';
 
 const grade = (valueMilli: number | null, maximumMilli = 30_000, state = 'complete' as const) => ({
@@ -53,40 +55,56 @@ const nonEligible: RelationalCouncilStudentV3 = {
   calculatedResult: 'APROVADO DIRETO',
   components: [{ ...student.components[0]!, result: 'approved-direct' as const }],
 };
+/** The class of the journey, with its summary counted from the students. */
 function workspace(
-  extra: Partial<RelationalCouncilWorkspaceV3> = {},
+  students: readonly RelationalCouncilStudentV3[] = [student, nonEligible],
+  state: RelationalCouncilWorkspaceV3['session']['state'] = 'not-opened',
 ): RelationalCouncilWorkspaceV3 {
+  const eligible = students.filter((item) => item.eligibility.eligible);
+  const decided = eligible.filter((item) => item.decision !== null);
   return {
     context: { year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 },
     classGroup: { id: 10, label: '6A', name: 'TURMA SINTETICA' },
     readAt: '2026-09-11T04:00:00.000Z',
     authority: 'calculated-eligibility-explicit-human-decision',
-    session: {
-      state: 'not-opened',
-      version: 0,
-      reviewReference: 'council-review:2026:10:0',
-    },
+    session: { state },
     summary: {
-      total: 2,
-      eligible: 1,
-      decided: 0,
-      pending: 1,
-      approved: 0,
-      rejected: 0,
-      absence: 0,
-      notEligible: 1,
+      total: students.length,
+      eligible: eligible.length,
+      decided: decided.length,
+      pending: eligible.length - decided.length,
+      approved: decided.filter((item) => item.decision?.code === 1).length,
+      rejected: decided.filter((item) => item.decision?.code === 2).length,
+      absence: decided.filter((item) => item.decision?.code === 3).length,
+      notEligible: students.length - eligible.length,
     },
-    students: [student, nonEligible],
-    ...extra,
+    students: [...students],
   };
 }
+/** A class button of the list; `tally` is what the count reading brings for it, if anything. */
+type ListedClass = { id: number; label: string; tally?: RelationalCouncilTallyV3 };
+const RETIRED_TEXT =
+  /Fechar reunião|Reabrir|Revisar fechamento|Confirmar fechamento|Versão institucional|leitura segura|Sessão (?:aberta|fechada|da turma)|Reunião (?:aberta|reaberta|fechada)\./u;
 
 let host: HTMLDivElement;
 let root: Root | null;
 let current = workspace();
+let listed: ListedClass[];
+// Each one holds its reading until released; the failure flags refuse it.
+let tallyGate: Promise<void> | null;
+let workspaceGate: Promise<void> | null;
+let tallyFails: boolean;
+let openFails: boolean;
 let requests: Record<string, unknown>[];
 let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 const reply = (value: unknown, status = 200) => Response.json(value, { status });
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -108,7 +126,14 @@ beforeEach(() => {
       disconnect = vi.fn();
     },
   );
+  // No class comes back selected from the test before.
+  sessionStorage.clear();
   current = workspace();
+  listed = [{ id: 10, label: '6A' }];
+  tallyGate = null;
+  workspaceGate = null;
+  tallyFails = false;
+  openFails = false;
   requests = [];
   fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -120,41 +145,35 @@ beforeEach(() => {
         operation: 'bootstrap',
         years: [{ year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 }],
       });
-    if (body.operation === 'classes')
+    if (body.operation === 'classes') {
+      if (body.tally === true) {
+        await tallyGate;
+        if (tallyFails) return reply({ contractVersion: 3, state: 'unavailable' }, 503);
+      }
       return reply({
         contractVersion: 3,
         state: 'ready',
         operation: 'classes',
         year: Number(body.year),
-        classes: [
-          {
-            id: 10,
-            label: '6A',
+        classes: listed.map((item) => {
+          const journey = item.id === current.classGroup.id;
+          const tally = journey ? relationalCouncilTallyV3(current.summary) : item.tally;
+          return {
+            id: item.id,
+            label: item.label,
             name: 'TURMA SINTETICA',
-            sessionState: current.session.state,
-            sessionVersion: current.session.version,
-            ...(body.tally === true ? { tally: { approved: 0, rejected: 0, pending: 1 } } : {}),
-          },
-        ],
+            sessionState: journey ? current.session.state : 'not-opened',
+            ...(body.tally === true && tally ? { tally } : {}),
+          };
+        }),
         nextOffset: null,
       });
-    if (body.operation === 'workspace')
-      return reply({
-        contractVersion: 3,
-        state: 'ready',
-        operation: 'workspace',
-        workspace: current,
-      });
-    if (body.operation === 'open')
-      current = workspace({
-        ...current,
-        session: {
-          ...current.session,
-          state: 'open',
-          version: 1,
-          reviewReference: 'council-review:2026:10:1',
-        },
-      });
+    }
+    if (body.operation === 'workspace') await workspaceGate;
+    if (body.operation === 'open') {
+      if (openFails) return reply({ contractVersion: 3, state: 'unavailable' }, 503);
+      current = workspace(current.students, 'open');
+    }
     return reply({
       contractVersion: 3,
       state: 'ready',
@@ -194,22 +213,29 @@ async function mount() {
   );
   await waitFor(() => requests.some((request) => request.operation === 'classes'));
 }
+const tab = (id: number) =>
+  host.querySelector<HTMLElement>(
+    `[role="tablist"][aria-label="Turmas do Conselho"] [data-key="${id}"]`,
+  );
+const tally = (id: number) => tab(id)?.querySelector('.council-tally') ?? null;
+const meeting = () => host.querySelector('.council-session');
+const button = (label: string) =>
+  [...host.querySelectorAll('button')].find((item) => item.textContent?.includes(label));
 async function openClass(id: number) {
-  const tab = () =>
-    host.querySelector<HTMLElement>(
-      `[role="tablist"][aria-label="Turmas do Conselho"] [data-key="${id}"]`,
-    );
-  await waitFor(() => tab() !== null);
-  await act(async () => tab()!.click());
+  await waitFor(() => tab(id) !== null);
+  await act(async () => tab(id)!.click());
   await settle();
 }
 async function click(label: string) {
-  const button = [...host.querySelectorAll('button')].find((item) =>
-    item.textContent?.includes(label),
-  );
-  expect(button).toBeDefined();
-  await act(async () => button!.click());
+  expect(button(label)).toBeDefined();
+  await act(async () => button(label)!.click());
   await settle();
+}
+/** Mounts the page and opens the class of the journey. */
+async function openJourney() {
+  await mount();
+  await openClass(10);
+  await waitFor(() => host.querySelector('[aria-label="Resumo do Conselho"]') !== null);
 }
 
 describe('relational Council V3 client and HeroUI journey', () => {
@@ -232,59 +258,185 @@ describe('relational Council V3 client and HeroUI journey', () => {
       operation: 'classes',
       year: 2025,
     });
+    // A command of the earlier version never leaves the browser.
+    const sent = fetchMock.mock.calls.length;
+    expect(
+      await requestRelationalCouncilV3({
+        contractVersion: 3,
+        operation: 'close',
+        year: 2026,
+        classId: 10,
+      } as never),
+    ).toEqual({ contractVersion: 3, state: 'invalid-request' });
+    expect(fetchMock.mock.calls).toHaveLength(sent);
   });
 
   it('renders the static Kanban-inspired queue and annual table without timeline, snapshots or prior-year controls', async () => {
+    const second: RelationalCouncilStudentV3 = {
+      ...student,
+      id: 3,
+      name: 'ALUNA SINTETICA',
+      number: 3,
+      eligibility: { ...student.eligibility, failedComponentCount: 2 },
+    };
+    current = workspace([student, second, nonEligible]);
+    const reading = deferred();
+    workspaceGate = reading.promise;
     await mount();
     await openClass(10);
+    // While the class is read the page says only that it is loading.
+    expect(host.querySelector('[aria-live="polite"]')?.textContent).toBe('Carregando…');
+    await act(async () => reading.resolve());
     await waitFor(() => host.textContent?.includes(student.name) === true);
+    expect(host.textContent).not.toContain('Carregando');
     expect(host.textContent).toContain('A deliberar');
-    expect(host.textContent).toContain('Decididos');
     expect(host.textContent).toContain('1º tri.');
     expect(host.textContent).toContain('REC');
+    // Each card says how many components are below the minimum; nobody is decided, so no group.
+    expect(
+      [...host.querySelectorAll('.council-queue-card')].map((card) => card.textContent),
+    ).toEqual([`1${student.name}1 componente abaixo`, `3${second.name}2 componentes abaixo`]);
+    expect(host.textContent).not.toContain('Decididos');
+    // The student in discussion is marked eligible by the chip alone, with no alert above the table.
+    expect(host.textContent).toContain('Elegível');
+    expect(host.textContent).not.toContain(student.eligibility.label);
+    expect(host.querySelectorAll('[role="alert"]')).toHaveLength(0);
     expect(host.textContent).not.toMatch(/Não elegíveis|Decisão humana|Contagem opcional/u);
     expect(host.textContent).not.toMatch(/Linha do tempo|Fechamentos preservados|snapshot/iu);
     expect(host.textContent).not.toMatch(
       /Conselho anterior|ano anterior|catálogo legado|voto de minerva|diretor/iu,
     );
+    expect(host.textContent).not.toMatch(RETIRED_TEXT);
     expect(host.querySelectorAll('[draggable="true"]')).toHaveLength(0);
-    // Each class button says where the class stands, with counts and no words.
-    const tally = host.querySelector(
-      '[role="tablist"][aria-label="Turmas do Conselho"] [data-key="10"] .council-tally',
-    );
-    expect(tally?.getAttribute('aria-label')).toBe('1 pendente(s)');
-    expect(tally?.textContent).toBe('1');
+    // The class button says where the class stands, with counts and no words.
+    expect(tally(10)?.getAttribute('aria-label')).toBe('2 pendentes');
+    expect(tally(10)?.textContent).toBe('2');
     // The classes are tabs, and no form is left on the page.
     expect(
       host.querySelectorAll('[role="tablist"][aria-label="Turmas do Conselho"] [role="tab"]')
         .length,
     ).toBeGreaterThan(0);
-    expect(host.querySelectorAll('[data-slot="select"]')).toHaveLength(0);
-  });
+    expect(
+      host.querySelectorAll('[data-slot="select"], textarea, input[type="number"]'),
+    ).toHaveLength(0);
+  }, 15_000);
 
-  it('opens the meeting with no justification and offers no decision or count form', async () => {
-    await mount();
-    await openClass(10);
-    await waitFor(() => host.textContent?.includes(student.name) === true);
-    // Opening, closing and reopening ask for no justification.
-    expect(host.querySelector('#council-session-reason')).toBeNull();
+  it('opens the meeting once, with only the class scope, and then shows it open', async () => {
+    await openJourney();
+    expect(meeting()?.textContent).toContain('Ainda não iniciada');
     await click('Abrir reunião');
-    const openRequest = requests.filter((request) => request.operation === 'open').at(-1);
-    expect(openRequest).toMatchObject({
-      operation: 'open',
-      year: 2026,
-      classId: 10,
-      expectedVersion: 0,
-    });
-    expect(openRequest).not.toHaveProperty('justification');
-    await waitFor(() => host.textContent?.includes('Sessão aberta') === true);
-    expect(host.querySelector('#council-session-reason')).toBeNull();
-    expect(String(openRequest?.idempotencyKey)).toMatch(/^open:/u);
+    expect(requests.filter((request) => request.operation === 'open')).toEqual([
+      { contractVersion: 3, operation: 'open', year: 2026, classId: 10 },
+    ]);
+    // The open meeting has no button left, and nothing announces the command.
+    await waitFor(() => meeting()?.textContent?.includes('Aberta') === true);
+    expect(meeting()?.textContent).not.toContain('Ainda não iniciada');
+    expect(button('Abrir reunião')).toBeUndefined();
+    expect(host.textContent).toContain(student.name);
+    expect(host.textContent).not.toMatch(RETIRED_TEXT);
     // Recording a decision or a count is being redone: the open meeting offers neither form.
     expect(host.textContent).not.toMatch(/Decisão humana|Contagem opcional|Não elegíveis/u);
     expect(
       host.querySelectorAll('[data-slot="select"], textarea, input[type="number"]'),
     ).toHaveLength(0);
+  }, 15_000);
+
+  it('keeps the button and shows the failure when the meeting could not be opened', async () => {
+    openFails = true;
+    await openJourney();
+    await click('Abrir reunião');
+    await waitFor(() => host.textContent?.includes('Operação não concluída') === true);
+    expect(meeting()?.textContent).toContain('Ainda não iniciada');
+    expect(button('Abrir reunião')).toBeDefined();
+    expect(host.textContent).toContain(student.name);
+  }, 15_000);
+
+  it('shows an open meeting with nobody pending as concluded, with the decided students', async () => {
+    const decided: RelationalCouncilStudentV3 = {
+      ...student,
+      decision: {
+        code: 1,
+        label: 'APROVADO PELO CONSELHO',
+        justification: 'Deliberação sintética.',
+        updatedAt: '2026-11-20T12:00:00.000Z',
+      },
+    };
+    current = workspace([decided, nonEligible], 'open');
+    await openJourney();
+    expect(meeting()?.textContent).toContain('Concluída');
+    expect(button('Abrir reunião')).toBeUndefined();
+    expect(host.textContent).toContain('Fila concluída');
+    expect(host.textContent).toContain('Decididos');
+    expect(host.querySelector('.council-queue-card')?.textContent).toBe(
+      `1${decided.name}APROVADO PELO CONSELHO`,
+    );
+    expect(tally(10)?.getAttribute('aria-label')).toBe('1 aprovado');
+  }, 15_000);
+
+  it('offers no meeting to a class without eligible students', async () => {
+    current = workspace([nonEligible]);
+    await openJourney();
+    expect(host.textContent).toContain('Nenhum aluno elegível nesta turma');
+    expect(meeting()).toBeNull();
+    expect(button('Abrir reunião')).toBeUndefined();
+    expect(host.querySelector('[aria-label="Fluxo dos alunos elegíveis"]')).toBeNull();
+  }, 15_000);
+
+  it('holds the place of each class count while it is read, then reads the counts aloud', async () => {
+    listed = [
+      { id: 31, label: '7A', tally: { approved: 2, rejected: 1, pending: 3 } },
+      { id: 32, label: '7B', tally: { approved: 1, rejected: 0, pending: 0 } },
+      { id: 33, label: '7C', tally: { approved: 0, rejected: 2, pending: 1 } },
+      { id: 34, label: '7D', tally: { approved: 0, rejected: 0, pending: 0 } },
+      // The reading of this class failed: the list comes without its count.
+      { id: 35, label: '7E' },
+    ];
+    const reading = deferred();
+    tallyGate = reading.promise;
+    await mount();
+    await waitFor(() => tally(35) !== null);
+    for (const item of listed) {
+      expect(tally(item.id)?.hasAttribute('data-reading')).toBe(true);
+      expect(tally(item.id)?.getAttribute('aria-hidden')).toBe('true');
+      expect(tally(item.id)?.textContent).toBe('');
+    }
+    await act(async () => reading.resolve());
+    await waitFor(() => tally(31)?.hasAttribute('data-reading') === false);
+    const read = (id: number) => ({
+      label: tally(id)?.getAttribute('aria-label'),
+      marks: [...(tally(id)?.querySelectorAll('[data-kind]') ?? [])].map(
+        (mark) => `${mark.getAttribute('data-kind')}:${mark.textContent}`,
+      ),
+    });
+    expect(read(31)).toEqual({
+      label: '2 aprovados, 1 reprovado, 3 pendentes',
+      marks: ['approved:2', 'rejected:1', 'pending:3'],
+    });
+    expect(read(32)).toEqual({ label: '1 aprovado', marks: ['approved:1'] });
+    expect(read(33)).toEqual({
+      label: '2 reprovados, 1 pendente',
+      marks: ['rejected:2', 'pending:1'],
+    });
+    for (const id of [31, 32, 33, 34, 35]) expect(tally(id)?.getAttribute('role')).toBe('img');
+    // A class with nobody eligible keeps the place with a dash; a failed reading says so.
+    expect(tally(34)?.hasAttribute('data-none')).toBe(true);
+    expect(read(34)).toEqual({ label: 'Nenhum elegível', marks: [] });
+    expect(tally(35)?.hasAttribute('data-unavailable')).toBe(true);
+    expect(read(35)).toEqual({ label: 'Contagem indisponível', marks: [] });
+  }, 15_000);
+
+  it('marks the classes never counted as unavailable when the counts do not come', async () => {
+    listed = [
+      { id: 41, label: '8A' },
+      { id: 42, label: '8B' },
+    ];
+    tallyFails = true;
+    await mount();
+    await waitFor(() => tally(41)?.hasAttribute('data-unavailable') === true);
+    for (const id of [41, 42]) {
+      expect(tally(id)?.getAttribute('role')).toBe('img');
+      expect(tally(id)?.getAttribute('aria-label')).toBe('Contagem indisponível');
+    }
   }, 15_000);
 
   it('keeps the active surface disconnected from legacy year and Council clients', () => {

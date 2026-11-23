@@ -416,14 +416,25 @@ Começa desligado. O inventário do que foi acrescentado e de como remover está
 
 **Decisão.** Substitui o contrato #648, e a BN-DEC-022 onde ela preservava históricos de sessão, decisão e votação e fotografias de fechamento do Conselho, somente nestes pontos:
 
-- Abrir, fechar e reabrir a reunião não levam justificativa: os comandos `open`, `close` e `reopen` recusam o campo. Só o que é registrado sobre um aluno (decisão e contagem de votos) continua com justificativa. Chave de idempotência e versão esperada continuam obrigatórias em todos os comandos; `close` continua enviando a referência de revisão.
-- Não há linha do tempo nem fotografia de fechamento. Uma informação nova substitui a atual e nada histórico é guardado. Permanecem a sessão (estado e versão), a decisão atual e a contagem atual de cada aluno e as chaves de idempotência.
+- Abrir a reunião não leva justificativa: o comando `open` recusa o campo. Só o que é registrado sobre um aluno (decisão e contagem de votos) continua com justificativa. A reunião só abre; fechar e reabrir deixaram de existir no mesmo dia (ver "A reunião só abre", abaixo), e com eles a chave de idempotência, a versão esperada e a referência de revisão.
+- Não há linha do tempo nem fotografia de fechamento. Uma informação nova substitui a atual e nada histórico é guardado. Permanecem a sessão, a decisão atual e a contagem atual de cada aluno.
 - A resposta da turma deixa de trazer `timeline`, `closures`, `session.closedAt`, `session.snapshotCount` e `decision.version`. O contrato continua `contractVersion: 3`.
 - Cada botão de turma mostra aprovados, reprovados e pendentes, sem texto. A operação `classes` aceita `tally: true` e devolve `tally: { approved, rejected, pending }` por turma, calculado da própria leitura da turma; reprovados somam os do Conselho e os por falta.
 - A turma é escolhida por botões, não por seletor.
 - A migration `0023_council_current_state_only_v1.sql` remove do PostgreSQL as tabelas de histórico e de fotografia do Conselho e a coluna `conselho_sessao.fechamento_atual_id`. Ela é aplicada depois de o código ser publicado, porque o código publicado antes ainda lê essas tabelas. Em 23/11/2026 a produção não tinha linha em nenhuma tabela do Conselho.
-- Não muda elegibilidade, cálculo, decisões possíveis, votação nem a regra de fechamento (zero elegíveis pendentes e a mesma referência de revisão).
+- Não muda elegibilidade, cálculo, decisões possíveis nem votação.
 
-**Em refação (23/11/2026).** No mesmo dia o responsável mandou retirar do código as funções "Decisão humana", "Contagem opcional" e "Não elegíveis", porque vai refazê-las: "por enquanto não mecha nas tabelas no portgre pois podemos precisar. ao final, o que sobrar, que ficar sem uso, a gente apaga". Até a nova versão, o contrato não tem os comandos `decision` e `vote` nem o campo `vote`; a decisão atual de `conselho_decisao` continua sendo lida (fila, contagens por turma e regra de fechamento). `conselho_decisao` e `conselho_votacao` ficam como estão. A lista do que apagar, incluindo a `0023`, é revista com ele antes de integrar.
+**Em refação (23/11/2026).** No mesmo dia o responsável mandou retirar do código as funções "Decisão humana", "Contagem opcional" e "Não elegíveis", porque vai refazê-las: "por enquanto não mecha nas tabelas no portgre pois podemos precisar. ao final, o que sobrar, que ficar sem uso, a gente apaga". Até a nova versão, o contrato não tem os comandos `decision` e `vote` nem o campo `vote`; a decisão atual de `conselho_decisao` continua sendo lida (fila, contagens por turma e turma concluída). `conselho_decisao` e `conselho_votacao` ficam como estão. A lista do que apagar, incluindo a `0023`, é revista com ele antes de integrar.
+
+**A reunião só abre (23/11/2026).** Complemento do responsável no mesmo dia (#1558, PR rascunho #1559):
+
+- A reunião de uma turma só abre. Não existem mais "Fechar" nem "Reabrir": saem os comandos `close` e `reopen`, a referência de revisão, a versão esperada, a chave de idempotência e as falhas de conflito (HTTP 409). A turma aparece como concluída sozinha quando todos os elegíveis têm decisão; é um estado derivado, não gravado, e a decisão pode mudar a qualquer momento, mesmo depois disso.
+- Antes de a reunião estar aberta, nada pode ser inserido, só visualizado. É a regra para as funções que serão refeitas (decisão e contagem); hoje não há comando de escrita além de abrir.
+- Turma sem alunos elegíveis não tem reunião a abrir: a tela não mostra o botão.
+- A elegibilidade continua calculada na hora, pelas notas. Se uma nota corrigida chegar durante o Conselho, a lista muda. Não há trava no sistema; o controle é operacional: os alunos serão reconferidos antes de a decisão terminar e a escola combinou não enviar notas ao sistema nesse período.
+- Sem histórico, não há como desfazer uma troca de decisão por engano: risco aceito pelo responsável.
+- Divulgação ao aluno: como a decisão vale assim que registrada, haverá futuramente um controle interno para mostrar o resultado no Portal a partir de uma data. Não implementado; fica registrado só como intenção.
+
+Consequências: o contrato continua `contractVersion: 3`, com `session.state` `not-opened | open`. Abrir de novo responde a reunião já aberta, e uma sessão fechada pela versão anterior é lida como aberta. Abrir não altera a versão de dados do Portal nem dispara aviso a ele. `conselho_idempotencia` e `conselho_votacao` ficam sem uso pelo código e `conselho_decisao` é só lida; nenhuma migration nova, e as três entram na lista do que revisar com o responsável antes de integrar. Detalhes em `RELATIONAL_COUNCIL_V3.md`.
 
 **Alternativa descartada.** Manter as tabelas de histórico sem uso: o responsável pediu que fossem removidas do PostgreSQL.

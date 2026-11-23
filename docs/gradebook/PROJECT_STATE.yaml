@@ -62,7 +62,7 @@ runtime:
   cross_academic_year_comparison: forbidden
   audit_treatment: append-only-recognized-and-annotation-current-diagnostics-separate
   rr: terminal-failed-outside-council
-  relational_council_lifecycle: session-cas-idempotency-current-state-only-no-history-no-snapshot-unjustified-open-close-reopen
+  relational_council_lifecycle: open-only-no-close-no-reopen-concluded-derived-current-state-only-no-history-no-snapshot-unjustified-open
   year_reset: explicit-annual-preview-and-confirmation-portal-guard-required
   academic_browser_persistent_storage: forbidden
   cache_control: no-store
