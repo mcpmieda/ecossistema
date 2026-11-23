@@ -336,17 +336,15 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
           for (const row of rows.slice(0, request.limit)) {
             // The tally is the class's own reading, so it can never disagree with its workspace.
             // A class whose reading failed goes without one.
-            const workspace = request.tally
-              ? await readWorkspace(db, request.year, integer(row.id))
-              : null;
+            const workspace = await readWorkspace(db, request.year, integer(row.id));
             classes.push({
               id: integer(row.id),
               label: text(row.codigo),
               name: text(row.nome),
               sessionState: sessionStateOf(row.estado),
-              ...(workspace !== null && typeof workspace !== 'string'
-                ? { tally: relationalCouncilTallyV3(workspace.summary) }
-                : {}),
+              ...(typeof workspace === 'string'
+                ? {}
+                : { tally: relationalCouncilTallyV3(workspace.summary) }),
             });
           }
           return {

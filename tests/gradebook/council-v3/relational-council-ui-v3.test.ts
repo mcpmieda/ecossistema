@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement } from 'react';
+import { act, createElement, useEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationalCouncilPageV3 } from '../../../src/features/gradebook/council/relational-council-page-v3';
 import { requestRelationalCouncilV3 } from '../../../src/features/gradebook/council/relational-council-client-v3';
+import { useGradebookYear } from '../../../src/platform/gradebook-year-context';
 import { GradebookYearProvider } from '../../../src/platform/gradebook-year-provider';
 import {
   relationalCouncilTallyV3,
@@ -55,6 +56,8 @@ const nonEligible: RelationalCouncilStudentV3 = {
   calculatedResult: 'APROVADO DIRETO',
   components: [{ ...student.components[0]!, result: 'approved-direct' as const }],
 };
+// The hook keeps the classes of each year while its module lives: every test reads years of its own.
+let year = 2024;
 /** The class of the journey, with its summary counted from the students. */
 function workspace(
   students: readonly RelationalCouncilStudentV3[] = [student, nonEligible],
@@ -63,7 +66,7 @@ function workspace(
   const eligible = students.filter((item) => item.eligibility.eligible);
   const decided = eligible.filter((item) => item.decision !== null);
   return {
-    context: { year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 },
+    context: { year, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 },
     classGroup: { id: 10, label: '6A', name: 'TURMA SINTETICA' },
     readAt: '2026-09-11T04:00:00.000Z',
     authority: 'calculated-eligibility-explicit-human-decision',
@@ -81,23 +84,27 @@ function workspace(
     students: [...students],
   };
 }
-/** A class button of the list; `tally` is what the count reading brings for it, if anything. */
+/** A class of the answer; without `tally` it is a class the server could not read. The class of
+ * the journey (id 10) is always counted from its own students. */
 type ListedClass = { id: number; label: string; tally?: RelationalCouncilTallyV3 };
 const RETIRED_TEXT =
-  /Fechar reunião|Reabrir|Revisar fechamento|Confirmar fechamento|Versão institucional|leitura segura|Sessão (?:aberta|fechada|da turma)|Reunião (?:aberta|reaberta|fechada)\./u;
+  /Fechar reunião|Reabrir|Revisar fechamento|Confirmar fechamento|Versão institucional|leitura segura|Sessão (?:aberta|fechada|da turma)|Reunião (?:aberta|reaberta|fechada)\.|Nenhum aluno elegível nesta turma/u;
 
 let host: HTMLDivElement;
 let root: Root | null;
 let current = workspace();
 let listed: ListedClass[];
+let years: number[];
 // Each one holds its reading until released; the failure flags refuse it.
-let tallyGate: Promise<void> | null;
+let classesGate: Promise<void> | null;
 let workspaceGate: Promise<void> | null;
-let tallyFails: boolean;
+let classesFail: boolean;
+let workspaceFails: boolean;
 let openFails: boolean;
 let requests: Record<string, unknown>[];
 let fetchMock: ReturnType<typeof vi.fn<typeof fetch>>;
 const reply = (value: unknown, status = 200) => Response.json(value, { status });
+const unavailable = () => reply({ contractVersion: 3, state: 'unavailable' }, 503);
 function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>((done) => {
@@ -128,11 +135,15 @@ beforeEach(() => {
   );
   // No class comes back selected from the test before.
   sessionStorage.clear();
+  // Two years for each test: the one in use and one to change to.
+  year += 2;
+  years = [year];
   current = workspace();
   listed = [{ id: 10, label: '6A' }];
-  tallyGate = null;
+  classesGate = null;
   workspaceGate = null;
-  tallyFails = false;
+  classesFail = false;
+  workspaceFails = false;
   openFails = false;
   requests = [];
   fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
@@ -143,13 +154,15 @@ beforeEach(() => {
         contractVersion: 2,
         state: 'ready',
         operation: 'bootstrap',
-        years: [{ year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 }],
+        years: years.map((item) => ({
+          year: item,
+          minimumApprovalMilli: 60_000,
+          maxCouncilComponents: 2,
+        })),
       });
     if (body.operation === 'classes') {
-      if (body.tally === true) {
-        await tallyGate;
-        if (tallyFails) return reply({ contractVersion: 3, state: 'unavailable' }, 503);
-      }
+      await classesGate;
+      if (classesFail) return unavailable();
       return reply({
         contractVersion: 3,
         state: 'ready',
@@ -163,15 +176,18 @@ beforeEach(() => {
             label: item.label,
             name: 'TURMA SINTETICA',
             sessionState: journey ? current.session.state : 'not-opened',
-            ...(body.tally === true && tally ? { tally } : {}),
+            ...(tally ? { tally } : {}),
           };
         }),
         nextOffset: null,
       });
     }
-    if (body.operation === 'workspace') await workspaceGate;
+    if (body.operation === 'workspace') {
+      await workspaceGate;
+      if (workspaceFails) return unavailable();
+    }
     if (body.operation === 'open') {
-      if (openFails) return reply({ contractVersion: 3, state: 'unavailable' }, 503);
+      if (openFails) return unavailable();
       current = workspace(current.students, 'open');
     }
     return reply({
@@ -186,9 +202,12 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = null;
 });
-afterEach(async () => {
+async function unmount() {
   if (root) await act(async () => root!.unmount());
   root = null;
+}
+afterEach(async () => {
+  await unmount();
   host.remove();
   vi.unstubAllGlobals();
 });
@@ -204,26 +223,31 @@ async function waitFor(predicate: () => boolean) {
   }
   expect(predicate()).toBe(true);
 }
-async function mount() {
+const sent = (operation: string) => requests.filter((request) => request.operation === operation);
+/** Mounts the tab and waits until it asks for the classes. */
+async function mount(beside: ReactNode = null) {
+  const before = sent('classes').length;
   root = createRoot(host);
   await act(async () =>
     root!.render(
-      createElement(GradebookYearProvider, null, createElement(RelationalCouncilPageV3)),
+      createElement(GradebookYearProvider, null, beside, createElement(RelationalCouncilPageV3)),
     ),
   );
-  await waitFor(() => requests.some((request) => request.operation === 'classes'));
+  await waitFor(() => sent('classes').length > before);
 }
-const tab = (id: number) =>
-  host.querySelector<HTMLElement>(
-    `[role="tablist"][aria-label="Turmas do Conselho"] [data-key="${id}"]`,
-  );
-const tally = (id: number) => tab(id)?.querySelector('.council-tally') ?? null;
+const group = () => host.querySelector('[role="group"][aria-label="Turmas do Conselho"]');
+const classButtons = () => [...host.querySelectorAll<HTMLButtonElement>('button.council-class')];
+// The label is the first thing in the button; the tally comes after it.
+const labelOf = (item: HTMLButtonElement) => item.firstChild?.textContent;
+const classButton = (label: string) => classButtons().find((item) => labelOf(item) === label);
+const tally = (label: string) => classButton(label)?.querySelector('.council-tally') ?? null;
 const meeting = () => host.querySelector('.council-session');
+const summary = () => host.querySelector('[aria-label="Resumo do Conselho"]');
 const button = (label: string) =>
   [...host.querySelectorAll('button')].find((item) => item.textContent?.includes(label));
-async function openClass(id: number) {
-  await waitFor(() => tab(id) !== null);
-  await act(async () => tab(id)!.click());
+async function openClass(label: string) {
+  await waitFor(() => classButton(label) !== undefined);
+  await act(async () => classButton(label)!.click());
   await settle();
 }
 async function click(label: string) {
@@ -234,8 +258,8 @@ async function click(label: string) {
 /** Mounts the page and opens the class of the journey. */
 async function openJourney() {
   await mount();
-  await openClass(10);
-  await waitFor(() => host.querySelector('[aria-label="Resumo do Conselho"]') !== null);
+  await openClass('6A');
+  await waitFor(() => summary() !== null);
 }
 
 describe('relational Council V3 client and HeroUI journey', () => {
@@ -258,17 +282,17 @@ describe('relational Council V3 client and HeroUI journey', () => {
       operation: 'classes',
       year: 2025,
     });
-    // A command of the earlier version never leaves the browser.
-    const sent = fetchMock.mock.calls.length;
-    expect(
-      await requestRelationalCouncilV3({
+    // Neither a command of the earlier version nor the retired tally flag leaves the browser.
+    const calls = fetchMock.mock.calls.length;
+    for (const retired of [
+      { contractVersion: 3, operation: 'close', year: 2026, classId: 10 },
+      { ...request, tally: true },
+    ])
+      expect(await requestRelationalCouncilV3(retired as never)).toEqual({
         contractVersion: 3,
-        operation: 'close',
-        year: 2026,
-        classId: 10,
-      } as never),
-    ).toEqual({ contractVersion: 3, state: 'invalid-request' });
-    expect(fetchMock.mock.calls).toHaveLength(sent);
+        state: 'invalid-request',
+      });
+    expect(fetchMock.mock.calls).toHaveLength(calls);
   });
 
   it('renders the static Kanban-inspired queue and annual table without timeline, snapshots or prior-year controls', async () => {
@@ -283,7 +307,10 @@ describe('relational Council V3 client and HeroUI journey', () => {
     const reading = deferred();
     workspaceGate = reading.promise;
     await mount();
-    await openClass(10);
+    await waitFor(() => classButton('6A') !== undefined);
+    expect(classButton('6A')?.getAttribute('aria-pressed')).toBe('false');
+    expect(classButton('6A')?.hasAttribute('data-selected')).toBe(false);
+    await openClass('6A');
     // While the class is read the page says only that it is loading.
     expect(host.querySelector('[aria-live="polite"]')?.textContent).toBe('Carregando…');
     await act(async () => reading.resolve());
@@ -309,25 +336,37 @@ describe('relational Council V3 client and HeroUI journey', () => {
     expect(host.textContent).not.toMatch(RETIRED_TEXT);
     expect(host.querySelectorAll('[draggable="true"]')).toHaveLength(0);
     // The class button says where the class stands, with counts and no words.
-    expect(tally(10)?.getAttribute('aria-label')).toBe('2 pendentes');
-    expect(tally(10)?.textContent).toBe('2');
-    // The classes are tabs, and no form is left on the page.
+    expect(tally('6A')?.getAttribute('aria-label')).toBe('2 pendentes');
+    expect(tally('6A')?.textContent).toBe('2');
+    // The classes are independent buttons, not tabs, and the open one is the pressed one.
+    expect(group()?.contains(classButton('6A')!)).toBe(true);
+    expect(classButton('6A')?.type).toBe('button');
+    expect(classButton('6A')?.getAttribute('aria-pressed')).toBe('true');
+    expect(classButton('6A')?.getAttribute('data-selected')).toBe('true');
     expect(
-      host.querySelectorAll('[role="tablist"][aria-label="Turmas do Conselho"] [role="tab"]')
-        .length,
-    ).toBeGreaterThan(0);
+      host.querySelectorAll('[role="tab"], [role="tablist"], .school-class-tabs'),
+    ).toHaveLength(0);
+    // No form is left on the page.
     expect(
       host.querySelectorAll('[data-slot="select"], textarea, input[type="number"]'),
     ).toHaveLength(0);
+  }, 15_000);
+
+  it('asks for the classes once on entering the tab, with no flag, and then only for the class', async () => {
+    await openJourney();
+    // Pressing the class already open reads nothing again.
+    await openClass('6A');
+    expect(requests.filter((request) => request.contractVersion === 3)).toEqual([
+      { contractVersion: 3, operation: 'classes', year, offset: 0, limit: 100 },
+      { contractVersion: 3, operation: 'workspace', year, classId: 10 },
+    ]);
   }, 15_000);
 
   it('opens the meeting once, with only the class scope, and then shows it open', async () => {
     await openJourney();
     expect(meeting()?.textContent).toContain('Ainda não iniciada');
     await click('Abrir reunião');
-    expect(requests.filter((request) => request.operation === 'open')).toEqual([
-      { contractVersion: 3, operation: 'open', year: 2026, classId: 10 },
-    ]);
+    expect(sent('open')).toEqual([{ contractVersion: 3, operation: 'open', year, classId: 10 }]);
     // The open meeting has no button left, and nothing announces the command.
     await waitFor(() => meeting()?.textContent?.includes('Aberta') === true);
     expect(meeting()?.textContent).not.toContain('Ainda não iniciada');
@@ -370,73 +409,163 @@ describe('relational Council V3 client and HeroUI journey', () => {
     expect(host.querySelector('.council-queue-card')?.textContent).toBe(
       `1${decided.name}APROVADO PELO CONSELHO`,
     );
-    expect(tally(10)?.getAttribute('aria-label')).toBe('1 aprovado');
+    expect(tally('6A')?.getAttribute('aria-label')).toBe('1 aprovado');
   }, 15_000);
 
-  it('offers no meeting to a class without eligible students', async () => {
-    current = workspace([nonEligible]);
-    await openJourney();
-    expect(host.textContent).toContain('Nenhum aluno elegível nesta turma');
-    expect(meeting()).toBeNull();
-    expect(button('Abrir reunião')).toBeUndefined();
-    expect(host.querySelector('[aria-label="Fluxo dos alunos elegíveis"]')).toBeNull();
-  }, 15_000);
-
-  it('holds the place of each class count while it is read, then reads the counts aloud', async () => {
+  it('gives a button only to the classes with eligible students, and reads the counts aloud', async () => {
     listed = [
       { id: 31, label: '7A', tally: { approved: 2, rejected: 1, pending: 3 } },
       { id: 32, label: '7B', tally: { approved: 1, rejected: 0, pending: 0 } },
       { id: 33, label: '7C', tally: { approved: 0, rejected: 2, pending: 1 } },
+      // Nobody eligible: no button.
       { id: 34, label: '7D', tally: { approved: 0, rejected: 0, pending: 0 } },
-      // The reading of this class failed: the list comes without its count.
+      // The reading of this class failed: it comes without its count and stays listed.
       { id: 35, label: '7E' },
     ];
-    const reading = deferred();
-    tallyGate = reading.promise;
     await mount();
-    await waitFor(() => tally(35) !== null);
-    for (const item of listed) {
-      expect(tally(item.id)?.hasAttribute('data-reading')).toBe(true);
-      expect(tally(item.id)?.getAttribute('aria-hidden')).toBe('true');
-      expect(tally(item.id)?.textContent).toBe('');
-    }
-    await act(async () => reading.resolve());
-    await waitFor(() => tally(31)?.hasAttribute('data-reading') === false);
-    const read = (id: number) => ({
-      label: tally(id)?.getAttribute('aria-label'),
-      marks: [...(tally(id)?.querySelectorAll('[data-kind]') ?? [])].map(
+    await waitFor(() => classButtons().length > 0);
+    expect(classButtons().map(labelOf)).toEqual(['7A', '7B', '7C', '7E']);
+    const read = (label: string) => ({
+      label: tally(label)?.getAttribute('aria-label'),
+      marks: [...(tally(label)?.querySelectorAll('[data-kind]') ?? [])].map(
         (mark) => `${mark.getAttribute('data-kind')}:${mark.textContent}`,
       ),
     });
-    expect(read(31)).toEqual({
+    expect(read('7A')).toEqual({
       label: '2 aprovados, 1 reprovado, 3 pendentes',
       marks: ['approved:2', 'rejected:1', 'pending:3'],
     });
-    expect(read(32)).toEqual({ label: '1 aprovado', marks: ['approved:1'] });
-    expect(read(33)).toEqual({
+    expect(read('7B')).toEqual({ label: '1 aprovado', marks: ['approved:1'] });
+    expect(read('7C')).toEqual({
       label: '2 reprovados, 1 pendente',
       marks: ['rejected:2', 'pending:1'],
     });
-    for (const id of [31, 32, 33, 34, 35]) expect(tally(id)?.getAttribute('role')).toBe('img');
-    // A class with nobody eligible keeps the place with a dash; a failed reading says so.
-    expect(tally(34)?.hasAttribute('data-none')).toBe(true);
-    expect(read(34)).toEqual({ label: 'Nenhum elegível', marks: [] });
-    expect(tally(35)?.hasAttribute('data-unavailable')).toBe(true);
-    expect(read(35)).toEqual({ label: 'Contagem indisponível', marks: [] });
+    expect(tally('7E')?.hasAttribute('data-unavailable')).toBe(true);
+    expect(read('7E')).toEqual({ label: 'Contagem indisponível', marks: [] });
+    for (const item of classButtons()) {
+      expect(item.querySelector('.council-tally')?.getAttribute('role')).toBe('img');
+      expect(item.getAttribute('aria-pressed')).toBe('false');
+    }
+    // Nothing holds the place of a count or marks a class with nobody eligible.
+    expect(
+      host.querySelectorAll(
+        '[data-reading], [data-none], [aria-label="Nenhum elegível"], [role="tab"]',
+      ),
+    ).toHaveLength(0);
+    expect(host.textContent).not.toMatch(RETIRED_TEXT);
+    // With classes listed and none open, the page asks for one.
+    expect(host.textContent).toContain('Escolha uma turma para abrir a pauta');
+    expect(host.textContent).not.toContain('Nenhuma turma com alunos elegíveis');
+    expect(sent('classes')).toHaveLength(1);
   }, 15_000);
 
-  it('marks the classes never counted as unavailable when the counts do not come', async () => {
-    listed = [
-      { id: 41, label: '8A' },
-      { id: 42, label: '8B' },
-    ];
-    tallyFails = true;
+  it('says so when the year has no class with eligible students', async () => {
+    listed = [{ id: 34, label: '7D', tally: { approved: 0, rejected: 0, pending: 0 } }];
     await mount();
-    await waitFor(() => tally(41)?.hasAttribute('data-unavailable') === true);
-    for (const id of [41, 42]) {
-      expect(tally(id)?.getAttribute('role')).toBe('img');
-      expect(tally(id)?.getAttribute('aria-label')).toBe('Contagem indisponível');
-    }
+    await waitFor(() => host.textContent?.includes('Nenhuma turma com alunos elegíveis') === true);
+    expect(group()).toBeNull();
+    expect(classButtons()).toHaveLength(0);
+    expect(host.textContent).not.toContain('Escolha uma turma para abrir a pauta');
+    expect(host.textContent).not.toContain('Operação não concluída');
+    expect(button('Tentar novamente')).toBeUndefined();
+  }, 15_000);
+
+  it('takes the open class off the list when its reading comes back with nobody eligible', async () => {
+    listed = [
+      { id: 10, label: '6A' },
+      { id: 31, label: '7A', tally: { approved: 0, rejected: 0, pending: 1 } },
+    ];
+    await mount();
+    await waitFor(() => classButton('6A') !== undefined);
+    // A grade was corrected after the classes were read.
+    current = workspace([nonEligible]);
+    await openClass('6A');
+    await waitFor(() => classButton('6A') === undefined);
+    expect(classButtons().map(labelOf)).toEqual(['7A']);
+    expect(classButton('7A')?.getAttribute('aria-pressed')).toBe('false');
+    expect(summary()).toBeNull();
+    expect(meeting()).toBeNull();
+    expect(host.querySelector('[aria-label="Fluxo dos alunos elegíveis"]')).toBeNull();
+    expect(host.textContent).toContain('Escolha uma turma para abrir a pauta');
+    expect(host.textContent).not.toMatch(RETIRED_TEXT);
+    expect(host.querySelectorAll('[role="alert"]')).toHaveLength(0);
+    // The class left without the classes being asked for again.
+    expect(sent('classes')).toHaveLength(1);
+  }, 15_000);
+
+  it('offers to try again when the classes could not be read, and reads them again', async () => {
+    classesFail = true;
+    await mount();
+    await waitFor(() => host.textContent?.includes('Operação não concluída') === true);
+    expect(classButtons()).toHaveLength(0);
+    // A failed reading is not a year without classes.
+    expect(host.textContent).not.toContain('Nenhuma turma com alunos elegíveis');
+    classesFail = false;
+    await click('Tentar novamente');
+    await waitFor(() => classButton('6A') !== undefined);
+    expect(host.textContent).not.toContain('Operação não concluída');
+    expect(button('Tentar novamente')).toBeUndefined();
+    expect(sent('classes')).toHaveLength(2);
+  }, 15_000);
+
+  it('reads the open class again, and not the classes, when its reading failed', async () => {
+    workspaceFails = true;
+    await mount();
+    await openClass('6A');
+    await waitFor(() => host.textContent?.includes('Operação não concluída') === true);
+    expect(classButton('6A')?.getAttribute('aria-pressed')).toBe('true');
+    expect(summary()).toBeNull();
+    workspaceFails = false;
+    await click('Tentar novamente');
+    await waitFor(() => meeting() !== null);
+    expect(host.textContent).not.toContain('Operação não concluída');
+    expect(sent('workspace')).toHaveLength(2);
+    expect(sent('classes')).toHaveLength(1);
+  }, 15_000);
+
+  it('shows the classes read before at once on coming back to the tab, then replaces them', async () => {
+    await mount();
+    await waitFor(() => classButton('6A') !== undefined);
+    await unmount();
+    listed = [...listed, { id: 61, label: '9B', tally: { approved: 0, rejected: 0, pending: 2 } }];
+    const reading = deferred();
+    classesGate = reading.promise;
+    await mount();
+    // The new reading is still on its way.
+    expect(classButtons().map(labelOf)).toEqual(['6A']);
+    expect(tally('6A')?.getAttribute('aria-label')).toBe('1 pendente');
+    await act(async () => reading.resolve());
+    await waitFor(() => classButton('9B') !== undefined);
+    expect(classButtons().map(labelOf)).toEqual(['6A', '9B']);
+    expect(sent('classes')).toHaveLength(2);
+  }, 15_000);
+
+  it('closes the class of another year when the year changes', async () => {
+    // The catalogue lists the years from the newest; the first one is the year in use.
+    years = [year, year - 1];
+    let selectYear: (next: number) => void = () => {};
+    const Probe = () => {
+      const scope = useGradebookYear();
+      useEffect(() => {
+        if (scope) selectYear = scope.selectYear;
+      }, [scope]);
+      return null;
+    };
+    await mount(createElement(Probe));
+    await openClass('6A');
+    await waitFor(() => meeting() !== null);
+    listed = [{ id: 51, label: '9A', tally: { approved: 1, rejected: 0, pending: 1 } }];
+    await act(async () => selectYear(year - 1));
+    await waitFor(() => classButton('9A') !== undefined);
+    expect(classButtons().map(labelOf)).toEqual(['9A']);
+    expect(classButton('9A')?.getAttribute('aria-pressed')).toBe('false');
+    expect(summary()).toBeNull();
+    expect(meeting()).toBeNull();
+    expect(host.textContent).toContain('Escolha uma turma para abrir a pauta');
+    // The other year was asked only for its classes.
+    expect(requests.filter((request) => request.year === year - 1)).toEqual([
+      { contractVersion: 3, operation: 'classes', year: year - 1, offset: 0, limit: 100 },
+    ]);
   }, 15_000);
 
   it('keeps the active surface disconnected from legacy year and Council clients', () => {

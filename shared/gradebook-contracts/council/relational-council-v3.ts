@@ -45,8 +45,6 @@ export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation'
       year,
       offset: z.number().int().min(0).max(100_000),
       limit: z.number().int().min(1).max(RELATIONAL_COUNCIL_LIMITS_V3.classes),
-      // Asks each class for its tally too: one whole reading per class, so only when it is shown.
-      tally: z.boolean().optional(),
     })
     .strict(),
   z
@@ -209,6 +207,7 @@ export const relationalCouncilResponseSchemaV3 = z.union([
           reference.extend({
             name: label,
             sessionState,
+            // Absent only when the class could not be read.
             tally: tally.optional(),
           }),
         )

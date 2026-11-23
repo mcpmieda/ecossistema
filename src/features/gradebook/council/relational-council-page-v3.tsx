@@ -21,8 +21,7 @@ import type {
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { gradeText } from '../performance/performance-display-v2';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
-import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
-import { useRelationalCouncilV3 } from './use-relational-council-v3';
+import { useRelationalCouncilV3, type CouncilClassViewV3 } from './use-relational-council-v3';
 
 const FAILURE: Record<RelationalCouncilFailureV3, string> = {
   'invalid-request': 'A operação não pôde ser concluída. Atualize a tela e tente de novo.',
@@ -65,11 +64,8 @@ const TALLY_KINDS = [
 ] as const;
 
 /** Where the class stands, inside its button: a mark and a count for each outcome, no words.
- * Each outcome has its own shape, so the colour is never the only difference. Every button keeps
- * the place of one count (a dash when nobody is eligible), so they barely move as counts arrive. */
-function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | null | undefined }>) {
-  if (tally === undefined)
-    return <span className="council-tally" data-reading aria-hidden="true" />;
+ * Each outcome has its own shape, so the colour is never the only difference. */
+function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | null }>) {
   if (tally === null)
     return (
       <span
@@ -82,12 +78,6 @@ function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | nu
       </span>
     );
   const shown = TALLY_KINDS.filter(([kind]) => tally[kind] > 0);
-  if (!shown.length)
-    return (
-      <span className="council-tally" data-none role="img" aria-label="Nenhum elegível">
-        –
-      </span>
-    );
   return (
     <span
       className="council-tally"
@@ -101,6 +91,40 @@ function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | nu
         </span>
       ))}
     </span>
+  );
+}
+
+/** The classes with eligible students, each one its own button. */
+function CouncilClassesV3({
+  classes,
+  selectedId,
+  disabled,
+  onSelect,
+}: Readonly<{
+  classes: readonly CouncilClassViewV3[];
+  selectedId: number | null;
+  disabled: boolean;
+  onSelect: (id: number) => void;
+}>) {
+  return (
+    <div className="council-classes" role="group" aria-label="Turmas do Conselho">
+      {classes.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className="council-class"
+          data-selected={item.id === selectedId || undefined}
+          aria-pressed={item.id === selectedId}
+          disabled={disabled}
+          onClick={() => {
+            if (item.id !== selectedId) onSelect(item.id);
+          }}
+        >
+          {item.label}
+          <ClassTallyV3 tally={item.tally} />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -286,8 +310,8 @@ function CouncilStatusV3({
   );
 }
 
-/** The meeting of a class with eligible students: not started, open, or concluded once every
- * eligible student has a decision. It opens once and is never closed. */
+/** The meeting of the class: not started, open, or concluded once every eligible student has a
+ * decision. It opens once and is never closed. */
 function CouncilSessionV3({
   workspace,
   busy,
@@ -342,136 +366,124 @@ export function RelationalCouncilPageV3() {
   }, [workspace?.classGroup.id]);
 
   return (
-    <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-2">
+    <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-4">
       <h2 className="sr-only">Conselho de Classe</h2>
-      <ClassTabsV1
-        label="Turmas do Conselho"
-        items={state.classes.map((item) => ({
-          id: item.id,
-          label: item.label,
-          extra: <ClassTallyV3 tally={item.tally} />,
-        }))}
-        selectedId={state.classId}
-        disabled={state.busy.classes || state.busy.command}
-        onChange={(id) => void state.selectClass(id)}
-      >
-        <div className="grid min-w-0 gap-4">
-          {state.failure && state.classId !== null ? (
-            <Button
-              variant="secondary"
-              className="justify-self-start"
-              isDisabled={state.busy.workspace || state.busy.command}
-              onPress={() => void state.loadWorkspace(state.classId!)}
-            >
-              <RefreshCw size={16} />
-              Tentar novamente
-            </Button>
-          ) : null}
-          <CouncilStatusV3 busy={state.busy} failure={state.failure} stale={state.stale} />
-          {!workspace && !state.busy.workspace ? (
-            <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-separator bg-surface-secondary/40 p-8 text-center">
-              <div>
-                <Scale className="mx-auto mb-3 text-muted" />
-                <strong className="text-sm">Escolha uma turma para abrir a pauta</strong>
-              </div>
-            </div>
-          ) : null}
-          {workspace ? (
-            <>
-              <div className="council-kpi-group" aria-label="Resumo do Conselho">
-                <Metric
-                  icon={<Users size={19} />}
-                  label={workspace.summary.total === 1 ? 'aluno' : 'alunos'}
-                  value={workspace.summary.total}
-                />
-                <Metric
-                  icon={<Scale size={19} />}
-                  label={workspace.summary.eligible === 1 ? 'elegível' : 'elegíveis'}
-                  value={workspace.summary.eligible}
-                />
-                <Metric
-                  icon={<Clock3 size={19} />}
-                  label="a deliberar"
-                  value={workspace.summary.pending}
-                  tone="warning"
-                />
-                <Metric
-                  icon={<CheckCircle2 size={19} />}
-                  label={workspace.summary.decided === 1 ? 'decidido' : 'decididos'}
-                  value={workspace.summary.decided}
-                  tone="success"
-                />
-              </div>
-              {eligible.length ? (
-                <CouncilSessionV3
-                  workspace={workspace}
-                  busy={state.busy.command}
-                  onOpen={() => void state.openSession()}
-                />
-              ) : null}
-              {eligible.length ? (
-                <div className="council-layout">
-                  <aside className="min-w-0">
-                    <div className="council-board" aria-label="Fluxo dos alunos elegíveis">
-                      <section className="council-board__column">
-                        <header>
-                          <span className="size-2 rounded-full bg-warning" />
-                          <strong>A deliberar</strong>
-                          <span>{pending.length}</span>
-                        </header>
-                        <div className="council-board__cards">
-                          {pending.map((student) => (
-                            <QueueCard
-                              key={student.id}
-                              student={student}
-                              selected={selected?.id === student.id}
-                              onSelect={() => setSelectedStudentId(student.id)}
-                            />
-                          ))}
-                          {!pending.length ? (
-                            <p className="council-board__empty">
-                              <Check size={16} />
-                              Fila concluída
-                            </p>
-                          ) : null}
-                        </div>
-                      </section>
-                      {decided.length ? (
-                        <section className="council-board__column">
-                          <header>
-                            <span className="size-2 rounded-full bg-success" />
-                            <strong>Decididos</strong>
-                            <span>{decided.length}</span>
-                          </header>
-                          <div className="council-board__cards">
-                            {decided.map((student) => (
-                              <QueueCard
-                                key={student.id}
-                                student={student}
-                                selected={selected?.id === student.id}
-                                onSelect={() => setSelectedStudentId(student.id)}
-                              />
-                            ))}
-                          </div>
-                        </section>
-                      ) : null}
-                    </div>
-                  </aside>
-                  <main className="min-w-0">
-                    {selected ? <StudentPanel key={selected.id} student={selected} /> : null}
-                  </main>
-                </div>
-              ) : (
-                <Alert status="default">
-                  <Alert.Content>
-                    <Alert.Title>Nenhum aluno elegível nesta turma</Alert.Title>
-                  </Alert.Content>
-                </Alert>
-              )}
-            </>
-          ) : null}
+      {state.classes.length ? (
+        <CouncilClassesV3
+          classes={state.classes}
+          selectedId={state.classId}
+          disabled={state.busy.command}
+          onSelect={(id) => void state.selectClass(id)}
+        />
+      ) : null}
+      {state.failure ? (
+        <Button
+          variant="secondary"
+          className="justify-self-start"
+          isDisabled={state.busy.classes || state.busy.workspace || state.busy.command}
+          onPress={() => void state.retry()}
+        >
+          <RefreshCw size={16} />
+          Tentar novamente
+        </Button>
+      ) : null}
+      <CouncilStatusV3 busy={state.busy} failure={state.failure} stale={state.stale} />
+      {!workspace && !state.busy.workspace && !state.busy.classes && !state.failure ? (
+        <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-separator bg-surface-secondary/40 p-8 text-center">
+          <div>
+            <Scale className="mx-auto mb-3 text-muted" />
+            <strong className="text-sm">
+              {state.classes.length
+                ? 'Escolha uma turma para abrir a pauta'
+                : 'Nenhuma turma com alunos elegíveis'}
+            </strong>
+          </div>
         </div>
-      </ClassTabsV1>
+      ) : null}
+      {workspace ? (
+        <>
+          <div className="council-kpi-group" aria-label="Resumo do Conselho">
+            <Metric
+              icon={<Users size={19} />}
+              label={workspace.summary.total === 1 ? 'aluno' : 'alunos'}
+              value={workspace.summary.total}
+            />
+            <Metric
+              icon={<Scale size={19} />}
+              label={workspace.summary.eligible === 1 ? 'elegível' : 'elegíveis'}
+              value={workspace.summary.eligible}
+            />
+            <Metric
+              icon={<Clock3 size={19} />}
+              label="a deliberar"
+              value={workspace.summary.pending}
+              tone="warning"
+            />
+            <Metric
+              icon={<CheckCircle2 size={19} />}
+              label={workspace.summary.decided === 1 ? 'decidido' : 'decididos'}
+              value={workspace.summary.decided}
+              tone="success"
+            />
+          </div>
+          <CouncilSessionV3
+            workspace={workspace}
+            busy={state.busy.command}
+            onOpen={() => void state.openSession()}
+          />
+          <div className="council-layout">
+            <aside className="min-w-0">
+              <div className="council-board" aria-label="Fluxo dos alunos elegíveis">
+                <section className="council-board__column">
+                  <header>
+                    <span className="size-2 rounded-full bg-warning" />
+                    <strong>A deliberar</strong>
+                    <span>{pending.length}</span>
+                  </header>
+                  <div className="council-board__cards">
+                    {pending.map((student) => (
+                      <QueueCard
+                        key={student.id}
+                        student={student}
+                        selected={selected?.id === student.id}
+                        onSelect={() => setSelectedStudentId(student.id)}
+                      />
+                    ))}
+                    {!pending.length ? (
+                      <p className="council-board__empty">
+                        <Check size={16} />
+                        Fila concluída
+                      </p>
+                    ) : null}
+                  </div>
+                </section>
+                {decided.length ? (
+                  <section className="council-board__column">
+                    <header>
+                      <span className="size-2 rounded-full bg-success" />
+                      <strong>Decididos</strong>
+                      <span>{decided.length}</span>
+                    </header>
+                    <div className="council-board__cards">
+                      {decided.map((student) => (
+                        <QueueCard
+                          key={student.id}
+                          student={student}
+                          selected={selected?.id === student.id}
+                          onSelect={() => setSelectedStudentId(student.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            </aside>
+            <main className="min-w-0">
+              {selected ? <StudentPanel key={selected.id} student={selected} /> : null}
+            </main>
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

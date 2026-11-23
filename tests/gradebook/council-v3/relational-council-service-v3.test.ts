@@ -278,15 +278,22 @@ describe('relational Council V3 lifecycle', () => {
     });
   });
 
-  it('tallies each class only when asked, from the class reading itself', async () => {
+  it('always tallies each class, from the class reading itself', async () => {
     const service = createRelationalCouncilV3(database, ACTOR);
-    const plain = await service.execute(CLASSES);
-    if (plain.state !== 'ready' || plain.operation !== 'classes') throw new Error('classes');
-    expect(plain.classes[0]).not.toHaveProperty('tally');
-    expect(await service.execute({ ...CLASSES, tally: true })).toMatchObject({
+    expect(await service.execute(CLASSES)).toMatchObject({
       state: 'ready',
       // The only eligible student has no decision yet.
       classes: [{ id: 10, sessionState: 'open', tally: { approved: 0, rejected: 0, pending: 1 } }],
+    });
+    // A class with nobody eligible is listed too, with its tally at zero.
+    expect(await service.execute({ ...CLASSES, year: 2025 })).toMatchObject({
+      state: 'ready',
+      classes: [{ id: 20, tally: { approved: 0, rejected: 0, pending: 0 } }],
+    });
+    // The flag that asked for the tally is no longer part of the request.
+    expect(await service.execute({ ...CLASSES, tally: true })).toEqual({
+      contractVersion: 3,
+      state: 'invalid-request',
     });
   });
 
@@ -314,7 +321,7 @@ describe('relational Council V3 lifecycle', () => {
         ]),
       },
     });
-    expect(await service.execute({ ...CLASSES, tally: true })).toMatchObject({
+    expect(await service.execute(CLASSES)).toMatchObject({
       state: 'ready',
       classes: [{ id: 10, tally: { approved: 1, rejected: 0, pending: 0 } }],
     });

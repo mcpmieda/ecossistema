@@ -94,13 +94,26 @@ describe('relational Council V3 contract', () => {
       expect(accepts({ ...open, ...record, studentId: 2, justification: 'Registro.' })).toBe(false);
   });
 
-  it('reads the classes, with their tally only when asked, and one workspace', () => {
+  it('reads the classes and one workspace, with no flag asking for the tally', () => {
     const list = { contractVersion: 3, operation: 'classes', year: 2026, offset: 0, limit: 100 };
     expect(accepts(list)).toBe(true);
-    expect(accepts({ ...list, tally: true })).toBe(true);
-    expect(accepts({ ...list, tally: 'yes' })).toBe(false);
+    for (const tally of [true, false, 'yes']) expect(accepts({ ...list, tally })).toBe(false);
     expect(accepts({ ...open, operation: 'workspace' })).toBe(true);
     expect(accepts({ ...open, operation: 'workspace', tally: true })).toBe(false);
+  });
+
+  it('answers each class with its tally, or without one when the class could not be read', () => {
+    const [item] = classes.classes;
+    const tally = { approved: 2, rejected: 1, pending: 3 };
+    expect(answers(classes)).toBe(true);
+    expect(answers({ ...classes, classes: [{ ...item, tally }, item] })).toBe(true);
+    for (const refused of [
+      { approved: 2, rejected: 1 },
+      { ...tally, pending: -1 },
+      { ...tally, absence: 0 },
+      null,
+    ])
+      expect(answers({ ...classes, classes: [{ ...item, tally: refused }] })).toBe(false);
   });
 
   it('answers a meeting that is either not opened or open, with nothing else about it', () => {

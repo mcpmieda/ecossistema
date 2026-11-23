@@ -10,23 +10,19 @@ export function ClassTabsV1({
   children,
   allLabel,
   label = 'Turmas',
-  disabled = false,
 }: Readonly<{
-  /** `extra` goes after the label, inside the tab: a short indication, never a second label. */
-  items: readonly { id: number; label: string; extra?: ReactNode }[];
+  items: readonly { id: number; label: string }[];
   selectedId: number | null;
   onChange: (id: number | null) => void;
   children?: ReactNode;
   allLabel?: string;
   label?: string;
-  disabled?: boolean;
 }>) {
   const selected = selectedId === null ? 'all' : String(selectedId);
   return (
     <Tabs
       className="school-class-tabs"
       selectedKey={selected}
-      isDisabled={disabled}
       keyboardActivation="manual"
       onSelectionChange={(key) => {
         // The library reports a click on the tab already chosen too: nothing to change or read again.
@@ -46,7 +42,6 @@ export function ClassTabsV1({
           {items.map((item) => (
             <Tabs.Tab key={item.id} id={String(item.id)}>
               {item.label}
-              {item.extra}
               <Tabs.Indicator />
             </Tabs.Tab>
           ))}

@@ -24,12 +24,14 @@ transforma esse cálculo em deliberação humana.
 - antes de a reunião estar aberta nada pode ser inserido, só visualizado. É a
   regra para as funções de decisão e contagem que serão refeitas; hoje `open` é o
   único comando de escrita;
-- turma sem alunos elegíveis não tem reunião a abrir: a tela não mostra o botão;
+- turma sem alunos elegíveis não tem reunião a abrir e não aparece na aba: só
+  são listadas as turmas com elegíveis;
 - a elegibilidade é calculada na hora, pelas notas, sem trava no sistema: uma
   nota corrigida que chegue durante o Conselho muda a lista. O controle é
   operacional e fora do sistema (ver a seção de 23/11/2026);
-- a lista de turmas pode trazer, a pedido (`tally: true`), a contagem de
-  aprovados, reprovados (pelo Conselho ou por falta) e pendentes de cada turma;
+- a lista de turmas traz sempre a contagem de aprovados, reprovados (pelo
+  Conselho ou por falta) e pendentes de cada turma; só fica sem ela a turma que
+  não pôde ser lida;
 - `conselho_anterior` não participa da elegibilidade nem da interface ativa. As
   colunas históricas existentes são preservadas fisicamente, sem backfill;
 - somente a capability `gradebook.persistence.admin` acessa a rota, sempre com
@@ -53,10 +55,12 @@ Não há fechamento nem reabertura. "Concluída" não é estado da sessão: a te
 deriva de `session.state: 'open'` com `summary.pending` igual a zero. Uma decisão
 nova substitui a anterior: não há histórico de sessão, decisão ou votação.
 
-Requests: `classes` (`year`, `offset`, `limit` e `tally` opcional), `workspace` e
-`open` (os dois com `{ year, classId }`). A resposta da turma traz `session` como
-`{ state }`, com `not-opened | open`; em `classes`, `sessionState` tem os mesmos
-dois valores. Saíram `close`, `reopen`, `reviewReference`, `session.version`,
+Requests: `classes` (`year`, `offset` e `limit`; o campo `tally` do pedido saiu e
+enviá-lo é `invalid-request`), `workspace` e `open` (os dois com
+`{ year, classId }`). A resposta da turma traz `session` como `{ state }`, com
+`not-opened | open`; em `classes`, `sessionState` tem os mesmos dois valores e
+cada turma traz `tally: { approved, rejected, pending }`, ausente só quando a
+turma não pôde ser lida. Saíram `close`, `reopen`, `reviewReference`, `session.version`,
 `sessionVersion`, `currentVersion`, `expectedVersion` e `idempotencyKey`, além de
 `timeline`, `closures`, `session.closedAt`, `session.snapshotCount` e
 `decision.version`, retirados antes. Saíram também as falhas `version-conflict`,
@@ -159,20 +163,42 @@ Complemento do responsável à BN-DEC-049 (#1558, PR rascunho #1559), no mesmo d
   uma data. **Não implementado**; só registrado como intenção.
 
 Tela: a linha "Reunião" mostra o estado (Ainda não iniciada, Aberta ou Concluída)
-e o botão "Abrir reunião" só enquanto a reunião não está aberta e só em turma com
-elegíveis. A fila tem dois grupos empilhados, "A deliberar" e "Decididos", que
+e o botão "Abrir reunião" só enquanto a reunião não está aberta. A fila tem dois grupos empilhados, "A deliberar" e "Decididos", que
 viram faixas horizontais em telas estreitas; o resumo de quatro números fica em
 uma linha também no celular. Nos botões de turma, as contagens têm forma além da
-cor (✓ aprovados, ✕ reprovados, ● pendentes), um marcador enquanto a contagem não
-chegou e um aviso quando a leitura da turma falhou. As últimas contagens lidas
-ficam guardadas enquanto o Centro está aberto e aparecem de imediato ao voltar à
-aba, sendo substituídas pela leitura seguinte.
+cor (✓ aprovados, ✕ reprovados, ● pendentes) e há um aviso quando a leitura da
+turma falhou. As últimas turmas lidas, com suas contagens, ficam guardadas
+enquanto o Centro está aberto e aparecem de imediato ao voltar à aba, sendo
+substituídas pela leitura seguinte.
 
 As contagens das outras turmas continuam atualizadas só ao entrar na aba; a turma
 aberta se atualiza sozinha. Foi mantido assim porque reler todas as turmas custa
 uma leitura inteira por turma: em 23/11/2026, no banco de produção com os dados
 de 2025, de 45 a 70 ms só na consulta das notas de cada turma (#1560), fora as demais
 consultas e o transporte.
+
+## Só turmas com elegíveis, em botões independentes — 23/11/2026
+
+Novo complemento do responsável à BN-DEC-049 (#1558, PR rascunho #1559), no
+mesmo dia:
+
+- a aba lista somente as turmas com alunos elegíveis. Turma sem nenhum elegível
+  não aparece e nada a marca: saíram o travessão ao lado da turma e o aviso
+  "Nenhum aluno elegível nesta turma";
+- cada turma é um botão independente (`aria-pressed` na turma aberta); saiu o
+  trilho contínuo de abas;
+- turma que não pôde ser lida continua listada, com o aviso "Contagem
+  indisponível", para não ser tomada por turma sem elegíveis;
+- ano sem nenhuma turma com elegíveis mostra "Nenhuma turma com alunos
+  elegíveis"; com turmas listadas e nenhuma aberta, "Escolha uma turma para
+  abrir a pauta".
+
+Leitura: o pedido `classes` traz sempre as contagens (o campo `tally` do pedido
+saiu) e é feito uma vez ao entrar na aba, sem leitura separada das contagens. A
+lista fica guardada enquanto o Centro está aberto. Em segundo plano só a turma
+aberta é relida; se essa releitura vier sem elegíveis (nota corrigida), a turma
+sai da lista e é fechada. Falha de leitura mostra "Tentar novamente", que relê a
+turma aberta ou, sem turma aberta, as turmas.
 
 Nenhuma migration nova. `conselho_idempotencia` e `conselho_votacao` ficam sem
 uso pelo código e `conselho_decisao` é só lida; as três entram na lista do que

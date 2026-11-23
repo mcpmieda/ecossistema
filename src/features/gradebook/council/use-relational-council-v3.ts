@@ -23,26 +23,24 @@ type CouncilClass = Extract<
   RelationalCouncilResponseV3,
   { state: 'ready'; operation: 'classes' }
 >['classes'][number];
-/** A class as its button shows it: `tally` is absent until read and null when its reading failed. */
+/** A class of the Conselho: one with eligible students. `tally` is null when the class could not
+ * be read, so it is shown rather than taken for a class with nobody. */
 export type CouncilClassViewV3 = Omit<CouncilClass, 'tally'> & {
-  readonly tally?: RelationalCouncilTallyV3 | null;
+  readonly tally: RelationalCouncilTallyV3 | null;
 };
-type TalliesV3 = Map<number, RelationalCouncilTallyV3 | null>;
 const PAGE_SIZE = 100;
 
-/** The last counts read in each year, kept while the Centro stays open: coming back to the tab
+const eligibleV3 = (tally: RelationalCouncilTallyV3) =>
+  tally.approved + tally.rejected + tally.pending;
+/** Only the classes the Conselho has something to discuss in, plus the ones it could not read. */
+const councilClassesV3 = (list: readonly CouncilClass[]): readonly CouncilClassViewV3[] =>
+  list
+    .map((item) => ({ ...item, tally: item.tally ?? null }))
+    .filter((item) => item.tally === null || eligibleV3(item.tally) > 0);
+
+/** The last classes read in each year, kept while the Centro stays open: coming back to the tab
  * shows them at once, and the reading that follows replaces them. */
-const KNOWN_TALLIES_V3 = new Map<number, TalliesV3>();
-function knownTalliesV3(year: number): TalliesV3 {
-  const known = KNOWN_TALLIES_V3.get(year) ?? new Map();
-  KNOWN_TALLIES_V3.set(year, known);
-  return known;
-}
-function withTallyV3(item: CouncilClass | CouncilClassViewV3, known: TalliesV3) {
-  const { tally: _tally, ...rest } = item;
-  const tally = known.get(item.id);
-  return tally === undefined ? rest : { ...rest, tally };
-}
+const KNOWN_CLASSES_V3 = new Map<number, readonly CouncilClassViewV3[]>();
 
 const abortedV3 = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
 
@@ -57,7 +55,6 @@ export function useRelationalCouncilV3() {
   const [stale, setStale] = useState(false);
   const [busy, setBusy] = useState({ classes: true, workspace: false, command: false });
   const classesController = useRef<AbortController | null>(null);
-  const talliesController = useRef<AbortController | null>(null);
   const workspaceController = useRef<AbortController | null>(null);
   const sequence = useRef(0);
   const selectedClass = useRef<number | null>(null);
@@ -72,13 +69,14 @@ export function useRelationalCouncilV3() {
 
   const loseAccess = useCallback(() => {
     clearAuthorization?.();
+    if (year !== null) KNOWN_CLASSES_V3.delete(year);
     selectedClass.current = null;
     setClasses([]);
     setClassId(null);
     setWorkspace(null);
     setFailure('not-authorized');
     setBusy({ classes: false, workspace: false, command: false });
-  }, [clearAuthorization]);
+  }, [clearAuthorization, year]);
 
   /** A background read only marks the screen stale; a read the user asked for shows the failure. */
   function readFailed(background: boolean, state: RelationalCouncilFailureV3 | 'ready') {
@@ -86,16 +84,19 @@ export function useRelationalCouncilV3() {
     else setFailure(state === 'ready' ? 'unavailable' : state);
     return false;
   }
-  /** A selected class that left the list is dropped with its workspace. */
-  function keepSelectedClass(list: readonly CouncilClass[]) {
-    if (selectedClass.current !== null && !list.some((item) => item.id === selectedClass.current)) {
-      selectedClass.current = null;
-      setClassId(null);
-      setWorkspace(null);
-    }
+  /** The classes on screen, remembered for the next visit to the tab. */
+  function showClasses(currentYear: number, list: readonly CouncilClassViewV3[]) {
+    KNOWN_CLASSES_V3.set(currentYear, list);
+    setClasses(list);
   }
-  /** The class saved for this year reopens once, if nothing was chosen meanwhile and it still exists. */
-  function restoreStoredClass(list: readonly CouncilClass[], currentYear: number) {
+  /** The open class leaves the screen with its workspace. */
+  function closeClass() {
+    selectedClass.current = null;
+    setClassId(null);
+    setWorkspace(null);
+  }
+  /** The class saved for this year reopens once, if nothing was chosen meanwhile and it is listed. */
+  function restoreStoredClass(list: readonly CouncilClassViewV3[], currentYear: number) {
     const stored = restoreClass.current;
     restoreClass.current = null;
     if (
@@ -117,98 +118,76 @@ export function useRelationalCouncilV3() {
       setFailure(null);
     }
   }
-  /** What the open class just read is the newest count of that class. */
-  function rememberWorkspaceV3(currentYear: number, read: RelationalCouncilWorkspaceV3) {
-    const known = knownTalliesV3(currentYear);
-    known.set(read.classGroup.id, relationalCouncilTallyV3(read.summary));
-    setWorkspace(read);
-    setClasses((current) =>
-      current.map((item) =>
+  /** What the open class just read is the newest count of that class. A class left with nobody
+   * eligible (a corrected grade) is no longer a class of the Conselho. */
+  function showWorkspace(currentYear: number, read: RelationalCouncilWorkspaceV3) {
+    const tally = relationalCouncilTallyV3(read.summary);
+    const known = KNOWN_CLASSES_V3.get(currentYear) ?? [];
+    if (eligibleV3(tally) === 0) {
+      showClasses(
+        currentYear,
+        known.filter((item) => item.id !== read.classGroup.id),
+      );
+      closeClass();
+      return;
+    }
+    showClasses(
+      currentYear,
+      known.map((item) =>
         item.id === read.classGroup.id
-          ? withTallyV3({ ...item, sessionState: read.session.state }, known)
+          ? { ...item, sessionState: read.session.state, tally }
           : item,
       ),
     );
+    setWorkspace(read);
   }
 
-  /** Where each class stands, read after the buttons are on screen: it costs a whole reading per
-   * class. A class that could not be read is marked so, never shown as a class with nobody. */
-  const loadTallies = useCallback(async () => {
+  /** The classes with eligible students. It costs a whole reading per class of the year, so it
+   * is read on entering the tab; the classes read before stay on screen meanwhile. */
+  const loadClasses = useCallback(async () => {
     if (year === null) return;
-    talliesController.current?.abort();
+    classesController.current?.abort();
     const controller = new AbortController();
-    talliesController.current = controller;
-    const known = knownTalliesV3(year);
-    let read: readonly CouncilClass[] | null = null;
+    classesController.current = controller;
+    const known = KNOWN_CLASSES_V3.get(year);
+    setClasses(known ?? []);
+    // A class of another year does not stay open under this year's classes.
+    if (!known?.some((item) => item.id === selectedClass.current)) closeClass();
+    if (known) restoreStoredClass(known, year);
+    setBusy((current) => ({ ...current, classes: true }));
+    setFailure(null);
     try {
       const response = await requestRelationalCouncilV3(
-        {
-          contractVersion: 3,
-          operation: 'classes',
-          year,
-          offset: 0,
-          limit: PAGE_SIZE,
-          tally: true,
-        },
+        { contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE },
         controller.signal,
       );
-      if (response.state === 'ready' && response.operation === 'classes') read = response.classes;
-    } catch {
-      // Counted below as a reading that did not come.
-    }
-    if (controller.signal.aborted) return;
-    for (const item of read ?? []) {
+      if (controller.signal.aborted) return;
+      if (response.state === 'not-authorized') {
+        loseAccess();
+        return;
+      }
+      if (response.state !== 'ready' || response.operation !== 'classes') {
+        readFailed(known !== undefined, response.state);
+        return;
+      }
+      const open = (KNOWN_CLASSES_V3.get(year) ?? []).find(
+        (item) => item.id === selectedClass.current,
+      );
       // The open class already has the count of its own, newer, reading.
-      if (item.id === selectedClass.current && known.get(item.id)) continue;
-      known.set(item.id, item.tally ?? null);
+      const list = councilClassesV3(response.classes).map((item) =>
+        item.id === open?.id ? open : item,
+      );
+      showClasses(year, list);
+      if (selectedClass.current !== null && !list.some((item) => item.id === selectedClass.current))
+        closeClass();
+      setStale(false);
+      restoreStoredClass(list, year);
+    } catch (error) {
+      if (!abortedV3(error)) readFailed(known !== undefined, 'unavailable');
+    } finally {
+      if (!controller.signal.aborted) setBusy((current) => ({ ...current, classes: false }));
     }
-    // A reading that did not come leaves the counts already known and marks the ones never read.
-    setClasses((current) =>
-      current.map((item) =>
-        read || known.has(item.id) ? withTallyV3(item, known) : { ...item, tally: null },
-      ),
-    );
-  }, [year]);
-
-  const loadClasses = useCallback(
-    async (background = false) => {
-      if (year === null) return;
-      classesController.current?.abort();
-      const controller = new AbortController();
-      classesController.current = controller;
-      if (!background) {
-        setBusy((current) => ({ ...current, classes: true }));
-        setFailure(null);
-      }
-      try {
-        const response = await requestRelationalCouncilV3(
-          { contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE },
-          controller.signal,
-        );
-        if (controller.signal.aborted) return;
-        if (response.state === 'not-authorized') {
-          loseAccess();
-          return false;
-        }
-        if (response.state !== 'ready' || response.operation !== 'classes')
-          return readFailed(background, response.state);
-        // This reading brings no count: each class shows the one already known.
-        const known = knownTalliesV3(year);
-        setClasses(response.classes.map((item) => withTallyV3(item, known)));
-        keepSelectedClass(response.classes);
-        setStale(false);
-        restoreStoredClass(response.classes, year);
-        if (!background) void loadTallies();
-        return true;
-      } catch (error) {
-        if (!abortedV3(error)) return readFailed(background, 'unavailable');
-      } finally {
-        if (!background && !controller.signal.aborted)
-          setBusy((current) => ({ ...current, classes: false }));
-      }
-    },
-    [year, loseAccess, loadTallies],
-  );
+  }, [year, loseAccess]);
 
   const loadWorkspace = useCallback(
     async (target: number, background = false) => {
@@ -232,7 +211,7 @@ export function useRelationalCouncilV3() {
           if (!background) setWorkspace(null);
           return readFailed(background, response.state);
         }
-        rememberWorkspaceV3(year, response.workspace);
+        showWorkspace(year, response.workspace);
         setStale(false);
         return true;
       } catch (error) {
@@ -250,19 +229,16 @@ export function useRelationalCouncilV3() {
     void loadClasses();
     return () => {
       classesController.current?.abort();
-      talliesController.current?.abort();
       workspaceController.current?.abort();
       sequence.current += 1;
     };
   }, [loadClasses]);
 
+  // In the background only the open class is read again: the others cost a reading each.
   const refresh = useCallback(async () => {
     if (busy.command || failure === 'not-authorized') return;
-    const refreshed = await loadClasses(true);
-    if (refreshed !== true) return refreshed;
     if (classId !== null && selectedClass.current === classId) return loadWorkspace(classId, true);
-    return refreshed;
-  }, [busy.command, classId, failure, loadClasses, loadWorkspace]);
+  }, [busy.command, classId, failure, loadWorkspace]);
   useLiveRefreshV1(refresh, {
     domains: ['gradebook'],
     enabled: year !== null,
@@ -314,7 +290,7 @@ export function useRelationalCouncilV3() {
         setFailure(response.state === 'ready' ? 'unavailable' : response.state);
         return false;
       }
-      rememberWorkspaceV3(year, response.workspace);
+      showWorkspace(year, response.workspace);
       return true;
     } catch {
       setFailure('unavailable');
@@ -332,7 +308,8 @@ export function useRelationalCouncilV3() {
     failure,
     stale,
     busy,
-    loadWorkspace,
+    /** Reads again what failed: the open class, or the classes when none is open. */
+    retry: () => (classId === null ? loadClasses() : loadWorkspace(classId)),
     selectClass,
     openSession,
   };

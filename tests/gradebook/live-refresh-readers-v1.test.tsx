@@ -14,8 +14,10 @@ import { LiveRefreshScopeV1 } from '../../src/shared/live-data/live-refresh-scop
 import { notifyLiveChangeV1 } from '../../src/shared/live-data/live-refresh-v1';
 import { mockSecureJitterV1 } from '../live-data/secure-jitter-fixture';
 
+// The Council hook keeps the classes of each year while its module lives: its tests change the year.
+const shared = vi.hoisted(() => ({ year: 2026 }));
 vi.mock('../../src/platform/gradebook-year-context', () => ({
-  useGradebookYear: () => ({ year: 2026 }),
+  useGradebookYear: () => ({ year: shared.year }),
 }));
 vi.mock('../../src/features/gradebook/council/relational-council-client-v3');
 vi.mock('../../src/features/gradebook/performance/relational-performance-client-v2');
@@ -28,7 +30,15 @@ const councilCatalog = {
   state: 'ready',
   operation: 'classes',
   year: 2026,
-  classes: [{ id: 10, label: '6A', name: 'Turma sintética', sessionState: 'not-opened' }],
+  classes: [
+    {
+      id: 10,
+      label: '6A',
+      name: 'Turma sintética',
+      sessionState: 'not-opened',
+      tally: { approved: 0, rejected: 0, pending: 1 },
+    },
+  ],
   nextOffset: null,
 } satisfies Awaited<ReturnType<typeof requestRelationalCouncilV3>>;
 const councilWorkspace = {
@@ -41,11 +51,12 @@ const councilWorkspace = {
     readAt: '2026-09-26T12:00:00.000Z',
     authority: 'calculated-eligibility-explicit-human-decision',
     session: { state: 'not-opened' },
+    // The hook reads only the summary: one eligible student, still pending.
     summary: {
-      total: 0,
-      eligible: 0,
+      total: 1,
+      eligible: 1,
       decided: 0,
-      pending: 0,
+      pending: 1,
       approved: 0,
       rejected: 0,
       absence: 0,
@@ -70,6 +81,7 @@ const invalidate = async () => {
 };
 beforeEach(() => {
   active = true;
+  shared.year = 2026;
   vi.useFakeTimers();
   vi.resetAllMocks();
   mockSecureJitterV1(0);
@@ -82,7 +94,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it('backs off Council failures, stops dependent reads and keeps the workspace while hidden', async () => {
+it('rereads only the open Council class, backs off its failures and keeps it while hidden', async () => {
   const send = vi.mocked(requestRelationalCouncilV3);
   send.mockImplementation(async (request) =>
     request.operation === 'classes' ? councilCatalog : councilWorkspace,
@@ -97,7 +109,7 @@ it('backs off Council failures, stops dependent reads and keeps the workspace wh
   send.mockResolvedValue({ contractVersion: 3, state: 'unavailable' });
   await invalidate();
   expect(send).toHaveBeenCalledTimes(1);
-  expect(send.mock.calls[0]?.[0].operation).toBe('classes');
+  expect(send.mock.calls[0]?.[0]).toMatchObject({ operation: 'workspace', classId: 10 });
   expect(hook.result.current.stale).toBe(true);
   await invalidate();
   expect(send).toHaveBeenCalledTimes(1);
@@ -116,29 +128,58 @@ it('backs off Council failures, stops dependent reads and keeps the workspace wh
   active = true;
   hook.rerender();
   await advance(3_000);
-  expect(send.mock.calls.slice(2).map(([request]) => request.operation)).toEqual([
-    'classes',
+  // The classes are never asked for again in the background.
+  expect(send.mock.calls.map(([request]) => request.operation)).toEqual([
+    'workspace',
+    'workspace',
     'workspace',
   ]);
   expect(hook.result.current.stale).toBe(false);
+  expect(hook.result.current.classes.map((item) => item.id)).toEqual([10]);
 });
 
-it('does not reread a Council workspace removed by the refreshed catalog', async () => {
+it('reads nothing in the background while no Council class is open', async () => {
+  shared.year = 2027;
+  const send = vi.mocked(requestRelationalCouncilV3);
+  send.mockResolvedValue({ ...councilCatalog, year: 2027 });
+  const hook = renderHook(() => useRelationalCouncilV3(), { wrapper });
+  await act(async () => {});
+  expect(hook.result.current.classes.map((item) => item.id)).toEqual([10]);
+  send.mockClear();
+  await invalidate();
+  await advance(120_000);
+  expect(send).not.toHaveBeenCalled();
+});
+
+it('closes the open Council class when its background reading comes back with nobody eligible', async () => {
+  shared.year = 2028;
   const send = vi.mocked(requestRelationalCouncilV3);
   send.mockImplementation(async (request) =>
-    request.operation === 'classes' ? councilCatalog : councilWorkspace,
+    request.operation === 'classes' ? { ...councilCatalog, year: 2028 } : councilWorkspace,
   );
   const hook = renderHook(() => useRelationalCouncilV3(), { wrapper });
   await act(async () => {});
   await act(async () => {
     await hook.result.current.selectClass(10);
   });
+  expect(hook.result.current.workspace).toEqual(councilWorkspace.workspace);
   send.mockClear();
-  send.mockResolvedValue({ ...councilCatalog, classes: [] });
+  send.mockResolvedValue({
+    ...councilWorkspace,
+    workspace: {
+      ...councilWorkspace.workspace,
+      summary: { ...councilWorkspace.workspace.summary, eligible: 0, pending: 0, notEligible: 1 },
+    },
+  });
   await invalidate();
-  expect(send).toHaveBeenCalledTimes(1);
+  expect(send.mock.calls.map(([request]) => request.operation)).toEqual(['workspace']);
+  expect(hook.result.current.classes).toEqual([]);
   expect(hook.result.current.classId).toBeNull();
   expect(hook.result.current.workspace).toBeNull();
+  expect(hook.result.current.stale).toBe(false);
+  // With no class open, the next change reads nothing.
+  await invalidate();
+  expect(send).toHaveBeenCalledTimes(1);
 });
 
 it('reports failed performance reads to the clock instead of retrying every invalidation', async () => {
