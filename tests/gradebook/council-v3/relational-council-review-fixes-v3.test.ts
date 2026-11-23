@@ -280,6 +280,15 @@ async function select(label: string, value: string) {
   });
   await settle();
 }
+async function openClass(id: number) {
+  const tab = () =>
+    host.querySelector<HTMLElement>(
+      `[role="tablist"][aria-label="Turmas do Conselho"] [data-key="${id}"]`,
+    );
+  await waitFor(() => tab() !== null);
+  await act(async () => tab()!.click());
+  await settle();
+}
 async function click(label: string) {
   const button = [...host.querySelectorAll('button')].find((item) =>
     item.textContent?.includes(label),
@@ -323,7 +332,7 @@ const nativeDecision = () => {
 
 async function openMeeting() {
   await mount();
-  await select('Turma do Conselho', '10');
+  await openClass(10);
   await waitFor(() => host.textContent?.includes(student.name) === true);
   await fill('#council-session-reason', 'Início da reunião sintética.');
   await click('Abrir reunião');

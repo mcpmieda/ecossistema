@@ -10,6 +10,7 @@ export function ClassTabsV1({
   children,
   allLabel,
   label = 'Turmas',
+  disabled = false,
 }: Readonly<{
   items: readonly { id: number; label: string }[];
   selectedId: number | null;
@@ -17,12 +18,14 @@ export function ClassTabsV1({
   children?: ReactNode;
   allLabel?: string;
   label?: string;
+  disabled?: boolean;
 }>) {
   const selected = selectedId === null ? 'all' : String(selectedId);
   return (
     <Tabs
       className="school-class-tabs"
       selectedKey={selected}
+      isDisabled={disabled}
       keyboardActivation="manual"
       onSelectionChange={(key) => {
         // The library reports a click on the tab already chosen too: nothing to change or read again.

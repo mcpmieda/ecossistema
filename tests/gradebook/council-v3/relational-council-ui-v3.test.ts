@@ -282,6 +282,15 @@ async function select(label: string, value: string) {
   });
   await settle();
 }
+async function openClass(id: number) {
+  const tab = () =>
+    host.querySelector<HTMLElement>(
+      `[role="tablist"][aria-label="Turmas do Conselho"] [data-key="${id}"]`,
+    );
+  await waitFor(() => tab() !== null);
+  await act(async () => tab()!.click());
+  await settle();
+}
 async function click(label: string) {
   const button = [...host.querySelectorAll('button')].find((item) =>
     item.textContent?.includes(label),
@@ -330,7 +339,7 @@ describe('relational Council V3 client and HeroUI journey', () => {
 
   it('renders the static Kanban-inspired queue, annual table and audit timeline without prior-year controls', async () => {
     await mount();
-    await select('Turma do Conselho', '10');
+    await openClass(10);
     await waitFor(() => host.textContent?.includes(student.name) === true);
     expect(host.textContent).toContain('A deliberar');
     expect(host.textContent).toContain('Decididos');
@@ -342,12 +351,17 @@ describe('relational Council V3 client and HeroUI journey', () => {
       /Conselho anterior|ano anterior|catálogo legado|voto de minerva|diretor/iu,
     );
     expect(host.querySelectorAll('[draggable="true"]')).toHaveLength(0);
-    expect(host.querySelectorAll('[data-slot="select"]').length).toBeGreaterThanOrEqual(2);
+    // The classes are tabs: the only select left is the student's formal status.
+    expect(
+      host.querySelectorAll('[role="tablist"][aria-label="Turmas do Conselho"] [role="tab"]')
+        .length,
+    ).toBeGreaterThan(0);
+    expect(host.querySelectorAll('[data-slot="select"]')).toHaveLength(1);
   });
 
   it('opens the meeting, records an exact formal status and keeps tied votes numerical only', async () => {
     await mount();
-    await select('Turma do Conselho', '10');
+    await openClass(10);
     await waitFor(() => host.textContent?.includes(student.name) === true);
     await fill('#council-session-reason', 'Início da reunião sintética.');
     await click('Abrir reunião');
