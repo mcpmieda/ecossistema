@@ -684,6 +684,32 @@ button.performance-kpi__button:hover {
   height: 2.25rem;
 }
 
+/* The period again, stuck under the shell's bars once the bar of the grades has scrolled away: a
+   strip of the page's own colour, so the grades pass under it and nothing floats over them. The
+   margin takes back its height and the gap after it: nothing moves when it comes and goes. */
+.performance-period-bar {
+  position: sticky;
+  z-index: 14;
+  display: flex;
+  height: 3rem;
+  align-items: center;
+  margin-bottom: -4rem;
+  background: var(--sheet, var(--background));
+  animation: performance-period-bar-in 180ms var(--platform-ease) both;
+}
+
+@keyframes performance-period-bar-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .performance-period-bar {
+    animation: none;
+  }
+}
+
 /* Desempenho charts: fixed, compact proportions instead of stretching with the window. */
 .performance-dashboard-grid {
   display: grid;

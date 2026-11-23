@@ -1,6 +1,6 @@
 import './performance-v2.css';
 import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { Alert, Button, Drawer, Label, ListBox, Select, Skeleton, Tabs } from '@heroui/react';
 import { usePerformanceAnalyticsV6 } from './use-performance-analytics-v6';
 import {
@@ -86,6 +86,91 @@ const PERIOD_TABS = [
   { id: '3', label: '3º tri' },
   { id: 'annual', label: 'Ano' },
 ] as const;
+
+function PeriodTabsV2({
+  period,
+  onChange,
+  ref,
+}: {
+  readonly period: PerformancePeriodV2;
+  readonly onChange: (period: PerformancePeriodV2) => void;
+  readonly ref?: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <Tabs
+      ref={ref}
+      className="performance-period-tabs"
+      selectedKey={String(period)}
+      onSelectionChange={(key) => {
+        if (key === String(period)) return;
+        onChange(key === 'annual' ? 'annual' : (Number(key) as PerformancePeriodV2));
+      }}
+    >
+      <Tabs.ListContainer>
+        <Tabs.List aria-label="Período">
+          {PERIOD_TABS.map((item) => (
+            <Tabs.Tab key={item.id} id={item.id}>
+              {item.label}
+              <Tabs.Indicator />
+            </Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs.ListContainer>
+    </Tabs>
+  );
+}
+
+/**
+ * Once the element has scrolled out of sight under the shell's bars: how far below the top of what
+ * scrolls those bars end, for something else to stick there. Null while it is in sight.
+ */
+function useScrolledAwayV2(target: RefObject<HTMLElement | null>, enabled: boolean): number | null {
+  const [state, setState] = useState({ away: false, top: 0 });
+  useEffect(() => {
+    const element = target.current;
+    if (!enabled || !element || typeof IntersectionObserver === 'undefined') return;
+    let observer: IntersectionObserver | null = null;
+    const measure = () => {
+      const bars = Math.max(
+        0,
+        ...[...document.querySelectorAll('.shell-topbar, .shell-areabar:not(:empty)')].map(
+          (bar) => bar.getBoundingClientRect().bottom,
+        ),
+      );
+      // On a computer the page scrolls inside the sheet: what sticks there is measured from where
+      // the sheet's content starts, after its own padding.
+      const sheet = element.closest('main');
+      const box = sheet === null ? null : getComputedStyle(sheet);
+      const inside =
+        sheet !== null && box !== null && box.overflowY !== 'visible'
+          ? sheet.getBoundingClientRect().top + (Number.parseFloat(box.paddingTop) || 0)
+          : 0;
+      return { bars: Math.round(bars), top: Math.round(bars - inside) };
+    };
+    const watch = () => {
+      observer?.disconnect();
+      const watched = measure();
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          // Measured again when it matters: the shell may not have settled when this first ran.
+          const now = measure();
+          if (now.bars !== watched.bars) watch();
+          else setState({ away: !entry?.isIntersecting, top: now.top });
+        },
+        { rootMargin: `-${watched.bars}px 0px 0px 0px` },
+      );
+      observer.observe(element);
+    };
+    watch();
+    // The bars change height between the phone and the computer layouts.
+    window.addEventListener('resize', watch);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', watch);
+    };
+  }, [target, enabled]);
+  return enabled && state.away ? state.top : null;
+}
 
 function PerformanceSelect({
   id,
@@ -484,6 +569,50 @@ export function RelationalPerformancePageV2({
     [],
   );
   const changePeriod = useCallback((period: 1 | 2 | 3) => void select({ period }), [select]);
+  const choosePeriod = useCallback(
+    (period: PerformancePeriodV2) => void select({ period }),
+    [select],
+  );
+  // The period again, stuck under the shell's bars, once the bar of the grades has scrolled away.
+  const notesBar = useRef<HTMLDivElement>(null);
+  const periodTop = useScrolledAwayV2(
+    notesBar,
+    perspective === 'notes' && state.year !== null && state.filters.classId !== null,
+  );
+  // There it stands where the header's own does: the same control, as if it had stayed on screen.
+  const periodTabs = useRef<HTMLDivElement>(null);
+  const alignPeriodBar = useCallback((bar: HTMLDivElement | null) => {
+    if (!bar) return;
+    const align = () => {
+      const own = periodTabs.current?.querySelector('[role="tablist"]');
+      const copy = bar.querySelector('[role="tablist"]');
+      if (!own || !copy) return;
+      bar.style.paddingLeft = '0px';
+      const shift = own.getBoundingClientRect().left - copy.getBoundingClientRect().left;
+      bar.style.paddingLeft = `${Math.max(0, shift)}px`;
+    };
+    align();
+    if (typeof ResizeObserver === 'undefined') return;
+    // The window or the side column changed the width: the header's own moved with it.
+    const observer = new ResizeObserver(align);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, []);
+  // Chosen there, the grades keep their height while the other period is read: the page stays put.
+  const notesBlock = useRef<HTMLDivElement>(null);
+  const hasGrades = state.analysis !== null;
+  const choosePeriodInPlace = useCallback(
+    (period: PerformancePeriodV2) => {
+      const block = notesBlock.current;
+      if (block && hasGrades) block.style.minHeight = `${block.offsetHeight}px`;
+      void select({ period });
+    },
+    [select, hasGrades],
+  );
+  const readingGrades = state.busy.matrix;
+  useEffect(() => {
+    if (!readingGrades) notesBlock.current?.style.removeProperty('min-height');
+  }, [readingGrades, hasGrades]);
   const focusOffer = useCallback(
     (offerId: number) => void select({ lens: 'assessments', offerId }),
     [select],
@@ -550,27 +679,7 @@ export function RelationalPerformancePageV2({
             </p>
           ) : null}
         </div>
-        <Tabs
-          className="performance-period-tabs"
-          selectedKey={String(state.filters.period)}
-          onSelectionChange={(key) => {
-            if (key === String(state.filters.period)) return;
-            void state.select({
-              period: key === 'annual' ? 'annual' : (Number(key) as PerformancePeriodV2),
-            });
-          }}
-        >
-          <Tabs.ListContainer>
-            <Tabs.List aria-label="Período">
-              {PERIOD_TABS.map((item) => (
-                <Tabs.Tab key={item.id} id={item.id}>
-                  {item.label}
-                  <Tabs.Indicator />
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs.ListContainer>
-        </Tabs>
+        <PeriodTabsV2 ref={periodTabs} period={state.filters.period} onChange={choosePeriod} />
         <GradebookYearContextBanner />
       </header>
       <ClassTabsV1
@@ -597,10 +706,21 @@ export function RelationalPerformancePageV2({
               ))}
             </Tabs.List>
           </Tabs.ListContainer>
-          <Tabs.Panel id="notes" className="grid min-w-0 gap-4">
+          {/* A column, not a grid: the period bar sticks along all of it, not to a row of its own. */}
+          <Tabs.Panel id="notes" className="flex min-w-0 flex-col gap-4">
             {state.filters.classId !== null ? (
               <PerformanceGridYearV2.Provider value={state.year}>
+                {periodTop !== null ? (
+                  <div
+                    ref={alignPeriodBar}
+                    className="performance-period-bar"
+                    style={{ top: periodTop }}
+                  >
+                    <PeriodTabsV2 period={state.filters.period} onChange={choosePeriodInPlace} />
+                  </div>
+                ) : null}
                 <Tabs
+                  ref={notesBlock}
                   selectedKey={state.filters.lens}
                   className="performance-lens-tabs min-w-0"
                   onSelectionChange={(key) => {
@@ -611,7 +731,7 @@ export function RelationalPerformancePageV2({
                       void state.select({ lens: key as PerformanceLensV3 });
                   }}
                 >
-                  <div className="performance-notes-bar">
+                  <div ref={notesBar} className="performance-notes-bar">
                     <Tabs.ListContainer className="h-10 max-w-full self-start">
                       <Tabs.List aria-label="Lentes de Desempenho">
                         {PERFORMANCE_LENSES_V3.map((lens) => (

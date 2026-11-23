@@ -284,12 +284,15 @@ export const PerformanceGridV2 = memo(function PerformanceGridV2({
     const head = scroller?.querySelector('thead');
     const copy = pin.current;
     if (!scroller || !head || !copy) return;
-    // Under whatever stays on top of the page: the shell's top bar and, under it, the area's tabs.
+    // Under whatever stays on top of the page: the shell's top bar, under it the area's tabs and,
+    // in the grades, the period bar.
     const top = Math.max(
       0,
-      ...[...document.querySelectorAll('.shell-topbar, .shell-areabar:not(:empty)')].map(
-        (bar) => bar.getBoundingClientRect().bottom,
-      ),
+      ...[
+        ...document.querySelectorAll(
+          '.shell-topbar, .shell-areabar:not(:empty), .performance-period-bar',
+        ),
+      ].map((bar) => bar.getBoundingClientRect().bottom),
     );
     const box = scroller.getBoundingClientRect();
     const line = head.getBoundingClientRect();

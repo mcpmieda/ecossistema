@@ -601,6 +601,44 @@ describe('real shell, shared year and rendered performance journey', () => {
     const last = requests.filter((value) => value.operation === 'dashboard').at(-1);
     expect([last?.period, last?.includePrevious]).toEqual([3, true]);
   });
+  it('offers the period again under the bars once the bar of the grades scrolls away', async () => {
+    type Watcher = { notify: (entries: { isIntersecting: boolean }[]) => void; target?: Element };
+    const watchers: Watcher[] = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        private readonly watcher: Watcher;
+        constructor(notify: Watcher['notify']) {
+          this.watcher = { notify };
+          watchers.push(this.watcher);
+        }
+        observe(target: Element) {
+          this.watcher.target = target;
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    await loaded();
+    const lists = () => document.querySelectorAll('[role="tablist"][aria-label="Período"]');
+    const scroll = (isIntersecting: boolean) =>
+      act(async () =>
+        watchers
+          .filter((watcher) => watcher.target?.classList.contains('performance-notes-bar'))
+          .at(-1)!
+          .notify([{ isIntersecting }]),
+      );
+    expect(lists()).toHaveLength(1);
+    await scroll(false);
+    expect(lists()).toHaveLength(2);
+    await act(async () => lists()[1]!.querySelector<HTMLElement>('[data-key="2"]')!.click());
+    await settle();
+    expect(selectedValue('Período')).toBe('2º trimestre');
+    expect(requests.filter((value) => value.operation === 'dashboard').at(-1)?.period).toBe(2);
+    expect(lists()).toHaveLength(2);
+    await scroll(true);
+    expect(lists()).toHaveLength(1);
+  });
   it('clears loaded student data after an authorization loss while keeping 2026 fixed', async () => {
     await loaded();
     mock.mockResolvedValueOnce(reply({}, 401));
