@@ -110,19 +110,33 @@ async function createBackend(server: ViteDevServer) {
     }
   }
   // Desempenho, Conselho and Boletins read the student's display name from the reconciliation
-  // view. Its migration needs the Portal lineage; without it the preview shows the Relação name.
+  // view, and importing a Relação writes the shared student identity. Both need the Portal
+  // lineage: the same private schema the tests install. Without it the preview shows the Relação
+  // name and only the seeded year can be read.
   try {
-    await pg.exec(
-      readFileSync(path.join(MIGRATIONS, '0015_student_reconciliation_v1.sql'), 'utf8'),
-    );
+    const lineage = await load('/tests/student-portal/year-reset/schema-fixture.ts');
+    const install = (name: string) =>
+      (lineage[name] as (database: { exec(sql: string): Promise<unknown> }) => Promise<void>)(pg);
+    await install('installResetSchemaFixtureV1');
+    await install('installReconciliationSchemaFixtureV1');
   } catch (error) {
     await pg.exec('ROLLBACK').catch(() => undefined);
-    skipped.push(`0015: ${error instanceof Error ? error.message : 'erro'}`);
+    skipped.push(`linhagem do Portal: ${error instanceof Error ? error.message : 'erro'}`);
     await pg.exec(
       'CREATE VIEW gradebook.student_presentation_v1 AS SELECT a.id AS student_id,a.ano AS academic_year,a.nome AS name FROM gradebook.aluno a',
     );
   }
   await pg.exec(SEED);
+  // The seed chose its own ids: move each counter past them, or a Relação imported in the preview
+  // would be given an id the seed already took.
+  await pg.exec(`DO $$ DECLARE c record; BEGIN
+    FOR c IN SELECT table_name, column_name FROM information_schema.columns
+              WHERE table_schema = 'gradebook' AND is_identity = 'YES' LOOP
+      EXECUTE format(
+        'SELECT setval(pg_get_serial_sequence(%L, %L), GREATEST((SELECT COALESCE(max(%I), 0) FROM gradebook.%I), 1))',
+        'gradebook.' || c.table_name, c.column_name, c.column_name, c.table_name);
+    END LOOP;
+  END $$;`);
   const run = async (query: Query, text: string, values: readonly unknown[]) => {
     const result = await query(text, [...values]);
     return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
