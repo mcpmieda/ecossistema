@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type {
-  RelationalCouncilFailureV3,
-  RelationalCouncilRequestV3,
-  RelationalCouncilResponseV3,
-  RelationalCouncilWorkspaceV3,
+import {
+  relationalCouncilTallyV3,
+  type RelationalCouncilFailureV3,
+  type RelationalCouncilRequestV3,
+  type RelationalCouncilResponseV3,
+  type RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
@@ -117,7 +118,15 @@ export function useRelationalCouncilV3() {
       }
       try {
         const response = await requestRelationalCouncilV3(
-          { contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE },
+          // A reading in the background keeps the tallies it has: each one costs a whole class.
+          {
+            contractVersion: 3,
+            operation: 'classes',
+            year,
+            offset: 0,
+            limit: PAGE_SIZE,
+            ...(background ? {} : { tally: true }),
+          },
           controller.signal,
         );
         if (controller.signal.aborted) return;
@@ -127,7 +136,12 @@ export function useRelationalCouncilV3() {
         }
         if (response.state !== 'ready' || response.operation !== 'classes')
           return readFailed(background, response.state);
-        setClasses(response.classes);
+        setClasses((current) =>
+          response.classes.map((item) => {
+            const known = item.tally ?? current.find((old) => old.id === item.id)?.tally;
+            return known ? { ...item, tally: known } : item;
+          }),
+        );
         keepSelectedClass(response.classes);
         setStale(false);
         restoreStoredClass(response.classes, year);
@@ -166,6 +180,10 @@ export function useRelationalCouncilV3() {
         }
         if (background && draftProtected.current) return;
         setWorkspace(response.workspace);
+        const tally = relationalCouncilTallyV3(response.workspace.summary);
+        setClasses((current) =>
+          current.map((item) => (item.id === target ? { ...item, tally } : item)),
+        );
         setStale(false);
         return true;
       } catch (error) {
@@ -268,6 +286,7 @@ export function useRelationalCouncilV3() {
                 ...item,
                 sessionState: response.workspace.session.state,
                 sessionVersion: response.workspace.session.version,
+                tally: relationalCouncilTallyV3(response.workspace.summary),
               }
             : item,
         ),

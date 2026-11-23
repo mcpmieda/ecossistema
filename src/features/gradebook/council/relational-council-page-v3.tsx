@@ -19,6 +19,7 @@ import {
   RELATIONAL_COUNCIL_DECISIONS_V3,
   type RelationalCouncilFailureV3,
   type RelationalCouncilStudentV3,
+  type RelationalCouncilTallyV3,
   type RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { gradeText } from '../performance/performance-display-v2';
@@ -83,6 +84,31 @@ const SESSION_DONE: Record<SessionActionV3, string> = {
   reopen: 'Reunião reaberta.',
   close: 'Reunião fechada.',
 };
+const TALLY_KINDS = [
+  ['approved', 'aprovado(s)'],
+  ['rejected', 'reprovado(s)'],
+  ['pending', 'pendente(s)'],
+] as const;
+
+/** Where the class stands, inside its button: a coloured count for each outcome, no words. */
+function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | undefined }>) {
+  const shown = TALLY_KINDS.filter(([kind]) => (tally?.[kind] ?? 0) > 0);
+  if (!tally || !shown.length) return null;
+  return (
+    <span
+      className="council-tally"
+      role="img"
+      aria-label={shown.map(([kind, word]) => `${tally[kind]} ${word}`).join(', ')}
+    >
+      {shown.map(([kind]) => (
+        <span key={kind} data-kind={kind} aria-hidden="true">
+          {tally[kind]}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function Metric({
   icon,
   label,
@@ -733,7 +759,11 @@ export function RelationalCouncilPageV3() {
       </header>
       <ClassTabsV1
         label="Turmas do Conselho"
-        items={state.classes}
+        items={state.classes.map((item) => ({
+          id: item.id,
+          label: item.label,
+          extra: <ClassTallyV3 tally={item.tally} />,
+        }))}
         selectedId={state.classId}
         disabled={state.busy.classes || state.busy.command}
         onChange={(id) => void state.selectClass(id)}

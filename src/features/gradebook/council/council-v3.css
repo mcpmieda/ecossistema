@@ -1,3 +1,41 @@
+/* Where each class stands, inside its button: approved, rejected and pending as coloured counts. */
+.council-tally {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.council-tally > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.council-tally > span::before {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: currentcolor;
+  content: '';
+}
+
+.council-tally > [data-kind='approved'] {
+  color: var(--success);
+}
+
+.council-tally > [data-kind='rejected'] {
+  color: var(--danger);
+}
+
+.council-tally > [data-kind='pending'] {
+  color: var(--warning);
+}
+
 .council-kpi-group {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

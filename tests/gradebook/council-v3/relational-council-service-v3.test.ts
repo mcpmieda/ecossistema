@@ -388,6 +388,19 @@ describe('relational Council V3 lifecycle', () => {
       workspace: { session: { state: 'open', version: 8 } },
     });
   });
+
+  it('tallies each class only when asked, from the class reading itself', async () => {
+    const service = createRelationalCouncilV3(database, ACTOR);
+    const classes = { contractVersion: 3, operation: 'classes', year: 2026, offset: 0, limit: 100 };
+    const plain = await service.execute(classes);
+    if (plain.state !== 'ready' || plain.operation !== 'classes') throw new Error('classes');
+    expect(plain.classes[0]).not.toHaveProperty('tally');
+    expect(await service.execute({ ...classes, tally: true })).toMatchObject({
+      state: 'ready',
+      // The only eligible student was rejected in the revised decision: none approved or pending.
+      classes: [{ id: 10, tally: { approved: 0, rejected: 1, pending: 0 } }],
+    });
+  });
 });
 
 async function http(

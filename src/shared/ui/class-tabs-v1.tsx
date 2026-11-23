@@ -12,7 +12,8 @@ export function ClassTabsV1({
   label = 'Turmas',
   disabled = false,
 }: Readonly<{
-  items: readonly { id: number; label: string }[];
+  /** `extra` goes after the label, inside the tab: a short indication, never a second label. */
+  items: readonly { id: number; label: string; extra?: ReactNode }[];
   selectedId: number | null;
   onChange: (id: number | null) => void;
   children?: ReactNode;
@@ -45,6 +46,7 @@ export function ClassTabsV1({
           {items.map((item) => (
             <Tabs.Tab key={item.id} id={String(item.id)}>
               {item.label}
+              {item.extra}
               <Tabs.Indicator />
             </Tabs.Tab>
           ))}

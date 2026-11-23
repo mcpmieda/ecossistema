@@ -6,6 +6,7 @@ import {
   RELATIONAL_COUNCIL_DECISIONS_V3,
   relationalCouncilRequestSchemaV3,
   relationalCouncilResponseMatchesV3,
+  relationalCouncilTallyV3,
   relationalCouncilResponseSchemaV3,
   type RelationalCouncilDecisionV3,
   type RelationalCouncilFailureV3,
@@ -608,18 +609,29 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
           WHERE t.ano=$1 ORDER BY t.codigo COLLATE "C",t.id LIMIT $2 OFFSET $3`,
               [request.year, request.limit + 1, request.offset],
             );
-            return {
-              contractVersion: 3,
-              state: 'ready',
-              operation: 'classes',
-              year: request.year,
-              classes: rows.slice(0, request.limit).map((row) => ({
+            const classes = [];
+            for (const row of rows.slice(0, request.limit)) {
+              // The tally is the class's own reading, so it can never disagree with its workspace.
+              const workspace = request.tally
+                ? await readWorkspace(db, request.year, integer(row.id))
+                : null;
+              classes.push({
                 id: integer(row.id),
                 label: text(row.codigo),
                 name: text(row.nome),
                 sessionState: sessionStateOf(row.estado),
                 sessionVersion: nullableInteger(row.version) ?? 0,
-              })),
+                ...(workspace !== null && typeof workspace !== 'string'
+                  ? { tally: relationalCouncilTallyV3(workspace.summary) }
+                  : {}),
+              });
+            }
+            return {
+              contractVersion: 3,
+              state: 'ready',
+              operation: 'classes',
+              year: request.year,
+              classes,
               nextOffset: rows.length > request.limit ? request.offset + request.limit : null,
             };
           }

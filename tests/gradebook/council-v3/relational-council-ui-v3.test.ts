@@ -134,6 +134,7 @@ beforeEach(() => {
             name: 'TURMA SINTETICA',
             sessionState: current.session.state,
             sessionVersion: current.session.version,
+            ...(body.tally === true ? { tally: { approved: 0, rejected: 0, pending: 1 } } : {}),
           },
         ],
         nextOffset: null,
@@ -323,6 +324,12 @@ describe('relational Council V3 client and HeroUI journey', () => {
       /Conselho anterior|ano anterior|catálogo legado|voto de minerva|diretor/iu,
     );
     expect(host.querySelectorAll('[draggable="true"]')).toHaveLength(0);
+    // Each class button says where the class stands, with counts and no words.
+    const tally = host.querySelector(
+      '[role="tablist"][aria-label="Turmas do Conselho"] [data-key="10"] .council-tally',
+    );
+    expect(tally?.getAttribute('aria-label')).toBe('1 pendente(s)');
+    expect(tally?.textContent).toBe('1');
     // The classes are tabs: the only select left is the student's formal status.
     expect(
       host.querySelectorAll('[role="tablist"][aria-label="Turmas do Conselho"] [role="tab"]')
