@@ -209,25 +209,46 @@
   font-weight: 700;
 }
 
-/* The queue as a pile: the student under discussion on top, in line with the rows above it,
-   and the next students behind it at the right. Every card lies in the same place and is moved
-   by its distance from the top, so going through the queue slides each card to its next place;
-   a student already seen leaves by the left. */
+/* The stage: a soft light over the place where the pile lies, with the dots of the queue under
+   it. */
+.council-stage {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: 1.6rem 0.75rem 1.1rem;
+  border: 1px solid color-mix(in oklab, var(--separator) 70%, transparent);
+  border-radius: var(--radius-3xl);
+  background:
+    radial-gradient(
+      90% 70% at 50% 0%,
+      color-mix(in oklab, var(--accent) 10%, transparent),
+      transparent 72%
+    ),
+    color-mix(in oklab, var(--surface-secondary) 45%, transparent);
+}
+
+/* The queue as a pile: the student under discussion on top, the two before it behind at the
+   left and the two after it behind at the right. Every card lies in the same place and is moved
+   by its distance from the top, so going through the queue slides each card to its next place. */
 .council-deck {
   position: relative;
   display: grid;
-  max-width: 46rem;
-  padding-right: 1.9rem;
+  width: 100%;
+  max-width: 50rem;
+  padding: 0 2.5rem;
 }
 
 .council-card {
+  position: relative;
   z-index: 3;
   overflow: hidden;
   min-width: 0;
   border: 1px solid var(--separator);
   border-radius: var(--radius-3xl);
   background: var(--surface);
-  box-shadow: 0 24px 48px -36px var(--foreground);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--surface) 80%, transparent) inset,
+    0 30px 60px -38px var(--foreground);
   grid-area: 1 / 1;
   transition:
     transform 460ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -248,6 +269,34 @@
   transition: opacity 240ms ease 140ms;
 }
 
+/* The year's end colours the top edge of the card on top. */
+.council-card::before {
+  position: absolute;
+  z-index: 1;
+  height: 4px;
+  background: linear-gradient(90deg, var(--council-tone), transparent 85%);
+  content: '';
+  inset: 0 0 auto;
+  opacity: 0;
+  transition: opacity 240ms ease 140ms;
+}
+
+.council-card[data-offset='0']::before {
+  opacity: 1;
+}
+
+.council-card[data-tone='danger'] {
+  --council-tone: var(--danger);
+}
+
+.council-card[data-tone='warning'] {
+  --council-tone: var(--warning);
+}
+
+.council-card[data-tone='success'] {
+  --council-tone: var(--success);
+}
+
 .council-card:not([data-offset='0']) {
   box-shadow: 0 16px 32px -28px var(--foreground);
   pointer-events: none;
@@ -259,32 +308,41 @@
   transition-duration: 160ms;
 }
 
+.council-card[data-offset='-1'],
 .council-card[data-offset='1'] {
   z-index: 2;
-  background: color-mix(in oklab, var(--surface) 90%, var(--foreground));
-  transform: translateX(6%) scale(0.93);
+  background: color-mix(in oklab, var(--surface) 91%, var(--foreground));
+}
+
+.council-card[data-offset='-2'],
+.council-card[data-offset='2'] {
+  z-index: 1;
+  background: color-mix(in oklab, var(--surface) 82%, var(--foreground));
+  opacity: 0.75;
+}
+
+.council-card[data-offset='-1'] {
+  transform: translateX(-6.5%) scale(0.93);
+}
+
+.council-card[data-offset='1'] {
+  transform: translateX(6.5%) scale(0.93);
+}
+
+.council-card[data-offset='-2'] {
+  transform: translateX(-11.5%) scale(0.86);
 }
 
 .council-card[data-offset='2'] {
-  z-index: 1;
-  background: color-mix(in oklab, var(--surface) 80%, var(--foreground));
-  opacity: 0.7;
-  transform: translateX(10.5%) scale(0.86);
-}
-
-.council-card[data-offset='-1'],
-.council-card[data-offset='-2'] {
-  z-index: 2;
-  opacity: 0;
-  transform: translateX(-5%) scale(0.97);
+  transform: translateX(11.5%) scale(0.86);
 }
 
 .council-card__header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1.1rem 0.5rem;
+  gap: 0.9rem;
+  padding: 1.15rem 1.25rem 0.6rem;
 }
 
 /* The name keeps a width of its own: when the card is too narrow for both, the year's end goes
@@ -304,45 +362,107 @@
   letter-spacing: -0.01em;
 }
 
+/* The photo wears the colour of the year's end. */
 .council-card__photo {
-  width: 3.25rem;
-  height: 3.25rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 5px color-mix(in oklab, var(--council-tone) 55%, transparent);
 }
 
-/* Both arrows together, over the cards that wait at the right. */
-.council-deck__arrows {
+/* An arrow on each side, over the cards that wait there. */
+.council-deck__arrow {
   position: absolute;
   top: 50%;
-  right: 0;
   z-index: 4;
   display: grid;
-  gap: 0.45rem;
-  transform: translateY(-50%);
-}
-
-.council-deck__arrow {
-  display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.4rem;
+  height: 2.4rem;
   place-items: center;
   border: 1px solid var(--separator);
   border-radius: 999px;
   background: var(--surface);
-  box-shadow: 0 8px 20px -12px var(--foreground);
+  box-shadow: 0 10px 24px -14px var(--foreground);
   color: inherit;
   cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    transform 160ms var(--platform-ease),
+    border-color 160ms var(--platform-ease),
+    opacity 160ms var(--platform-ease);
+}
+
+.council-deck__arrow[data-side='previous'] {
+  left: 0;
+}
+
+.council-deck__arrow[data-side='next'] {
+  right: 0;
 }
 
 .council-deck__arrow:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--accent) 40%, var(--separator));
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--separator));
+  transform: translateY(-50%) scale(1.06);
 }
 
 .council-deck__arrow:disabled {
   cursor: default;
-  opacity: 0.4;
+  opacity: 0;
 }
 
 .council-deck__arrow:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* A dot for each student of the queue, in the colour of where it stands; the one on top is
+   wider. */
+.council-pager {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.council-pager > button {
+  width: 0.5rem;
+  height: 0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--council-dot);
+  cursor: pointer;
+  opacity: 0.45;
+  transition:
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease;
+}
+
+.council-pager > [data-kind='pending'] {
+  --council-dot: var(--warning);
+}
+
+.council-pager > [data-kind='decided'] {
+  --council-dot: var(--success);
+}
+
+.council-pager > [data-kind='informed'] {
+  --council-dot: var(--muted);
+}
+
+.council-pager > button:hover {
+  opacity: 0.8;
+}
+
+.council-pager > [aria-current] {
+  width: 1.5rem;
+  opacity: 1;
+}
+
+.council-pager > button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -494,18 +614,12 @@
 /* Wide screen: the student takes the room and the queue is a compact list at the right, one
    line for each student. */
 @media (min-width: 1101px) {
-  /* The card stops growing where its table would become sparse; the queue stays beside it. */
   .council-layout {
-    justify-content: start;
-    grid-template-columns: minmax(0, 52rem) 14.5rem;
+    grid-template-columns: minmax(0, 1fr) 14.5rem;
   }
 
   .council-layout > aside {
     order: 2;
-  }
-
-  .council-layout .council-deck {
-    max-width: none;
   }
 
   .council-layout .council-board {
@@ -558,7 +672,7 @@
 /* With room to spare, the names of the queue are shown whole. */
 @media (min-width: 1500px) {
   .council-layout {
-    grid-template-columns: minmax(0, 52rem) 18rem;
+    grid-template-columns: minmax(0, 1fr) 18rem;
   }
 }
 
@@ -583,43 +697,49 @@
 
 /* Phone: the four counts stay in one row, without their icons. */
 @media (max-width: 640px) {
+  .council-stage {
+    padding: 0.9rem 0 0.8rem;
+    border: 0;
+    background: none;
+  }
+
   .council-deck {
-    padding-right: 0.9rem;
+    padding: 0 0.9rem;
+  }
+
+  .council-card[data-offset='-1'] {
+    transform: translateX(-4.5%) scale(0.95);
   }
 
   .council-card[data-offset='1'] {
     transform: translateX(4.5%) scale(0.95);
   }
 
+  .council-card[data-offset='-2'] {
+    transform: translateX(-8%) scale(0.9);
+  }
+
   .council-card[data-offset='2'] {
     transform: translateX(8%) scale(0.9);
   }
 
-  /* On the card's own corner, where the name leaves room for them. */
-  .council-deck__arrows {
-    top: 0.75rem;
-    right: 1.5rem;
-    gap: 0.35rem;
-    grid-auto-flow: column;
-    transform: none;
-  }
-
   .council-deck__arrow {
+    top: 2.6rem;
     width: 2rem;
     height: 2rem;
+  }
+
+  .council-deck__arrow[data-side='previous'] {
+    left: -0.3rem;
+  }
+
+  .council-deck__arrow[data-side='next'] {
+    right: -0.3rem;
   }
 
   .council-card__header,
   .council-report__scroll {
     padding-inline: 1rem;
-  }
-
-  .council-card__header {
-    padding-right: 5.6rem;
-  }
-
-  .council-card__name {
-    flex-basis: 8rem;
   }
 
   /* Under the name, in line with it. */
@@ -652,7 +772,10 @@
   }
 
   .council-card,
-  .council-card > * {
+  .council-card > *,
+  .council-card::before,
+  .council-deck__arrow,
+  .council-pager > button {
     transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
     animation: none;
   }

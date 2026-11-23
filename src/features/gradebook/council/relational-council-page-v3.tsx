@@ -307,18 +307,21 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
   );
 }
 
+/** The year's end of a student and its tone: not approved until the Conselho says otherwise. */
+function situationV3(
+  student: RelationalCouncilStudentV3,
+): readonly [string, 'success' | 'danger' | 'warning'] {
+  if (student.decision) return SITUATION_V3[student.decision.code];
+  const notice = noticeV3(student);
+  return notice ? [notice[0], notice[1]] : ['Reprovado', 'danger'];
+}
+
 /** What a student's card shows: the photo, the year's end and the report card. */
 function StudentCardV3({
   student,
   year,
 }: Readonly<{ student: RelationalCouncilStudentV3; year: number }>) {
-  let [situation, tone]: readonly [string, 'success' | 'danger' | 'warning'] = [
-    'Reprovado',
-    'danger',
-  ];
-  const notice = noticeV3(student);
-  if (student.decision) [situation, tone] = SITUATION_V3[student.decision.code];
-  else if (notice) [situation, tone] = notice;
+  const [situation, tone] = situationV3(student);
   return (
     <>
       <header className="council-card__header">
@@ -345,59 +348,89 @@ function StudentCardV3({
   );
 }
 
-/** The queue as a pile of cards: the student under discussion on top and the next two behind
- * it, at the right. Each student keeps its own card, so moving through the queue slides the
- * cards from one place of the pile to the next; the ones already seen leave by the left. */
+/** Where a student stands in the queue, for the dot that stands for it under the pile. */
+function queueKindV3(student: RelationalCouncilStudentV3) {
+  if (relationalCouncilInformedV3(student)) return 'informed';
+  return student.decision ? 'decided' : 'pending';
+}
+
+/** The queue as a pile of cards on a stage: the student under discussion on top, the two before
+ * it behind at the left and the two after it behind at the right. Each student keeps its own
+ * card, so moving through the queue slides the cards from one place of the pile to the next.
+ * Under the pile, a dot for each student of the queue shows where the Conselho is. */
 function StudentDeckV3({
   queue,
   position,
   year,
-  onStep,
+  onSelect,
 }: Readonly<{
   queue: readonly RelationalCouncilStudentV3[];
   position: number;
   year: number;
-  onStep: (by: -1 | 1) => void;
+  onSelect: (studentId: number) => void;
 }>) {
+  const step = (by: -1 | 1) => {
+    const next = queue[position + by];
+    if (next) onSelect(next.id);
+  };
   return (
-    <div className="council-deck">
-      {queue.map((student, index) => {
-        const offset = index - position;
-        if (Math.abs(offset) > 2) return null;
-        return (
-          <article
-            key={student.id}
-            className="council-card"
-            data-offset={offset}
-            aria-label={student.name}
-            // Only the card on top is read and reached; its neighbours are drawn for the slide.
-            inert={offset !== 0}
-            aria-hidden={offset !== 0 || undefined}
-          >
-            {Math.abs(offset) <= 1 ? <StudentCardV3 student={student} year={year} /> : null}
-          </article>
-        );
-      })}
+    <div className="council-stage">
+      <div className="council-deck">
+        {queue.map((student, index) => {
+          const offset = index - position;
+          if (Math.abs(offset) > 2) return null;
+          return (
+            <article
+              key={student.id}
+              className="council-card"
+              data-offset={offset}
+              data-tone={situationV3(student)[1]}
+              aria-label={student.name}
+              // Only the card on top is read and reached; its neighbours are drawn for the slide.
+              inert={offset !== 0}
+              aria-hidden={offset !== 0 || undefined}
+            >
+              {Math.abs(offset) <= 1 ? <StudentCardV3 student={student} year={year} /> : null}
+            </article>
+          );
+        })}
+        {queue.length > 1 ? (
+          <>
+            <button
+              type="button"
+              className="council-deck__arrow"
+              data-side="previous"
+              aria-label="Aluno anterior"
+              disabled={position === 0}
+              onClick={() => step(-1)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              type="button"
+              className="council-deck__arrow"
+              data-side="next"
+              aria-label="Próximo aluno"
+              disabled={position === queue.length - 1}
+              onClick={() => step(1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </>
+        ) : null}
+      </div>
       {queue.length > 1 ? (
-        <div className="council-deck__arrows">
-          <button
-            type="button"
-            className="council-deck__arrow"
-            aria-label="Aluno anterior"
-            disabled={position === 0}
-            onClick={() => onStep(-1)}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            type="button"
-            className="council-deck__arrow"
-            aria-label="Próximo aluno"
-            disabled={position === queue.length - 1}
-            onClick={() => onStep(1)}
-          >
-            <ChevronRight size={18} />
-          </button>
+        <div className="council-pager" role="group" aria-label="Alunos da fila">
+          {queue.map((student, index) => (
+            <button
+              key={student.id}
+              type="button"
+              data-kind={queueKindV3(student)}
+              aria-label={student.name}
+              aria-current={index === position || undefined}
+              onClick={() => onSelect(student.id)}
+            />
+          ))}
         </div>
       ) : null}
     </div>
@@ -490,10 +523,6 @@ export function RelationalCouncilPageV3() {
     queue.findIndex((student) => student.id === selected?.id),
     0,
   );
-  const step = (by: -1 | 1) => {
-    const next = queue[position + by];
-    if (next) setSelectedStudentId(next.id);
-  };
   useEffect(() => {
     if (!workspace) {
       setSelectedStudentId(null);
@@ -647,7 +676,7 @@ export function RelationalCouncilPageV3() {
                   queue={queue}
                   position={position}
                   year={workspace.context.year}
-                  onStep={step}
+                  onSelect={setSelectedStudentId}
                 />
               ) : null}
             </main>
