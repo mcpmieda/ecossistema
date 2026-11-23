@@ -494,8 +494,10 @@
 /* Wide screen: the student takes the room and the queue is a compact list at the right, one
    line for each student. */
 @media (min-width: 1101px) {
+  /* The card stops growing where its table would become sparse; the queue stays beside it. */
   .council-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(12rem, 14.5rem);
+    justify-content: start;
+    grid-template-columns: minmax(0, 52rem) 14.5rem;
   }
 
   .council-layout > aside {
@@ -550,6 +552,13 @@
   .council-layout .council-queue-card > svg {
     width: 0.85rem;
     height: 0.85rem;
+  }
+}
+
+/* With room to spare, the names of the queue are shown whole. */
+@media (min-width: 1500px) {
+  .council-layout {
+    grid-template-columns: minmax(0, 52rem) 18rem;
   }
 }
 
