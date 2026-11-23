@@ -1,15 +1,23 @@
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
 
 /*
  * Local preview only (never part of a build): serves /api/gradebook/* from the real route
- * handlers over an in-memory PGlite database with invented classes, students and marks.
- * Nothing leaves the machine and nothing here is real academic data.
+ * handlers over a PGlite database that starts with invented classes, students and marks.
+ * The database is kept in a git-ignored folder of this machine, so what is imported in the
+ * preview is still there after a restart. Nothing leaves the machine. Deleting the folder, or
+ * changing a migration or the seed, starts again from the invented data.
  */
 const ROOT = path.resolve(import.meta.dirname, '..');
 const MIGRATIONS = path.join(ROOT, 'migrations/gradebook-simplified');
+const PORTAL_MIGRATIONS = path.join(ROOT, 'migrations/student-portal');
+const LINEAGE = 'tests/student-portal/year-reset/schema-fixture.ts';
+const STORE = path.join(ROOT, 'node_modules/.cache/adm-preview-gradebook');
+/** The database this process has open: a restarted server lets go of it before opening it again. */
+const OPEN = Symbol.for('adm-preview-gradebook-open');
 const ACTOR = '11111111-1111-4111-8111-111111111111';
 
 // Deterministic 0..999 per (instrument, student), so reloads show the same marks. Two of every
@@ -85,22 +93,32 @@ async function platformSnapshot(server: ViteDevServer) {
   );
 }
 
-async function createBackend(server: ViteDevServer) {
-  const { PGlite } = await import('@electric-sql/pglite');
-  const load = (file: string) => server.ssrLoadModule(file) as Promise<Record<string, unknown>>;
-  const [schema, postgres, fixtures, sealed, session] = await Promise.all([
-    load('/server/gradebook/recovery/current-gradebook-schema-v1.ts'),
-    load('/server/gradebook/persistence/postgres/postgres-database-v1.ts'),
-    load('/tests/fixtures.ts'),
-    load('/server/auth/sealed.ts'),
-    load('/server/auth/session.ts'),
-  ]);
-  const pg = new PGlite();
+/** One folder per schema and seed: a change in a migration, in the Portal lineage or in the seed
+ * starts a new database instead of reading one built for another schema. */
+function storeKey(plan: readonly string[]): string {
+  const hash = createHash('sha256').update(plan.join('|')).update(SEED);
+  for (const folder of [MIGRATIONS, PORTAL_MIGRATIONS])
+    for (const file of readdirSync(folder).sort())
+      hash.update(file).update(readFileSync(path.join(folder, file)));
+  return hash
+    .update(readFileSync(path.join(ROOT, LINEAGE)))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+type PreviewDatabase = { exec(sql: string): Promise<unknown> };
+
+/** The schema, the Portal lineage and the invented data, once for each new database. */
+async function buildDatabase(
+  pg: PreviewDatabase,
+  plan: readonly string[],
+  load: (file: string) => Promise<Record<string, unknown>>,
+  skipped: string[],
+): Promise<void> {
   await pg.exec(
     'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;',
   );
-  const skipped: string[] = [];
-  for (const file of schema.GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 as readonly string[]) {
+  for (const file of plan) {
     try {
       await pg.exec(readFileSync(path.join(MIGRATIONS, file), 'utf8'));
     } catch (error) {
@@ -114,9 +132,9 @@ async function createBackend(server: ViteDevServer) {
   // lineage: the same private schema the tests install. Without it the preview shows the Relação
   // name and only the seeded year can be read.
   try {
-    const lineage = await load('/tests/student-portal/year-reset/schema-fixture.ts');
+    const lineage = await load(`/${LINEAGE}`);
     const install = (name: string) =>
-      (lineage[name] as (database: { exec(sql: string): Promise<unknown> }) => Promise<void>)(pg);
+      (lineage[name] as (database: PreviewDatabase) => Promise<void>)(pg);
     await install('installResetSchemaFixtureV1');
     await install('installReconciliationSchemaFixtureV1');
   } catch (error) {
@@ -137,6 +155,43 @@ async function createBackend(server: ViteDevServer) {
         'gradebook.' || c.table_name, c.column_name, c.column_name, c.table_name);
     END LOOP;
   END $$;`);
+}
+
+async function createBackend(server: ViteDevServer) {
+  const { PGlite } = await import('@electric-sql/pglite');
+  const load = (file: string) => server.ssrLoadModule(file) as Promise<Record<string, unknown>>;
+  const [schema, postgres, fixtures, sealed, session] = await Promise.all([
+    load('/server/gradebook/recovery/current-gradebook-schema-v1.ts'),
+    load('/server/gradebook/persistence/postgres/postgres-database-v1.ts'),
+    load('/tests/fixtures.ts'),
+    load('/server/auth/sealed.ts'),
+    load('/server/auth/session.ts'),
+  ]);
+  const plan = schema.GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 as readonly string[];
+  const folder = path.join(STORE, storeKey(plan));
+  const ready = path.join(folder, 'ready');
+  const open = globalThis as { [OPEN]?: { close(): Promise<void> } };
+  await open[OPEN]?.close().catch(() => undefined);
+  const start = () => {
+    rmSync(STORE, { recursive: true, force: true });
+    mkdirSync(folder, { recursive: true });
+    return new PGlite(path.join(folder, 'data'), { relaxedDurability: true });
+  };
+  let fresh = !existsSync(ready);
+  let pg = fresh ? start() : new PGlite(path.join(folder, 'data'), { relaxedDurability: true });
+  try {
+    await pg.waitReady;
+  } catch {
+    // Left unreadable by a hard stop: the invented data again, and what was imported once more.
+    await pg.close().catch(() => undefined);
+    pg = start();
+    fresh = true;
+    await pg.waitReady;
+  }
+  open[OPEN] = pg;
+  const skipped: string[] = [];
+  if (fresh) await buildDatabase(pg, plan, load, skipped);
+  if (fresh) writeFileSync(ready, '');
   const run = async (query: Query, text: string, values: readonly unknown[]) => {
     const result = await query(text, [...values]);
     return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
