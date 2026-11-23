@@ -337,7 +337,7 @@ describe('relational Council V3 client and HeroUI journey', () => {
     });
   });
 
-  it('renders the static Kanban-inspired queue, annual table and audit timeline without prior-year controls', async () => {
+  it('renders the static Kanban-inspired queue and annual table without timeline, snapshots or prior-year controls', async () => {
     await mount();
     await openClass(10);
     await waitFor(() => host.textContent?.includes(student.name) === true);
@@ -346,7 +346,7 @@ describe('relational Council V3 client and HeroUI journey', () => {
     expect(host.textContent).toContain('1º tri.');
     expect(host.textContent).toContain('REC');
     expect(host.textContent).toContain('Não elegíveis');
-    expect(host.textContent).toContain('Linha do tempo');
+    expect(host.textContent).not.toMatch(/Linha do tempo|Fechamentos preservados|snapshot/iu);
     expect(host.textContent).not.toMatch(
       /Conselho anterior|ano anterior|catálogo legado|voto de minerva|diretor/iu,
     );

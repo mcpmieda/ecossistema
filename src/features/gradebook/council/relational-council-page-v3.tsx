@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   CircleDot,
   Clock3,
-  History,
   LockKeyhole,
   RefreshCw,
   RotateCcw,
@@ -81,17 +80,9 @@ const SESSION_LABEL: Record<SessionStateV3, string> = {
 type SessionActionV3 = 'open' | 'close' | 'reopen';
 const SESSION_DONE: Record<SessionActionV3, string> = {
   open: 'Reunião aberta.',
-  reopen: 'Reunião reaberta; o snapshot anterior foi preservado.',
-  close: 'Reunião fechada com novo snapshot imutável.',
+  reopen: 'Reunião reaberta.',
+  close: 'Reunião fechada.',
 };
-const TIMELINE_LABEL = {
-  opened: 'Reunião aberta',
-  'decision-recorded': 'Decisão registrada',
-  'vote-recorded': 'Contagem registrada',
-  closed: 'Reunião fechada',
-  reopened: 'Reunião reaberta',
-} as const;
-
 function Metric({
   icon,
   label,
@@ -626,10 +617,7 @@ function CouncilSessionCardV3({
       <Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div>
           <Card.Title>Sessão da turma {workspace.classGroup.label}</Card.Title>
-          <Card.Description>
-            Versão institucional {workspace.session.version} · {workspace.session.snapshotCount}{' '}
-            fechamento(s) preservado(s)
-          </Card.Description>
+          <Card.Description>Versão institucional {workspace.session.version}</Card.Description>
         </div>
         <Chip className="sm:ml-auto" color={SESSION_COLOR[workspace.session.state]} variant="soft">
           <Chip.Label>{SESSION_LABEL[workspace.session.state]}</Chip.Label>
@@ -694,8 +682,7 @@ function CouncilSessionCardV3({
             <Alert.Content>
               <Alert.Title>Confirmar fechamento institucional?</Alert.Title>
               <Alert.Description>
-                As edições serão bloqueadas e um novo snapshot imutável será criado. A correção
-                posterior exige reabertura justificada.
+                As edições serão bloqueadas. A correção posterior exige reabertura justificada.
               </Alert.Description>
               <div className="mt-3 flex gap-2">
                 <Button
@@ -704,7 +691,7 @@ function CouncilSessionCardV3({
                   onPress={() => onSessionCommand('close')}
                 >
                   <Archive size={16} />
-                  Fechar e preservar snapshot
+                  Fechar reunião
                 </Button>
                 <Button variant="ghost" onPress={() => onConfirmClose(false)}>
                   Cancelar
@@ -715,90 +702,6 @@ function CouncilSessionCardV3({
         ) : null}
       </Card.Content>
     </Card>
-  );
-}
-
-/** The timeline of human actions and the preserved closures. */
-function CouncilHistoryV3({ workspace }: Readonly<{ workspace: RelationalCouncilWorkspaceV3 }>) {
-  return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,.8fr)]">
-      <Card>
-        <Card.Header>
-          <div className="flex items-center gap-2">
-            <History size={18} />
-            <Card.Title>Linha do tempo</Card.Title>
-          </div>
-          <Card.Description>
-            Histórico de ações humanas, sem participantes nominais da votação.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content>
-          {workspace.timeline.length ? (
-            <ol className="council-timeline">
-              {workspace.timeline.map((event, index) => (
-                <li key={event.id}>
-                  <span className="council-timeline__rail">
-                    <span className="council-timeline__marker" />
-                    {index < workspace.timeline.length - 1 ? (
-                      <span className="council-timeline__connector" />
-                    ) : null}
-                  </span>
-                  <article>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong>{TIMELINE_LABEL[event.action]}</strong>
-                      <Chip size="sm" variant="soft">
-                        <Chip.Label>v{event.version}</Chip.Label>
-                      </Chip>
-                    </div>
-                    {event.studentLabel ? <p className="text-sm">{event.studentLabel}</p> : null}
-                    <p className="text-sm text-muted">{event.justification}</p>
-                    <time className="text-xs text-muted" dateTime={event.occurredAt}>
-                      {new Date(event.occurredAt).toLocaleString('pt-BR')}
-                    </time>
-                  </article>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="text-sm text-muted">
-              A linha do tempo começará quando a reunião for aberta.
-            </p>
-          )}
-        </Card.Content>
-      </Card>
-      <Card>
-        <Card.Header>
-          <Card.Title>Fechamentos preservados</Card.Title>
-          <Card.Description>Cada reabertura mantém os snapshots anteriores.</Card.Description>
-        </Card.Header>
-        <Card.Content>
-          {workspace.closures.length ? (
-            <ul className="grid gap-2">
-              {workspace.closures.map((closure) => (
-                <li key={closure.id} className="rounded-xl border border-separator p-3">
-                  <div className="flex items-center gap-2">
-                    <Archive size={16} />
-                    <strong>Fechamento {closure.sequence}</strong>
-                    <Chip size="sm" variant="soft" className="ml-auto">
-                      <Chip.Label>v{closure.version}</Chip.Label>
-                    </Chip>
-                  </div>
-                  <p className="mt-2 text-xs text-muted">
-                    {closure.summary.approved} aprovado(s) · {closure.summary.rejected} reprovado(s)
-                    · {closure.summary.absence} por falta
-                  </p>
-                  <time className="mt-1 block text-xs text-muted" dateTime={closure.closedAt}>
-                    {new Date(closure.closedAt).toLocaleString('pt-BR')}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted">Nenhum fechamento realizado.</p>
-          )}
-        </Card.Content>
-      </Card>
-    </div>
   );
 }
 
@@ -899,9 +802,6 @@ export function RelationalCouncilPageV3() {
               <div>
                 <Scale className="mx-auto mb-3 text-muted" />
                 <strong className="text-sm">Escolha uma turma para abrir a pauta</strong>
-                <p className="mt-1 text-xs text-muted">
-                  A fila, os resultados e o histórico serão carregados no mesmo snapshot.
-                </p>
               </div>
             </div>
           ) : null}
@@ -1034,7 +934,6 @@ export function RelationalCouncilPageV3() {
                   </ul>
                 </details>
               ) : null}
-              <CouncilHistoryV3 workspace={workspace} />
             </>
           ) : null}
         </div>

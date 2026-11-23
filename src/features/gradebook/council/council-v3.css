@@ -155,44 +155,6 @@
   opacity: 0.55;
 }
 
-.council-timeline {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.council-timeline article {
-  min-width: 0;
-  padding-bottom: 1rem;
-}
-
-.council-timeline__rail {
-  position: relative;
-  display: flex;
-  justify-content: center;
-}
-
-.council-timeline__marker {
-  position: relative;
-  z-index: 1;
-  width: 0.72rem;
-  height: 0.72rem;
-  margin-top: 0.32rem;
-  border: 2px solid var(--surface);
-  border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent) 30%, var(--separator));
-}
-
-.council-timeline__connector {
-  position: absolute;
-  top: 0.9rem;
-  bottom: -0.25rem;
-  width: 1px;
-  background: var(--separator);
-}
-
 @media (max-width: 1100px) {
   .council-kpi-group {
     grid-template-columns: repeat(2, minmax(0, 1fr));
