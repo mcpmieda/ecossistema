@@ -296,6 +296,23 @@
   padding: 0.85rem 1.1rem 0.5rem;
 }
 
+/* The name keeps a width of its own: when the card is too narrow for both, the year's end goes
+   to the line below instead of squeezing the name into a column of letters. */
+.council-card__name {
+  min-width: 0;
+  flex: 1 1 11rem;
+}
+
+/* The year's end is the first thing the Conselho reads on the card. */
+.council-card__situation {
+  min-height: 2.25rem;
+  margin-left: auto;
+  padding: 0.35rem 0.95rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
 .council-card__photo {
   width: 3.25rem;
   height: 3.25rem;
@@ -528,6 +545,13 @@
   .council-card__header,
   .council-report__scroll {
     padding-inline: 1rem;
+  }
+
+  /* Under the name, in line with it. */
+  .council-card__situation {
+    min-height: 2rem;
+    margin-left: 4rem;
+    font-size: 0.92rem;
   }
 
   .council-kpi {

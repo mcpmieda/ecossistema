@@ -323,13 +323,13 @@ function StudentCardV3({
           fallbackTone={student.id % 6}
           subject={{ source: 'gradebook', academicYear: year, studentIds: [student.id] }}
         />
-        <div className="min-w-0 flex-1">
+        <div className="council-card__name">
           <h3 className="break-words text-base font-bold tracking-tight sm:text-lg">
             {student.name}
           </h3>
           <p className="text-sm text-muted">Nº {student.number}</p>
         </div>
-        <Chip color={tone} variant="soft">
+        <Chip className="council-card__situation" color={tone} size="lg" variant="soft">
           <Chip.Label>{situation}</Chip.Label>
         </Chip>
       </header>
