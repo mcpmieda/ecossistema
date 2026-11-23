@@ -454,7 +454,7 @@ function StudentPanel({
                   });
                   if (response?.state === 'ready') {
                     onDirtyChange(false);
-                    onMessage('Decisão humana registrada com histórico.');
+                    onMessage('Decisão registrada.');
                   }
                 }}
               >

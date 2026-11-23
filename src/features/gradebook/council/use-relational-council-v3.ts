@@ -45,6 +45,7 @@ export function useRelationalCouncilV3() {
   const [stale, setStale] = useState(false);
   const [busy, setBusy] = useState({ classes: true, workspace: false, command: false });
   const classesController = useRef<AbortController | null>(null);
+  const talliesController = useRef<AbortController | null>(null);
   const workspaceController = useRef<AbortController | null>(null);
   const sequence = useRef(0);
   const draftProtected = useRef(false);
@@ -106,6 +107,40 @@ export function useRelationalCouncilV3() {
     }
   }
 
+  /** Where each class stands, read after the buttons are on screen: it costs a whole reading per
+   * class. A failure only leaves the buttons without their counts. */
+  const loadTallies = useCallback(async () => {
+    if (year === null) return;
+    talliesController.current?.abort();
+    const controller = new AbortController();
+    talliesController.current = controller;
+    try {
+      const response = await requestRelationalCouncilV3(
+        {
+          contractVersion: 3,
+          operation: 'classes',
+          year,
+          offset: 0,
+          limit: PAGE_SIZE,
+          tally: true,
+        },
+        controller.signal,
+      );
+      if (controller.signal.aborted || response.state !== 'ready') return;
+      if (response.operation !== 'classes') return;
+      const tallies = new Map(response.classes.map((item) => [item.id, item.tally]));
+      setClasses((current) =>
+        current.map((item) => {
+          // The open class already has the count of its own, newer, reading.
+          const tally = item.id === selectedClass.current ? item.tally : tallies.get(item.id);
+          return tally ? { ...item, tally } : item;
+        }),
+      );
+    } catch {
+      // Nothing to show or to retry: the next reading brings them.
+    }
+  }, [year]);
+
   const loadClasses = useCallback(
     async (background = false) => {
       if (year === null) return;
@@ -118,15 +153,7 @@ export function useRelationalCouncilV3() {
       }
       try {
         const response = await requestRelationalCouncilV3(
-          // A reading in the background keeps the tallies it has: each one costs a whole class.
-          {
-            contractVersion: 3,
-            operation: 'classes',
-            year,
-            offset: 0,
-            limit: PAGE_SIZE,
-            ...(background ? {} : { tally: true }),
-          },
+          { contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE },
           controller.signal,
         );
         if (controller.signal.aborted) return;
@@ -136,15 +163,17 @@ export function useRelationalCouncilV3() {
         }
         if (response.state !== 'ready' || response.operation !== 'classes')
           return readFailed(background, response.state);
+        // This reading brings no tally: each class keeps the one it has.
         setClasses((current) =>
           response.classes.map((item) => {
-            const known = item.tally ?? current.find((old) => old.id === item.id)?.tally;
+            const known = current.find((old) => old.id === item.id)?.tally;
             return known ? { ...item, tally: known } : item;
           }),
         );
         keepSelectedClass(response.classes);
         setStale(false);
         restoreStoredClass(response.classes, year);
+        if (!background) void loadTallies();
         return true;
       } catch (error) {
         if (!abortedV3(error)) return readFailed(background, 'unavailable');
@@ -153,7 +182,7 @@ export function useRelationalCouncilV3() {
           setBusy((current) => ({ ...current, classes: false }));
       }
     },
-    [year, loseAccess],
+    [year, loseAccess, loadTallies],
   );
 
   const loadWorkspace = useCallback(
@@ -201,6 +230,7 @@ export function useRelationalCouncilV3() {
     void loadClasses();
     return () => {
       classesController.current?.abort();
+      talliesController.current?.abort();
       workspaceController.current?.abort();
       sequence.current += 1;
     };

@@ -329,7 +329,7 @@ describe('Council decision chosen explicitly (A3)', () => {
       justification: 'Reprovado pela maioria.',
     });
     // One's own save is not someone else's change.
-    await waitFor(() => host.textContent?.includes('Decisão humana registrada') === true);
+    await waitFor(() => host.textContent?.includes('Decisão registrada.') === true);
     expect(host.textContent).not.toContain('Outra pessoa alterou este aluno');
   }, 15_000);
 });
@@ -422,7 +422,7 @@ describe('Council refusal after another save (A12)', () => {
     // Recording the draft afterwards is a choice made knowing the current record.
     conflict = false;
     await click('Atualizar decisão');
-    await waitFor(() => host.textContent?.includes('Decisão humana registrada') === true);
+    await waitFor(() => host.textContent?.includes('Decisão registrada.') === true);
     expect(requests.filter((request) => request.operation === 'decision').at(-1)).toMatchObject({
       decision: 3,
       justification: 'Meu rascunho do mesmo aluno.',
