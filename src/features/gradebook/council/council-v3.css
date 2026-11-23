@@ -414,6 +414,20 @@
   color: color-mix(in oklab, var(--danger) 82%, var(--foreground));
 }
 
+/* The component the student did not pass: its whole column, from the name to the total. */
+.council-report [data-failed] {
+  background: color-mix(in oklab, var(--danger) 7%, transparent);
+}
+
+.council-report thead th[data-failed] {
+  border-radius: 0.6rem 0.6rem 0 0;
+  color: var(--danger);
+}
+
+.council-report tfoot td[data-failed] {
+  border-radius: 0 0 0.6rem 0.6rem;
+}
+
 .council-report tbody tr[data-rec] td > span {
   font-size: 0.72rem;
   font-weight: 550;

@@ -125,6 +125,14 @@ const eligibility = z
     failedComponentCount: count,
   })
   .strict();
+/** Students the Conselho only takes notice of: the ones who missed a recovery (N/C) and the ones
+ * whose recovery is still to be recorded. They are not eligible, are never voted on and do not
+ * enter the counts of the class. */
+const INFORMED_CODES_V3: readonly string[] = ['failed-no-show', 'recovery-pending'];
+export const relationalCouncilInformedV3 = (student: {
+  readonly eligibility: { readonly code: string };
+}): boolean => INFORMED_CODES_V3.includes(student.eligibility.code);
+
 const student = z
   .object({
     id,
@@ -149,6 +157,7 @@ const summary = z
     rejected: count,
     absence: count,
     notEligible: count,
+    forInformation: count,
   })
   .strict();
 const workspace = z
@@ -171,7 +180,8 @@ const workspace = z
       value.summary.eligible !== eligible.length ||
       value.summary.decided !== eligible.filter((item) => item.decision !== null).length ||
       value.summary.pending !== eligible.filter((item) => item.decision === null).length ||
-      value.summary.notEligible !== value.students.length - eligible.length
+      value.summary.notEligible !== value.students.length - eligible.length ||
+      value.summary.forInformation !== value.students.filter(relationalCouncilInformedV3).length
     ) {
       ctx.addIssue({ code: 'custom', message: 'workspace summary mismatch' });
     }
@@ -188,8 +198,10 @@ const failureState = z.enum([
 ]);
 export type RelationalCouncilFailureV3 = z.infer<typeof failureState>;
 /** Where a class stands: eligible students approved, rejected (by the Council or for absence) and
- * still without a decision. */
-const tally = z.object({ approved: count, rejected: count, pending: count }).strict();
+ * still without a decision, and the students it only takes notice of. */
+const tally = z
+  .object({ approved: count, rejected: count, pending: count, forInformation: count })
+  .strict();
 export type RelationalCouncilTallyV3 = z.infer<typeof tally>;
 export const relationalCouncilTallyV3 = (
   summary: RelationalCouncilWorkspaceV3['summary'],
@@ -197,6 +209,7 @@ export const relationalCouncilTallyV3 = (
   approved: summary.approved,
   rejected: summary.rejected + summary.absence,
   pending: summary.pending,
+  forInformation: summary.forInformation,
 });
 
 export const relationalCouncilResponseSchemaV3 = z.union([

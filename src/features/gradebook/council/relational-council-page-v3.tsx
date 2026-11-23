@@ -15,11 +15,12 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type {
-  RelationalCouncilFailureV3,
-  RelationalCouncilStudentV3,
-  RelationalCouncilTallyV3,
-  RelationalCouncilWorkspaceV3,
+import {
+  relationalCouncilInformedV3,
+  type RelationalCouncilFailureV3,
+  type RelationalCouncilStudentV3,
+  type RelationalCouncilTallyV3,
+  type RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { gradeText } from '../performance/performance-display-v2';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
@@ -42,6 +43,20 @@ const SITUATION_V3 = {
   2: ['Reprovado pelo Conselho', 'danger'],
   3: ['Reprovado por falta', 'danger'],
 } as const;
+/** A student shown only for information: why, on the card and in the queue. */
+const INFORMED_V3 = {
+  'failed-no-show': ['Reprovado · N/C', 'danger', 'Não compareceu à recuperação'],
+  'recovery-pending': ['Recuperação pendente', 'warning', 'Recuperação ainda não lançada'],
+} as const;
+const informedV3 = (student: RelationalCouncilStudentV3) =>
+  relationalCouncilInformedV3(student)
+    ? INFORMED_V3[student.eligibility.code as keyof typeof INFORMED_V3]
+    : null;
+const FAILED_RESULTS_V3: readonly CouncilComponentV3['result'][] = [
+  'not-approved',
+  'failed-no-show',
+  'failed-repeat',
+];
 const TERM_LABELS_V3 = ['1º tri.', '2º tri.', '3º tri.'] as const;
 
 /** One or many, in words: the counts are read aloud and label the summary. */
@@ -69,6 +84,8 @@ function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | nu
       </span>
     );
   const shown = TALLY_KINDS.filter(([kind]) => tally[kind] > 0);
+  // A class here only for the students it takes notice of has nothing to count.
+  if (!shown.length) return null;
   return (
     <span
       className="council-tally"
@@ -150,6 +167,11 @@ function QueueCard({
   readonly selected: boolean;
   readonly onSelect: () => void;
 }) {
+  const informed = informedV3(student);
+  let mark = <Clock3 size={17} className="text-warning" aria-label="A deliberar" />;
+  if (informed) mark = <CircleAlert size={17} className="text-muted" aria-hidden="true" />;
+  else if (student.decision)
+    mark = <CheckCircle2 size={17} className="text-success" aria-label="Decidido" />;
   return (
     <button
       type="button"
@@ -162,15 +184,12 @@ function QueueCard({
       <span className="min-w-0">
         <strong className="line-clamp-2 break-words text-sm">{student.name}</strong>
         <span className="block truncate text-xs text-muted">
-          {student.decision?.label ??
+          {informed?.[2] ??
+            student.decision?.label ??
             `${countedV3(student.eligibility.failedComponentCount, 'componente', 'componentes')} abaixo`}
         </span>
       </span>
-      {student.decision ? (
-        <CheckCircle2 size={17} className="text-success" aria-label="Decidido" />
-      ) : (
-        <Clock3 size={17} className="text-warning" aria-label="A deliberar" />
-      )}
+      {mark}
     </button>
   );
 }
@@ -189,14 +208,23 @@ const finalGradeV3 = (component: CouncilComponentV3): CouncilGradeV3 =>
   component.recovery.state === 'complete' ? component.recovery : component.annual;
 
 /** One mark of the report card, on its own background: at or above the minimum, or below it. */
-function ReportCellV3({ grade }: { readonly grade: CouncilGradeV3 }) {
+function ReportCellV3({
+  grade,
+  failed,
+}: {
+  readonly grade: CouncilGradeV3;
+  readonly failed: true | undefined;
+}) {
   const mark = reportMarkV3(grade);
-  return <td>{mark ? <span data-level={grade.level}>{mark}</span> : null}</td>;
+  return <td data-failed={failed}>{mark ? <span data-level={grade.level}>{mark}</span> : null}</td>;
 }
 
 /** The student's year as the school's report card lays it out: a column for each component, a
- * row for each term's mark and REC, and the year's total. */
+ * row for each term's mark and REC, and the year's total. The column of a component the student
+ * did not pass is tinted. */
 function StudentReportV3({ student }: { readonly student: RelationalCouncilStudentV3 }) {
+  const failed = (component: CouncilComponentV3) =>
+    FAILED_RESULTS_V3.includes(component.result) || undefined;
   return (
     <div className="council-report__scroll">
       <table className="council-report" aria-label={`Notas do ano de ${student.name}`}>
@@ -204,7 +232,7 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
           <tr>
             <td colSpan={2} />
             {student.components.map((component) => (
-              <th key={component.offerId} scope="col">
+              <th key={component.offerId} scope="col" data-failed={failed(component)}>
                 <span>{component.subject.label}</span>
               </th>
             ))}
@@ -219,13 +247,21 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
                 </th>
                 <th scope="row">Nota</th>
                 {student.components.map((component) => (
-                  <ReportCellV3 key={component.offerId} grade={component.terms[term]!} />
+                  <ReportCellV3
+                    key={component.offerId}
+                    grade={component.terms[term]!}
+                    failed={failed(component)}
+                  />
                 ))}
               </tr>
               <tr data-rec>
                 <th scope="row">REC</th>
                 {student.components.map((component) => (
-                  <ReportCellV3 key={component.offerId} grade={component.termRecoveries[term]!} />
+                  <ReportCellV3
+                    key={component.offerId}
+                    grade={component.termRecoveries[term]!}
+                    failed={failed(component)}
+                  />
                 ))}
               </tr>
             </Fragment>
@@ -237,7 +273,11 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
               Nota final
             </th>
             {student.components.map((component) => (
-              <ReportCellV3 key={component.offerId} grade={finalGradeV3(component)} />
+              <ReportCellV3
+                key={component.offerId}
+                grade={finalGradeV3(component)}
+                failed={failed(component)}
+              />
             ))}
           </tr>
         </tfoot>
@@ -265,9 +305,13 @@ function StudentPanel({
   onPrevious: (() => void) | null;
   onNext: (() => void) | null;
 }>) {
-  const [situation, tone] = student.decision
-    ? SITUATION_V3[student.decision.code]
-    : (['Reprovado', 'danger'] as const);
+  let [situation, tone]: readonly [string, 'success' | 'danger' | 'warning'] = [
+    'Reprovado',
+    'danger',
+  ];
+  const informed = informedV3(student);
+  if (informed) [situation, tone] = informed;
+  else if (student.decision) [situation, tone] = SITUATION_V3[student.decision.code];
   return (
     <div className="council-deck">
       {[2, 1].flatMap((depth) => [
@@ -400,10 +444,11 @@ export function RelationalCouncilPageV3() {
   );
   const pending = eligible.filter((student) => !student.decision);
   const decided = eligible.filter((student) => student.decision);
-  const selected =
-    eligible.find((student) => student.id === selectedStudentId) ?? eligible[0] ?? null;
-  // The pile follows the queue: who is still to be discussed, then who already has a decision.
-  const queue = [...pending, ...decided];
+  const informed = workspace?.students.filter(relationalCouncilInformedV3) ?? [];
+  // The pile follows the queue: who is still to be discussed, who already has a decision, and
+  // who is there only for the Conselho to take notice of.
+  const queue = [...pending, ...decided, ...informed];
+  const selected = queue.find((student) => student.id === selectedStudentId) ?? queue[0] ?? null;
   const position = Math.max(
     queue.findIndex((student) => student.id === selected?.id),
     0,
@@ -418,9 +463,7 @@ export function RelationalCouncilPageV3() {
       return;
     }
     setSelectedStudentId((current) =>
-      eligible.some((student) => student.id === current)
-        ? current
-        : ((pending[0] ?? eligible[0])?.id ?? null),
+      queue.some((student) => student.id === current) ? current : (queue[0]?.id ?? null),
     );
   }, [workspace?.classGroup.id]);
 
@@ -485,37 +528,41 @@ export function RelationalCouncilPageV3() {
               tone="success"
             />
           </div>
-          <CouncilSessionV3
-            workspace={workspace}
-            busy={state.busy.command}
-            onOpen={() => void state.openSession()}
-          />
+          {eligible.length ? (
+            <CouncilSessionV3
+              workspace={workspace}
+              busy={state.busy.command}
+              onOpen={() => void state.openSession()}
+            />
+          ) : null}
           <div className="council-layout">
             <aside className="min-w-0">
               <div className="council-board" aria-label="Fluxo dos alunos elegíveis">
-                <section className="council-board__column">
-                  <header>
-                    <span className="size-2 rounded-full bg-warning" />
-                    <strong>A deliberar</strong>
-                    <span>{pending.length}</span>
-                  </header>
-                  <div className="council-board__cards">
-                    {pending.map((student) => (
-                      <QueueCard
-                        key={student.id}
-                        student={student}
-                        selected={selected?.id === student.id}
-                        onSelect={() => setSelectedStudentId(student.id)}
-                      />
-                    ))}
-                    {!pending.length ? (
-                      <p className="council-board__empty">
-                        <Check size={16} />
-                        Fila concluída
-                      </p>
-                    ) : null}
-                  </div>
-                </section>
+                {eligible.length ? (
+                  <section className="council-board__column">
+                    <header>
+                      <span className="size-2 rounded-full bg-warning" />
+                      <strong>A deliberar</strong>
+                      <span>{pending.length}</span>
+                    </header>
+                    <div className="council-board__cards">
+                      {pending.map((student) => (
+                        <QueueCard
+                          key={student.id}
+                          student={student}
+                          selected={selected?.id === student.id}
+                          onSelect={() => setSelectedStudentId(student.id)}
+                        />
+                      ))}
+                      {!pending.length ? (
+                        <p className="council-board__empty">
+                          <Check size={16} />
+                          Fila concluída
+                        </p>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
                 {decided.length ? (
                   <section className="council-board__column">
                     <header>
@@ -525,6 +572,25 @@ export function RelationalCouncilPageV3() {
                     </header>
                     <div className="council-board__cards">
                       {decided.map((student) => (
+                        <QueueCard
+                          key={student.id}
+                          student={student}
+                          selected={selected?.id === student.id}
+                          onSelect={() => setSelectedStudentId(student.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+                {informed.length ? (
+                  <section className="council-board__column">
+                    <header>
+                      <span className="size-2 rounded-full bg-muted" />
+                      <strong>Para conhecimento</strong>
+                      <span>{informed.length}</span>
+                    </header>
+                    <div className="council-board__cards">
+                      {informed.map((student) => (
                         <QueueCard
                           key={student.id}
                           student={student}

@@ -30,9 +30,11 @@ export type CouncilClassViewV3 = Omit<CouncilClass, 'tally'> & {
 };
 const PAGE_SIZE = 100;
 
+/** The students the class brings to the Conselho: the eligible ones and the ones it only takes
+ * notice of. */
 const eligibleV3 = (tally: RelationalCouncilTallyV3) =>
-  tally.approved + tally.rejected + tally.pending;
-/** Only the classes the Conselho has something to discuss in, plus the ones it could not read. */
+  tally.approved + tally.rejected + tally.pending + tally.forInformation;
+/** Only the classes the Conselho has somebody to see in, plus the ones it could not read. */
 const councilClassesV3 = (list: readonly CouncilClass[]): readonly CouncilClassViewV3[] =>
   list
     .map((item) => ({ ...item, tally: item.tally ?? null }))

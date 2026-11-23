@@ -6,6 +6,7 @@ import {
   RELATIONAL_COUNCIL_DECISIONS_V3,
   relationalCouncilRequestSchemaV3,
   relationalCouncilResponseMatchesV3,
+  relationalCouncilInformedV3,
   relationalCouncilTallyV3,
   relationalCouncilResponseSchemaV3,
   type RelationalCouncilDecisionV3,
@@ -270,6 +271,7 @@ async function readWorkspace(
     rejected: eligible.filter((student) => student.decision?.code === 2).length,
     absence: eligible.filter((student) => student.decision?.code === 3).length,
     notEligible: students.length - eligible.length,
+    forInformation: students.filter(relationalCouncilInformedV3).length,
   };
   return {
     context: { year, minimumApprovalMilli: integer(base.minimo_aprovacao), maxCouncilComponents },
