@@ -23,7 +23,6 @@ import {
   type RelationalCouncilTallyV3,
   type RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
-import { gradeText } from '../performance/performance-display-v2';
 import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
 import '../../student-portal-admin/shared/student-avatar-v1.css';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
@@ -60,6 +59,11 @@ const FAILED_RESULTS_V3: readonly CouncilComponentV3['result'][] = [
   'failed-no-show',
   'failed-repeat',
 ];
+/** The report card always shows the decimal, as the school's does: 18,0. */
+const REPORT_MARK_V3 = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 3,
+});
 const TERM_LABELS_V3 = ['1º tri.', '2º tri.', '3º tri.'] as const;
 
 /** One or many, in words: the counts are read aloud and label the summary. */
@@ -204,7 +208,7 @@ function reportMarkV3(grade: CouncilGradeV3): string {
   if (grade.state === 'no-show') return 'N/C';
   if (grade.state === 'repeat-failure') return 'R/R';
   if (grade.state === 'recovery-pending') return '—';
-  return grade.valueMilli === null ? '' : gradeText(grade.valueMilli);
+  return grade.valueMilli === null ? '' : REPORT_MARK_V3.format(grade.valueMilli / 1000);
 }
 /** The year's total of a component: with the recovery once it is complete; until then, and
  * when the student did not take it, the total of the marks as they are. */
