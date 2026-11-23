@@ -209,15 +209,15 @@
   font-weight: 700;
 }
 
-/* The queue as a pile: the student under discussion on top and the students before and after
-   behind it, on each side. Every card lies in the same place and is moved by its distance from
-   the top, so going through the queue slides each card to its next place. */
+/* The queue as a pile: the student under discussion on top, in line with the rows above it,
+   and the next students behind it at the right. Every card lies in the same place and is moved
+   by its distance from the top, so going through the queue slides each card to its next place;
+   a student already seen leaves by the left. */
 .council-deck {
   position: relative;
   display: grid;
-  max-width: 50rem;
-  margin-inline: auto;
-  padding: 0 1.75rem;
+  max-width: 46rem;
+  padding-right: 1.9rem;
 }
 
 .council-card {
@@ -259,33 +259,24 @@
   transition-duration: 160ms;
 }
 
-.council-card[data-offset='-1'],
 .council-card[data-offset='1'] {
   z-index: 2;
   background: color-mix(in oklab, var(--surface) 90%, var(--foreground));
+  transform: translateX(6%) scale(0.93);
 }
 
-.council-card[data-offset='-2'],
 .council-card[data-offset='2'] {
   z-index: 1;
   background: color-mix(in oklab, var(--surface) 80%, var(--foreground));
   opacity: 0.7;
-}
-
-.council-card[data-offset='-1'] {
-  transform: translateX(-6%) scale(0.93);
-}
-
-.council-card[data-offset='1'] {
-  transform: translateX(6%) scale(0.93);
-}
-
-.council-card[data-offset='-2'] {
-  transform: translateX(-10.5%) scale(0.86);
-}
-
-.council-card[data-offset='2'] {
   transform: translateX(10.5%) scale(0.86);
+}
+
+.council-card[data-offset='-1'],
+.council-card[data-offset='-2'] {
+  z-index: 2;
+  opacity: 0;
+  transform: translateX(-5%) scale(0.97);
 }
 
 .council-card__header {
@@ -318,10 +309,18 @@
   height: 3.25rem;
 }
 
-.council-deck__arrow {
+/* Both arrows together, over the cards that wait at the right. */
+.council-deck__arrows {
   position: absolute;
   top: 50%;
+  right: 0;
   z-index: 4;
+  display: grid;
+  gap: 0.45rem;
+  transform: translateY(-50%);
+}
+
+.council-deck__arrow {
   display: grid;
   width: 2.25rem;
   height: 2.25rem;
@@ -332,19 +331,15 @@
   box-shadow: 0 8px 20px -12px var(--foreground);
   color: inherit;
   cursor: pointer;
-  transform: translateY(-50%);
 }
 
-.council-deck__arrow[data-side='previous'] {
-  left: 0;
-}
-
-.council-deck__arrow[data-side='next'] {
-  right: 0;
-}
-
-.council-deck__arrow:hover {
+.council-deck__arrow:hover:not(:disabled) {
   border-color: color-mix(in oklab, var(--accent) 40%, var(--separator));
+}
+
+.council-deck__arrow:disabled {
+  cursor: default;
+  opacity: 0.4;
 }
 
 .council-deck__arrow:focus-visible {
@@ -507,6 +502,10 @@
     order: 2;
   }
 
+  .council-layout .council-deck {
+    max-width: none;
+  }
+
   .council-layout .council-board {
     gap: 0.5rem;
   }
@@ -576,42 +575,42 @@
 /* Phone: the four counts stay in one row, without their icons. */
 @media (max-width: 640px) {
   .council-deck {
-    padding: 0 0.9rem;
-  }
-
-  .council-card[data-offset='-1'] {
-    transform: translateX(-5%) scale(0.94);
+    padding-right: 0.9rem;
   }
 
   .council-card[data-offset='1'] {
-    transform: translateX(5%) scale(0.94);
-  }
-
-  .council-card[data-offset='-2'] {
-    transform: translateX(-9%) scale(0.88);
+    transform: translateX(4.5%) scale(0.95);
   }
 
   .council-card[data-offset='2'] {
-    transform: translateX(9%) scale(0.88);
+    transform: translateX(8%) scale(0.9);
+  }
+
+  /* On the card's own corner, where the name leaves room for them. */
+  .council-deck__arrows {
+    top: 0.75rem;
+    right: 1.5rem;
+    gap: 0.35rem;
+    grid-auto-flow: column;
+    transform: none;
   }
 
   .council-deck__arrow {
-    top: 2.5rem;
     width: 2rem;
     height: 2rem;
-  }
-
-  .council-deck__arrow[data-side='previous'] {
-    left: -0.3rem;
-  }
-
-  .council-deck__arrow[data-side='next'] {
-    right: -0.3rem;
   }
 
   .council-card__header,
   .council-report__scroll {
     padding-inline: 1rem;
+  }
+
+  .council-card__header {
+    padding-right: 5.6rem;
+  }
+
+  .council-card__name {
+    flex-basis: 8rem;
   }
 
   /* Under the name, in line with it. */

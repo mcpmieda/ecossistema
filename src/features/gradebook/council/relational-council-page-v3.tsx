@@ -345,9 +345,9 @@ function StudentCardV3({
   );
 }
 
-/** The queue as a pile of cards: the student under discussion on top, up to two students before
- * and two after it behind, on each side. Each student keeps its own card, so moving through the
- * queue slides the cards from one place of the pile to the next. */
+/** The queue as a pile of cards: the student under discussion on top and the next two behind
+ * it, at the right. Each student keeps its own card, so moving through the queue slides the
+ * cards from one place of the pile to the next; the ones already seen leave by the left. */
 function StudentDeckV3({
   queue,
   position,
@@ -378,27 +378,27 @@ function StudentDeckV3({
           </article>
         );
       })}
-      {position > 0 ? (
-        <button
-          type="button"
-          className="council-deck__arrow"
-          data-side="previous"
-          aria-label="Aluno anterior"
-          onClick={() => onStep(-1)}
-        >
-          <ChevronLeft size={18} />
-        </button>
-      ) : null}
-      {position < queue.length - 1 ? (
-        <button
-          type="button"
-          className="council-deck__arrow"
-          data-side="next"
-          aria-label="Próximo aluno"
-          onClick={() => onStep(1)}
-        >
-          <ChevronRight size={18} />
-        </button>
+      {queue.length > 1 ? (
+        <div className="council-deck__arrows">
+          <button
+            type="button"
+            className="council-deck__arrow"
+            aria-label="Aluno anterior"
+            disabled={position === 0}
+            onClick={() => onStep(-1)}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <button
+            type="button"
+            className="council-deck__arrow"
+            aria-label="Próximo aluno"
+            disabled={position === queue.length - 1}
+            onClick={() => onStep(1)}
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
       ) : null}
     </div>
   );
