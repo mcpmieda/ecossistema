@@ -209,6 +209,216 @@
   font-weight: 700;
 }
 
+/* The student under discussion: the card on top of a pile, the next students behind it. */
+.council-deck {
+  position: relative;
+  padding: 0 1.75rem;
+}
+
+.council-deck::before,
+.council-deck::after {
+  position: absolute;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-3xl);
+  box-shadow: 0 16px 32px -28px var(--foreground);
+  content: '';
+}
+
+.council-deck::before {
+  inset: 1.2rem 0.85rem;
+  background: color-mix(in oklab, var(--surface) 95%, var(--foreground));
+}
+
+.council-deck::after {
+  inset: 2.4rem 0;
+  background: color-mix(in oklab, var(--surface) 89%, var(--foreground));
+}
+
+.council-deck[data-behind='0']::before,
+.council-deck[data-behind='0']::after,
+.council-deck[data-behind='1']::after {
+  content: none;
+}
+
+.council-card {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: var(--radius-3xl);
+  background: var(--surface);
+  box-shadow: 0 24px 48px -36px var(--foreground);
+  animation: council-card-in 220ms var(--platform-ease);
+}
+
+@keyframes council-card-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.council-card__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1rem 1.25rem;
+}
+
+.council-card__photo {
+  width: 4rem;
+  height: 4rem;
+}
+
+.council-deck__arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--separator);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 8px 20px -12px var(--foreground);
+  color: inherit;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.council-deck__arrow[data-side='previous'] {
+  left: 0.2rem;
+}
+
+.council-deck__arrow[data-side='next'] {
+  right: 0.2rem;
+}
+
+.council-deck__arrow:hover {
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--separator));
+}
+
+.council-deck__arrow:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* The year as the report card lays it out: components in columns, each term's mark and REC in
+   rows, the total at the foot. */
+.council-report__scroll {
+  overflow-x: auto;
+  padding: 0 1.25rem 1.25rem;
+  scrollbar-width: thin;
+}
+
+.council-report {
+  width: 100%;
+  min-width: 31rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.council-report thead td {
+  width: 5.6rem;
+}
+
+.council-report thead th {
+  height: 6.25rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--separator);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: bottom;
+}
+
+.council-report thead th > span {
+  display: inline-block;
+  max-height: 5.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.council-report tbody th,
+.council-report tfoot th {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* The row labels stay in place while a narrow screen slides the components. */
+.council-report tbody th,
+.council-report tfoot th {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.council-report tbody th:not([rowspan]) {
+  left: 3rem;
+}
+
+.council-report tbody th[rowspan] {
+  width: 3rem;
+  border-bottom: 1px solid var(--separator);
+  color: inherit;
+  font-size: 0.76rem;
+}
+
+.council-report td,
+.council-report tbody th:not([rowspan]) {
+  height: 2rem;
+  padding: 0 0.15rem;
+}
+
+.council-report tbody td {
+  font-weight: 650;
+}
+
+.council-report tbody tr[data-rec] > * {
+  height: 1.6rem;
+  border-bottom: 1px solid var(--separator);
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+
+.council-report tfoot th,
+.council-report tfoot td {
+  height: 2.4rem;
+  color: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.council-report [data-failed] {
+  background: color-mix(in oklab, var(--danger) 7%, transparent);
+}
+
+.council-report thead th[data-failed] {
+  border-radius: 0.6rem 0.6rem 0 0;
+  color: var(--danger);
+}
+
+.council-report tfoot td[data-failed] {
+  border-radius: 0 0 0.6rem 0.6rem;
+  background: color-mix(in oklab, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
 /* One column: each group of the queue becomes a row to slide, so the student stays close. */
 @media (max-width: 1100px) {
   .council-layout {
@@ -230,6 +440,33 @@
 
 /* Phone: the four counts stay in one row, without their icons. */
 @media (max-width: 640px) {
+  .council-deck {
+    padding: 0 0.6rem;
+  }
+
+  .council-deck::before {
+    inset: 0.9rem 0.3rem;
+  }
+
+  .council-deck__arrow {
+    top: 2.9rem;
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .council-deck__arrow[data-side='previous'] {
+    left: -0.35rem;
+  }
+
+  .council-deck__arrow[data-side='next'] {
+    right: -0.35rem;
+  }
+
+  .council-card__header,
+  .council-report__scroll {
+    padding-inline: 1rem;
+  }
+
   .council-kpi {
     flex-direction: column;
     align-items: flex-start;
@@ -250,5 +487,9 @@
   .council-queue-card,
   .council-class {
     transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
+  }
+
+  .council-card {
+    animation: none;
   }
 }

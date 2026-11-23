@@ -243,6 +243,12 @@ async function readWorkspace(
             cell(projection, 2, 'regular'),
             cell(projection, 3, 'regular'),
           ],
+          termRecoveries: [
+            cell(projection, 1, 'recovery'),
+            cell(projection, 2, 'recovery'),
+            cell(projection, 3, 'recovery'),
+          ],
+          annual: cell(projection, 'annual', 'regular'),
           recovery: cell(projection, 'annual', 'recovery'),
           result: projection.recovery?.classification ?? 'unavailable',
         };

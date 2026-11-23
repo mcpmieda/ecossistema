@@ -1,9 +1,11 @@
 import './council-v3.css';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Chip, Spinner, Table } from '@heroui/react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Chip, Spinner } from '@heroui/react';
 import {
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Circle,
   CircleAlert,
   CircleDot,
@@ -20,6 +22,8 @@ import type {
   RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { gradeText } from '../performance/performance-display-v2';
+import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
+import '../../student-portal-admin/shared/student-avatar-v1.css';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useRelationalCouncilV3, type CouncilClassViewV3 } from './use-relational-council-v3';
 
@@ -30,29 +34,21 @@ const FAILURE: Record<RelationalCouncilFailureV3, string> = {
   unavailable: 'O Conselho está temporariamente indisponível. Nada foi alterado.',
   'scope-too-large': 'A turma é grande demais para ser lida de uma vez.',
 };
-const RESULT_LABEL: Record<RelationalCouncilStudentV3['components'][number]['result'], string> = {
-  'in-progress': 'Em curso',
-  'approved-direct': 'Aprovado direto',
-  'recovery-pending': 'Recuperação pendente',
-  'approved-after-recovery': 'Aprovado pela recuperação',
-  'not-approved': 'Não aprovado',
-  'failed-no-show': 'N/C',
-  'failed-repeat': 'Reprovado (R/R)',
-  unavailable: 'Indisponível',
-};
-const RESULT_COLOR: Record<
-  RelationalCouncilStudentV3['components'][number]['result'],
-  'danger' | 'success' | 'default'
-> = {
-  'in-progress': 'default',
-  'approved-direct': 'success',
-  'recovery-pending': 'default',
-  'approved-after-recovery': 'success',
-  'not-approved': 'danger',
-  'failed-no-show': 'danger',
-  'failed-repeat': 'danger',
-  unavailable: 'default',
-};
+type CouncilComponentV3 = RelationalCouncilStudentV3['components'][number];
+type CouncilGradeV3 = CouncilComponentV3['annual'];
+/** The year's end as the card shows it: not approved until the Conselho says otherwise. */
+const SITUATION_V3 = {
+  1: ['Aprovado pelo Conselho', 'success'],
+  2: ['Reprovado pelo Conselho', 'danger'],
+  3: ['Reprovado por falta', 'danger'],
+} as const;
+const FAILED_RESULTS_V3: readonly CouncilComponentV3['result'][] = [
+  'not-approved',
+  'failed-no-show',
+  'failed-repeat',
+];
+const TERM_LABELS_V3 = ['1º tri.', '2º tri.', '3º tri.'] as const;
+
 /** One or many, in words: the counts are read aloud and label the summary. */
 const countedV3 = (count: number, one: string, many: string) =>
   `${count} ${count === 1 ? one : many}`;
@@ -184,93 +180,145 @@ function QueueCard({
   );
 }
 
-function Grade({ value, state }: { readonly value: number | null; readonly state: string }) {
-  let label;
-  if (state === 'no-show') {
-    label = 'N/C';
-  } else if (state === 'repeat-failure') {
-    label = 'R/R';
-  } else if (state === 'recovery-pending') {
-    label = 'REC';
-  } else {
-    label = gradeText(value);
-  }
-  let tone = '';
-  if (state === 'no-show' || state === 'repeat-failure') tone = 'text-danger';
-  else if (value === null) tone = 'text-muted';
-  return <span className={`font-semibold tabular-nums ${tone}`}>{label}</span>;
+/** A mark of the report card: its value, N/C or R/R, a dash while a REC is still to come and
+ * nothing where there is no mark to show. */
+function reportMarkV3(grade: CouncilGradeV3): string {
+  if (grade.state === 'no-show') return 'N/C';
+  if (grade.state === 'repeat-failure') return 'R/R';
+  if (grade.state === 'recovery-pending') return '—';
+  return grade.valueMilli === null ? '' : gradeText(grade.valueMilli);
+}
+/** The year's total of a component: after recovery when there was one. */
+const finalGradeV3 = (component: CouncilComponentV3): CouncilGradeV3 =>
+  component.recovery.state === 'not-applicable' || component.recovery.state === 'unavailable'
+    ? component.annual
+    : component.recovery;
+
+/** The student's year as the school's report card lays it out: a column for each component, a
+ * row for each term's mark and REC, and the year's total. A component not approved is tinted. */
+function StudentReportV3({ student }: { readonly student: RelationalCouncilStudentV3 }) {
+  const failed = (component: CouncilComponentV3) =>
+    FAILED_RESULTS_V3.includes(component.result) || undefined;
+  return (
+    <div className="council-report__scroll">
+      <table className="council-report" aria-label={`Notas do ano de ${student.name}`}>
+        <thead>
+          <tr>
+            <td colSpan={2} />
+            {student.components.map((component) => (
+              <th key={component.offerId} scope="col" data-failed={failed(component)}>
+                <span>{component.subject.label}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {TERM_LABELS_V3.map((label, term) => (
+            <Fragment key={label}>
+              <tr>
+                <th scope="rowgroup" rowSpan={2}>
+                  {label}
+                </th>
+                <th scope="row">Nota</th>
+                {student.components.map((component) => (
+                  <td key={component.offerId} data-failed={failed(component)}>
+                    {reportMarkV3(component.terms[term]!)}
+                  </td>
+                ))}
+              </tr>
+              <tr data-rec>
+                <th scope="row">REC</th>
+                {student.components.map((component) => (
+                  <td key={component.offerId} data-failed={failed(component)}>
+                    {reportMarkV3(component.termRecoveries[term]!)}
+                  </td>
+                ))}
+              </tr>
+            </Fragment>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row" colSpan={2}>
+              Nota final
+            </th>
+            {student.components.map((component) => (
+              <td key={component.offerId} data-failed={failed(component)}>
+                {reportMarkV3(finalGradeV3(component))}
+              </td>
+            ))}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
 }
 
-/** The eligible student under discussion: who it is and the year's results. */
-function StudentPanel({ student }: { readonly student: RelationalCouncilStudentV3 }) {
+/** The eligible student under discussion, as the card on top of the pile: the photo, the year's
+ * end and the report card. The arrows bring the next student of the queue to the top. */
+function StudentPanel({
+  student,
+  year,
+  behind,
+  onPrevious,
+  onNext,
+}: Readonly<{
+  student: RelationalCouncilStudentV3;
+  year: number;
+  /** How many students wait behind this card (the pile shows up to two). */
+  behind: number;
+  onPrevious: (() => void) | null;
+  onNext: (() => void) | null;
+}>) {
+  const [situation, tone] = student.decision
+    ? SITUATION_V3[student.decision.code]
+    : (['Reprovado', 'danger'] as const);
   return (
-    <div className="grid min-w-0 gap-4">
-      <Card className="overflow-hidden">
-        <Card.Header className="flex flex-row flex-wrap items-center gap-3 border-b border-separator">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-accent-soft font-bold text-accent">
-            {student.number}
-          </span>
+    <div className="council-deck" data-behind={Math.min(behind, 2)}>
+      <article className="council-card" aria-label={student.name}>
+        <header className="council-card__header">
+          <LinkedStudentPhotoAvatarV1
+            decorative
+            size="lg"
+            loading="eager"
+            className="pa-student-avatar council-card__photo"
+            fallbackTone={student.id % 6}
+            subject={{ source: 'gradebook', academicYear: year, studentIds: [student.id] }}
+          />
           <div className="min-w-0 flex-1">
-            <Card.Title className="break-words text-lg sm:text-xl">{student.name}</Card.Title>
-            <Card.Description>{student.statusLabel}</Card.Description>
+            <h3 className="break-words text-lg font-bold tracking-tight sm:text-xl">
+              {student.name}
+            </h3>
+            <p className="text-sm text-muted">Nº {student.number}</p>
           </div>
-          <Chip color="success" variant="soft">
-            <Chip.Label>Elegível</Chip.Label>
+          <Chip color={tone} variant="soft">
+            <Chip.Label>{situation}</Chip.Label>
           </Chip>
-        </Card.Header>
-        <Card.Content className="pt-4">
-          <Table>
-            <Table.ScrollContainer className="max-w-full overflow-x-auto">
-              <Table.Content
-                aria-label={`Resultado anual de ${student.name}`}
-                className="min-w-[760px]"
-              >
-                <Table.Header>
-                  <Table.Column id="subject" isRowHeader>
-                    Componente
-                  </Table.Column>
-                  <Table.Column id="t1">1º tri.</Table.Column>
-                  <Table.Column id="t2">2º tri.</Table.Column>
-                  <Table.Column id="t3">3º tri.</Table.Column>
-                  <Table.Column id="rec">REC</Table.Column>
-                  <Table.Column id="result">Resultado</Table.Column>
-                </Table.Header>
-                <Table.Body
-                  items={student.components}
-                  renderEmptyState={() => 'Nenhum componente disponível.'}
-                >
-                  {(component) => (
-                    <Table.Row id={component.offerId}>
-                      <Table.Cell>
-                        <span className="font-medium">
-                          {component.subject.abbreviation ?? component.subject.label}
-                        </span>
-                        <span className="ml-2 text-xs text-muted">{component.subject.label}</span>
-                      </Table.Cell>
-                      {component.terms.map((term, index) => (
-                        <Table.Cell key={index /* NOSONAR fixed T1-T3 tuple */}>
-                          <Grade value={term.valueMilli} state={term.state} />
-                        </Table.Cell>
-                      ))}
-                      <Table.Cell>
-                        <Grade
-                          value={component.recovery.valueMilli}
-                          state={component.recovery.state}
-                        />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Chip size="sm" variant="soft" color={RESULT_COLOR[component.result]}>
-                          <Chip.Label>{RESULT_LABEL[component.result]}</Chip.Label>
-                        </Chip>
-                      </Table.Cell>
-                    </Table.Row>
-                  )}
-                </Table.Body>
-              </Table.Content>
-            </Table.ScrollContainer>
-          </Table>
-        </Card.Content>
-      </Card>
+        </header>
+        <StudentReportV3 student={student} />
+      </article>
+      {onPrevious ? (
+        <button
+          type="button"
+          className="council-deck__arrow"
+          data-side="previous"
+          aria-label="Aluno anterior"
+          onClick={onPrevious}
+        >
+          <ChevronLeft size={18} />
+        </button>
+      ) : null}
+      {onNext ? (
+        <button
+          type="button"
+          className="council-deck__arrow"
+          data-side="next"
+          aria-label="Próximo aluno"
+          onClick={onNext}
+        >
+          <ChevronRight size={18} />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -353,6 +401,12 @@ export function RelationalCouncilPageV3() {
   const decided = eligible.filter((student) => student.decision);
   const selected =
     eligible.find((student) => student.id === selectedStudentId) ?? eligible[0] ?? null;
+  // The pile follows the queue: who is still to be discussed, then who already has a decision.
+  const queue = [...pending, ...decided];
+  const step = (by: -1 | 1) => {
+    const next = queue[queue.findIndex((student) => student.id === selected?.id) + by];
+    return next && selected ? () => setSelectedStudentId(next.id) : null;
+  };
   useEffect(() => {
     if (!workspace) {
       setSelectedStudentId(null);
@@ -479,7 +533,16 @@ export function RelationalCouncilPageV3() {
               </div>
             </aside>
             <main className="min-w-0">
-              {selected ? <StudentPanel key={selected.id} student={selected} /> : null}
+              {selected ? (
+                <StudentPanel
+                  key={selected.id}
+                  student={selected}
+                  year={workspace.context.year}
+                  behind={queue.length - 1}
+                  onPrevious={step(-1)}
+                  onNext={step(1)}
+                />
+              ) : null}
             </main>
           </div>
         </>

@@ -81,6 +81,9 @@ const component = z
     offerId: id,
     subject: reference.extend({ abbreviation: z.string().trim().min(1).max(16).nullable() }),
     terms: z.tuple([grade, grade, grade]),
+    // The REC of each term, the year's total before recovery and the total after it.
+    termRecoveries: z.tuple([grade, grade, grade]),
+    annual: grade,
     recovery: grade,
     result: z.enum([
       'in-progress',
