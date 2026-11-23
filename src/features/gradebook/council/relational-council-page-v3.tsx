@@ -578,7 +578,8 @@ function CouncilStatusV3({
   message: string;
 }>) {
   return (
-    <div className="min-h-10" aria-live="polite">
+    // Empty, it stays in the page for the announcements but out of the flow: no row and no gap.
+    <div className="empty:absolute" aria-live="polite">
       {busy.classes || busy.workspace ? (
         <p className="flex items-center gap-2 text-sm text-muted">
           <output className="contents">
