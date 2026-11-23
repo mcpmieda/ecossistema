@@ -215,9 +215,9 @@
 .council-deck {
   position: relative;
   display: grid;
-  max-width: 44rem;
+  max-width: 50rem;
   margin-inline: auto;
-  padding: 0 3.25rem;
+  padding: 0 1.75rem;
 }
 
 .council-card {
@@ -273,19 +273,19 @@
 }
 
 .council-card[data-offset='-1'] {
-  transform: translateX(-8%) scale(0.92);
+  transform: translateX(-6%) scale(0.93);
 }
 
 .council-card[data-offset='1'] {
-  transform: translateX(8%) scale(0.92);
+  transform: translateX(6%) scale(0.93);
 }
 
 .council-card[data-offset='-2'] {
-  transform: translateX(-15%) scale(0.84);
+  transform: translateX(-10.5%) scale(0.86);
 }
 
 .council-card[data-offset='2'] {
-  transform: translateX(15%) scale(0.84);
+  transform: translateX(10.5%) scale(0.86);
 }
 
 .council-card__header {
@@ -500,7 +500,7 @@
    line for each student. */
 @media (min-width: 1101px) {
   .council-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(13rem, 16rem);
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 14.5rem);
   }
 
   .council-layout > aside {
