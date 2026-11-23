@@ -171,8 +171,8 @@ aba, sendo substituídas pela leitura seguinte.
 As contagens das outras turmas continuam atualizadas só ao entrar na aba; a turma
 aberta se atualiza sozinha. Foi mantido assim porque reler todas as turmas custa
 uma leitura inteira por turma: em 23/11/2026, no banco de produção com os dados
-de 2025, cerca de 0,15 s só na consulta das notas de cada turma; com as demais consultas e o
-transporte, uns 3 s para as 14.
+de 2025, de 45 a 70 ms só na consulta das notas de cada turma (#1560), fora as demais
+consultas e o transporte.
 
 Nenhuma migration nova. `conselho_idempotencia` e `conselho_votacao` ficam sem
 uso pelo código e `conselho_decisao` é só lida; as três entram na lista do que
