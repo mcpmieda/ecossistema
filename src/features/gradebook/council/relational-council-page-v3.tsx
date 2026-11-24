@@ -341,7 +341,7 @@ function StudentCardV3({
   student,
   year,
 }: Readonly<{ student: RelationalCouncilStudentV3; year: number }>) {
-  const { situation, tone, reason } = situationV3(student);
+  const { situation, reason } = situationV3(student);
   return (
     <>
       <header className="council-card__header">
@@ -359,12 +359,11 @@ function StudentCardV3({
           </h3>
           <p className="text-sm text-muted">Nº {student.number}</p>
         </div>
-        <div className="council-card__status">
-          <Chip className="council-card__situation" color={tone} size="lg" variant="soft">
-            <Chip.Label>{situation}</Chip.Label>
-          </Chip>
-          {reason ? <span className="council-card__reason">{reason}</span> : null}
-        </div>
+        {/* One badge: the year's end and, in the same piece, why. */}
+        <p className="council-card__status">
+          <strong>{situation}</strong>
+          {reason ? <span>{reason}</span> : null}
+        </p>
       </header>
       <StudentReportV3 student={student} />
     </>

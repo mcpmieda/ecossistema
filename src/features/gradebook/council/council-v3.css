@@ -352,35 +352,39 @@
   flex: 1 1 11rem;
 }
 
-/* The year's end and, tucked under its right end, why. */
+/* The year's end, the first thing the Conselho reads on the card, as one badge in the colour
+   of the situation: the situation itself and, in a lighter second half, why. */
 .council-card__status {
-  display: grid;
-  justify-items: end;
+  display: inline-flex;
+  overflow: hidden;
+  min-height: 2.25rem;
+  align-items: stretch;
   margin-left: auto;
+  border: 1px solid color-mix(in oklab, var(--council-tone) 28%, transparent);
+  border-radius: 999px;
+  background: var(--surface);
+  color: color-mix(in oklab, var(--council-tone) 74%, var(--foreground));
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-/* The year's end is the first thing the Conselho reads on the card. */
-.council-card__situation {
-  min-height: 2.25rem;
-  padding: 0.35rem 0.95rem;
+.council-card__status > * {
+  display: flex;
+  align-items: center;
+}
+
+.council-card__status > strong {
+  padding: 0 0.95rem;
+  background: color-mix(in oklab, var(--council-tone) 16%, var(--surface));
   font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
-/* A smaller chip that bites the corner of the one above it. */
-.council-card__reason {
-  position: relative;
-  margin: -0.45rem 0.55rem 0 0;
-  padding: 0.14rem 0.6rem;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--warning) 30%, var(--surface));
-  box-shadow: 0 0 0 2px var(--surface);
-  color: color-mix(in oklab, var(--warning) 62%, var(--foreground));
-  font-size: 0.74rem;
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
+.council-card__status > span {
+  padding: 0 0.9rem 0 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 /* The photo wears the colour of the year's end. */
@@ -763,20 +767,20 @@
     padding-inline: 1rem;
   }
 
-  /* Under the name, in line with it. */
+  /* On a line of its own, under the photo and the name. */
   .council-card__status {
-    margin-left: 4.25rem;
+    min-height: 2rem;
+    margin-left: 0;
   }
 
-  .council-card__situation {
-    min-height: 2rem;
+  .council-card__status > strong {
+    padding: 0 0.8rem;
     font-size: 0.92rem;
   }
 
-  .council-card__reason {
-    margin-right: 0.4rem;
-    padding-inline: 0.5rem;
-    font-size: 0.66rem;
+  .council-card__status > span {
+    padding: 0 0.75rem 0 0.6rem;
+    font-size: 0.76rem;
   }
 
   .council-kpi {
