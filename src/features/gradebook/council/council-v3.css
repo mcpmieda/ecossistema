@@ -269,22 +269,7 @@
   transition: opacity 240ms ease 140ms;
 }
 
-/* The year's end colours the top edge of the card on top. */
-.council-card::before {
-  position: absolute;
-  z-index: 1;
-  height: 4px;
-  background: linear-gradient(90deg, var(--council-tone), transparent 85%);
-  content: '';
-  inset: 0 0 auto;
-  opacity: 0;
-  transition: opacity 240ms ease 140ms;
-}
-
-.council-card[data-offset='0']::before {
-  opacity: 1;
-}
-
+/* The colour of the year's end, for the seal and the ring of the photo. */
 .council-card[data-tone='danger'] {
   --council-tone: var(--danger);
 }
@@ -799,7 +784,6 @@
 
   .council-card,
   .council-card > *,
-  .council-card::before,
   .council-deck__arrow,
   .council-pager > button {
     transition: none !important; /* NOSONAR reduced motion wins over every motion rule */
