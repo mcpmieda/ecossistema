@@ -7,14 +7,7 @@ export const RELATIONAL_COUNCIL_LIMITS_V3 = Object.freeze({
   classes: 100,
   students: 150,
   offers: 40,
-  pairs: 1_000,
 });
-
-export const RELATIONAL_COUNCIL_DECISIONS_V3 = Object.freeze({
-  1: 'APROVADO PELO CONSELHO',
-  2: 'REPROVADO PELO CONSELHO',
-  3: 'REPROVADO POR FALTA',
-} as const);
 
 const id = z.number().int().min(1).max(2_147_483_647);
 const count = z.number().int().min(0).max(100_000);
@@ -30,23 +23,10 @@ const label = z
   .min(1)
   .max(500)
   .refine((value) => !value.includes('\0'));
-const justification = z
-  .string()
-  .trim()
-  .min(3)
-  .max(2_000)
-  .refine((value) => !value.includes('\0'));
 const decisionCode = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 export const relationalCouncilRequestSchemaV3 = z.discriminatedUnion('operation', [
-  z
-    .object({
-      contractVersion: z.literal(3),
-      operation: z.literal('classes'),
-      year,
-      offset: z.number().int().min(0).max(100_000),
-      limit: z.number().int().min(1).max(RELATIONAL_COUNCIL_LIMITS_V3.classes),
-    })
-    .strict(),
+  // Every class of the year, each with where it stands: one whole reading for each class.
+  z.object({ contractVersion: z.literal(3), operation: z.literal('classes'), year }).strict(),
   z
     .object({ contractVersion: z.literal(3), operation: z.literal('workspace'), year, classId: id })
     .strict(),
@@ -63,7 +43,6 @@ const reference = z.object({ id, label }).strict();
 const grade = z
   .object({
     valueMilli: milli.nullable(),
-    maximumMilli: milli.positive(),
     state: z.enum([
       'complete',
       'partial',
@@ -81,7 +60,7 @@ const grade = z
 const component = z
   .object({
     offerId: id,
-    subject: reference.extend({ abbreviation: z.string().trim().min(1).max(16).nullable() }),
+    subject: label,
     terms: z.tuple([grade, grade, grade]),
     // The REC of each term, the year's total before recovery and the total after it.
     termRecoveries: z.tuple([grade, grade, grade]),
@@ -99,14 +78,6 @@ const component = z
     ]),
   })
   .strict();
-const decision = z
-  .object({
-    code: decisionCode,
-    label,
-    justification,
-    updatedAt: z.string().datetime({ offset: true }),
-  })
-  .strict();
 const eligibility = z
   .object({
     eligible: z.boolean(),
@@ -121,20 +92,19 @@ const eligibility = z
       'approved',
       'definitions-unavailable',
     ]),
-    label,
     failedComponentCount: count,
   })
   .strict();
 type EligibilityOfV3 = {
   readonly eligibility: { readonly eligible: boolean; readonly code: string };
 };
-/** Students the Conselho votes on: the eligible ones and the ones whose recovery is still to be
- * recorded, since the sheet cannot always say they missed it and the Conselho then does. */
+/** Students the Conselho deliberates on: the eligible ones and the ones whose recovery is still
+ * to be recorded, since the sheet cannot always say they missed it and the Conselho then does. */
 export const relationalCouncilVotableV3 = (student: EligibilityOfV3): boolean =>
   student.eligibility.eligible || student.eligibility.code === 'recovery-pending';
 /** Students the Conselho only takes notice of: the ones the sheet already fails, for missing a
  * recovery (N/C) or by the school's rules (R/R). The Conselho sees their year to confirm it;
- * they are not voted on and do not enter the counts of the class. */
+ * they are not deliberated on and do not enter the counts of the class. */
 export const relationalCouncilInformedV3 = (student: EligibilityOfV3): boolean =>
   student.eligibility.code === 'failed-no-show' || student.eligibility.code === 'failed-repeat';
 
@@ -143,50 +113,40 @@ const student = z
     id,
     name: label,
     number: z.number().int().min(1).max(32767),
-    statusLabel: label,
     eligibility,
-    calculatedResult: label.nullable(),
-    decision: decision.nullable(),
+    // The decision the Conselho recorded, if any.
+    decision: z.object({ code: decisionCode }).strict().nullable(),
     components: z.array(component).max(RELATIONAL_COUNCIL_LIMITS_V3.offers),
   })
   .strict();
-const sessionState = z.enum(['not-opened', 'open']);
-const session = z.object({ state: sessionState }).strict();
+// `total` counts the class; the other counts only the students the Conselho deliberates on,
+// except `forInformation`.
 const summary = z
   .object({
     total: count,
-    eligible: count,
     decided: count,
     pending: count,
     approved: count,
     rejected: count,
     absence: count,
-    notEligible: count,
     forInformation: count,
   })
   .strict();
 const workspace = z
   .object({
-    context: z
-      .object({ year, minimumApprovalMilli: milli.positive(), maxCouncilComponents: count })
-      .strict(),
-    classGroup: reference.extend({ name: label }),
-    readAt: z.string().datetime({ offset: true }),
-    authority: z.literal('calculated-eligibility-explicit-human-decision'),
-    session,
+    context: z.object({ year }).strict(),
+    classGroup: reference,
+    session: z.object({ state: z.enum(['not-opened', 'open']) }).strict(),
     summary,
     students: z.array(student).max(RELATIONAL_COUNCIL_LIMITS_V3.students),
   })
   .strict()
   .superRefine((value, ctx) => {
-    const eligible = value.students.filter((item) => item.eligibility.eligible);
     const votable = value.students.filter(relationalCouncilVotableV3);
     if (
       value.summary.total !== value.students.length ||
-      value.summary.eligible !== eligible.length ||
       value.summary.decided !== votable.filter((item) => item.decision !== null).length ||
       value.summary.pending !== votable.filter((item) => item.decision === null).length ||
-      value.summary.notEligible !== value.students.length - eligible.length ||
       value.summary.forInformation !== value.students.filter(relationalCouncilInformedV3).length
     ) {
       ctx.addIssue({ code: 'custom', message: 'workspace summary mismatch' });
@@ -203,8 +163,8 @@ const failureState = z.enum([
   'scope-too-large',
 ]);
 export type RelationalCouncilFailureV3 = z.infer<typeof failureState>;
-/** Where a class stands: eligible students approved, rejected (by the Council or for absence) and
- * still without a decision, and the students it only takes notice of. */
+/** Where a class stands: the students it deliberates on, approved, rejected (by the Conselho or
+ * for absence) and still without a decision, and the students it only takes notice of. */
 const tally = z
   .object({ approved: count, rejected: count, pending: count, forInformation: count })
   .strict();
@@ -227,16 +187,9 @@ export const relationalCouncilResponseSchemaV3 = z.union([
       operation: z.literal('classes'),
       year,
       classes: z
-        .array(
-          reference.extend({
-            name: label,
-            sessionState,
-            // Absent only when the class could not be read.
-            tally: tally.optional(),
-          }),
-        )
+        // `tally` is absent only when the class could not be read.
+        .array(reference.extend({ tally: tally.optional() }))
         .max(RELATIONAL_COUNCIL_LIMITS_V3.classes),
-      nextOffset: z.number().int().min(1).max(100_000).nullable(),
     })
     .strict(),
   z
@@ -256,14 +209,8 @@ export function relationalCouncilResponseMatchesV3(
 ): boolean {
   if (response.state !== 'ready') return true;
   if (response.operation !== request.operation) return false;
-  if (request.operation === 'classes') {
-    return (
-      response.operation === 'classes' &&
-      response.year === request.year &&
-      response.classes.length <= request.limit &&
-      (response.nextOffset === null || response.nextOffset === request.offset + request.limit)
-    );
-  }
+  if (request.operation === 'classes')
+    return response.operation === 'classes' && response.year === request.year;
   return (
     response.operation !== 'classes' &&
     response.workspace.context.year === request.year &&

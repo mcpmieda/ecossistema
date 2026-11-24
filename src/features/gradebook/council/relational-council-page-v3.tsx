@@ -32,12 +32,12 @@ const FAILURE: Record<RelationalCouncilFailureV3, string> = {
   'invalid-request': 'A operação não pôde ser concluída. Atualize a tela e tente de novo.',
   'not-authorized': 'Sua sessão não possui autorização para operar o Conselho.',
   'not-found': 'A turma não foi encontrada neste ano letivo.',
-  unavailable: 'O Conselho está temporariamente indisponível. Nada foi alterado.',
+  unavailable: 'O Conselho está temporariamente indisponível. Tente de novo em instantes.',
   'scope-too-large': 'A turma é grande demais para ser lida de uma vez.',
 };
 type CouncilComponentV3 = RelationalCouncilStudentV3['components'][number];
 type CouncilGradeV3 = CouncilComponentV3['annual'];
-/** The year's end as the card shows it: not approved until the Conselho says otherwise. */
+/** What the Conselho decided, in the words of the card and of the queue. */
 const SITUATION_V3 = {
   1: ['Aprovado pelo Conselho', 'success'],
   2: ['Reprovado pelo Conselho', 'danger'],
@@ -45,7 +45,7 @@ const SITUATION_V3 = {
 } as const;
 /** What the card and the queue say of a student out of the ordinary: the one shown only for
  * information (N/C or R/R in the sheet) and the one voted on with a recovery still to be
- * recorded. `reason`, when there is one, goes in a second chip under the year's end. */
+ * recorded. `reason`, when there is one, goes in small words under the seal of the year's end. */
 const NOTICE_V3 = {
   'failed-no-show': {
     situation: 'Reprovado',
@@ -125,7 +125,7 @@ function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | nu
   );
 }
 
-/** The classes with eligible students, each one its own button. */
+/** The classes of the Conselho, each one its own button. */
 function CouncilClassesV3({
   classes,
   selectedId,
@@ -168,7 +168,7 @@ function Metric({
   readonly icon: React.ReactNode;
   readonly label: string;
   readonly value: number;
-  readonly tone?: 'accent' | 'success' | 'warning' | 'danger';
+  readonly tone?: 'accent' | 'success' | 'warning';
 }) {
   return (
     <div className={`council-kpi council-kpi--${tone}`}>
@@ -190,12 +190,13 @@ function QueueCard({
   readonly selected: boolean;
   readonly onSelect: () => void;
 }) {
-  const notice = noticeV3(student);
+  const kind = queueKindV3(student);
   let mark = <Clock3 size={17} className="text-warning" aria-label="A deliberar" />;
-  if (relationalCouncilInformedV3(student))
+  if (kind === 'informed')
     mark = <CircleAlert size={17} className="text-muted" aria-hidden="true" />;
-  else if (student.decision)
+  else if (kind === 'decided')
     mark = <CheckCircle2 size={17} className="text-success" aria-label="Decidido" />;
+  const { situation, queue } = situationV3(student);
   return (
     <button
       type="button"
@@ -208,9 +209,10 @@ function QueueCard({
       <span className="min-w-0">
         <strong className="line-clamp-2 break-words text-sm">{student.name}</strong>
         <span className="council-queue-card__detail block truncate text-xs text-muted">
-          {student.decision?.label ??
-            notice?.queue ??
-            `${countedV3(student.eligibility.failedComponentCount, 'componente', 'componentes')} abaixo`}
+          {queue ??
+            (kind === 'decided'
+              ? situation
+              : `${countedV3(student.eligibility.failedComponentCount, 'componente', 'componentes')} abaixo`)}
         </span>
       </span>
       {mark}
@@ -270,7 +272,7 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
             <td colSpan={2} />
             {student.components.map((component) => (
               <th key={component.offerId} scope="col" data-failed={failed(component)}>
-                <span>{component.subject.label}</span>
+                <span>{component.subject}</span>
               </th>
             ))}
           </tr>
@@ -323,17 +325,26 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
   );
 }
 
-/** The year's end of a student and its tone: not approved until the Conselho says otherwise. */
+/** Where a student stands in the queue. A student the sheet already fails is there only for
+ * information, whatever was once decided about it. */
+function queueKindV3(student: RelationalCouncilStudentV3) {
+  if (relationalCouncilInformedV3(student)) return 'informed';
+  return student.decision ? 'decided' : 'pending';
+}
+
+/** The year's end of a student, its tone, why (under the seal) and what the queue says of it:
+ * not approved until the Conselho says otherwise. */
 function situationV3(student: RelationalCouncilStudentV3): {
   readonly situation: string;
   readonly tone: 'success' | 'danger' | 'warning';
   readonly reason: string | null;
+  readonly queue: string | null;
 } {
-  if (student.decision) {
+  if (student.decision && queueKindV3(student) === 'decided') {
     const [situation, tone] = SITUATION_V3[student.decision.code];
-    return { situation, tone, reason: null };
+    return { situation, tone, reason: null, queue: null };
   }
-  return noticeV3(student) ?? { situation: 'Reprovado', tone: 'danger', reason: null };
+  return noticeV3(student) ?? { situation: 'Reprovado', tone: 'danger', reason: null, queue: null };
 }
 
 /** What a student's card shows: the photo, the year's end and the report card. */
@@ -368,12 +379,6 @@ function StudentCardV3({
       <StudentReportV3 student={student} />
     </>
   );
-}
-
-/** Where a student stands in the queue, for the dot that stands for it under the pile. */
-function queueKindV3(student: RelationalCouncilStudentV3) {
-  if (relationalCouncilInformedV3(student)) return 'informed';
-  return student.decision ? 'decided' : 'pending';
 }
 
 /** The queue as a pile of cards on a stage: the student under discussion on top, the two before
@@ -494,8 +499,8 @@ function CouncilStatusV3({
   );
 }
 
-/** The meeting of the class: not started, open, or concluded once every eligible student has a
- * decision. It opens once and is never closed. */
+/** The meeting of the class: not started, open, or concluded once every student it deliberates
+ * on has a decision. It opens once and is never closed. */
 function CouncilSessionV3({
   workspace,
   busy,
@@ -529,13 +534,14 @@ export function RelationalCouncilPageV3() {
   const state = useRelationalCouncilV3();
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   const workspace = state.workspace;
-  // Who is voted on: the eligible students and the ones with a recovery still to be recorded.
-  const eligible = useMemo(
+  // Who the Conselho deliberates on: the eligible students and the ones with a recovery still to
+  // be recorded.
+  const votable = useMemo(
     () => workspace?.students.filter(relationalCouncilVotableV3) ?? [],
     [workspace],
   );
-  const pending = eligible.filter((student) => !student.decision);
-  const decided = eligible.filter((student) => student.decision);
+  const pending = votable.filter((student) => !student.decision);
+  const decided = votable.filter((student) => student.decision);
   const informed = workspace?.students.filter(relationalCouncilInformedV3) ?? [];
   // The pile follows the queue: who is still to be discussed, who already has a decision, and
   // who is there only for the Conselho to take notice of.
@@ -585,7 +591,7 @@ export function RelationalCouncilPageV3() {
             <strong className="text-sm">
               {state.classes.length
                 ? 'Escolha uma turma para abrir a pauta'
-                : 'Nenhuma turma com alunos elegíveis'}
+                : 'Nenhuma turma com alunos para o Conselho'}
             </strong>
           </div>
         </div>
@@ -600,9 +606,9 @@ export function RelationalCouncilPageV3() {
             />
             <Metric
               icon={<Scale size={19} />}
-              // Who is voted on, so that it is always the sum of the two counts beside it.
-              label={eligible.length === 1 ? 'elegível' : 'elegíveis'}
-              value={eligible.length}
+              // Who is deliberated on, so that it is always the sum of the two counts beside it.
+              label={votable.length === 1 ? 'elegível' : 'elegíveis'}
+              value={votable.length}
             />
             <Metric
               icon={<Clock3 size={19} />}
@@ -617,7 +623,7 @@ export function RelationalCouncilPageV3() {
               tone="success"
             />
           </div>
-          {eligible.length ? (
+          {votable.length ? (
             <CouncilSessionV3
               workspace={workspace}
               busy={state.busy.command}
@@ -626,8 +632,8 @@ export function RelationalCouncilPageV3() {
           ) : null}
           <div className="council-layout">
             <aside className="min-w-0">
-              <div className="council-board" aria-label="Fluxo dos alunos elegíveis">
-                {eligible.length ? (
+              <div className="council-board" aria-label="Fila do Conselho">
+                {votable.length ? (
                   <section className="council-board__column">
                     <header>
                       <span className="size-2 rounded-full bg-warning" />

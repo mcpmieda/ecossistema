@@ -23,22 +23,22 @@ type CouncilClass = Extract<
   RelationalCouncilResponseV3,
   { state: 'ready'; operation: 'classes' }
 >['classes'][number];
-/** A class of the Conselho: one with eligible students. `tally` is null when the class could not
- * be read, so it is shown rather than taken for a class with nobody. */
+/** A class of the Conselho: one with somebody to deliberate on or to take notice of. `tally` is
+ * null when the class could not be read, so it is shown rather than taken for a class with
+ * nobody. */
 export type CouncilClassViewV3 = Omit<CouncilClass, 'tally'> & {
   readonly tally: RelationalCouncilTallyV3 | null;
 };
-const PAGE_SIZE = 100;
 
 /** The students the class brings to the Conselho: the eligible ones and the ones it only takes
  * notice of. */
-const eligibleV3 = (tally: RelationalCouncilTallyV3) =>
+const listedV3 = (tally: RelationalCouncilTallyV3) =>
   tally.approved + tally.rejected + tally.pending + tally.forInformation;
 /** Only the classes the Conselho has somebody to see in, plus the ones it could not read. */
 const councilClassesV3 = (list: readonly CouncilClass[]): readonly CouncilClassViewV3[] =>
   list
     .map((item) => ({ ...item, tally: item.tally ?? null }))
-    .filter((item) => item.tally === null || eligibleV3(item.tally) > 0);
+    .filter((item) => item.tally === null || listedV3(item.tally) > 0);
 
 /** The last classes read in each year, kept while the Centro stays open: coming back to the tab
  * shows them at once, and the reading that follows replaces them. */
@@ -121,11 +121,11 @@ export function useRelationalCouncilV3() {
     }
   }
   /** What the open class just read is the newest count of that class. A class left with nobody
-   * eligible (a corrected grade) is no longer a class of the Conselho. */
+   * for the Conselho (a corrected grade) is no longer one of its classes. */
   function showWorkspace(currentYear: number, read: RelationalCouncilWorkspaceV3) {
     const tally = relationalCouncilTallyV3(read.summary);
     const known = KNOWN_CLASSES_V3.get(currentYear) ?? [];
-    if (eligibleV3(tally) === 0) {
+    if (listedV3(tally) === 0) {
       showClasses(
         currentYear,
         known.filter((item) => item.id !== read.classGroup.id),
@@ -135,17 +135,13 @@ export function useRelationalCouncilV3() {
     }
     showClasses(
       currentYear,
-      known.map((item) =>
-        item.id === read.classGroup.id
-          ? { ...item, sessionState: read.session.state, tally }
-          : item,
-      ),
+      known.map((item) => (item.id === read.classGroup.id ? { ...item, tally } : item)),
     );
     setWorkspace(read);
   }
 
-  /** The classes with eligible students. It costs a whole reading per class of the year, so it
-   * is read on entering the tab; the classes read before stay on screen meanwhile. */
+  /** The classes of the Conselho. It costs a whole reading per class of the year, so it is read
+   * on entering the tab; the classes read before stay on screen meanwhile. */
   const loadClasses = useCallback(async () => {
     if (year === null) return;
     classesController.current?.abort();
@@ -160,7 +156,7 @@ export function useRelationalCouncilV3() {
     setFailure(null);
     try {
       const response = await requestRelationalCouncilV3(
-        { contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE },
+        { contractVersion: 3, operation: 'classes', year },
         controller.signal,
       );
       if (controller.signal.aborted) return;
@@ -303,7 +299,6 @@ export function useRelationalCouncilV3() {
   }
 
   return {
-    year,
     classes,
     classId,
     workspace,

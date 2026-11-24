@@ -443,55 +443,6 @@ body {
   height: 2.5rem;
 }
 
-.council-kpi--success .council-kpi__icon {
-  background: color-mix(in oklab, var(--success) 12%, transparent);
-  color: var(--success);
-}
-.council-kpi--warning .council-kpi__icon {
-  background: color-mix(in oklab, var(--warning) 14%, transparent);
-  color: var(--warning);
-}
-.council-kpi--danger .council-kpi__icon {
-  background: color-mix(in oklab, var(--danger) 12%, transparent);
-  color: var(--danger);
-}
-.council-kpi strong {
-  display: block;
-  font-size: 1.45rem;
-  line-height: 1;
-  letter-spacing: -0.045em;
-}
-
-.council-queue-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  width: 100%;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.7rem;
-  border: 1px solid transparent;
-  border-radius: var(--radius-2xl);
-  background: var(--surface);
-  color: inherit;
-  box-shadow: 0 8px 22px -22px var(--foreground);
-  cursor: pointer;
-  text-align: left;
-  transition:
-    border-color 160ms var(--platform-ease),
-    box-shadow 160ms var(--platform-ease),
-    transform 160ms var(--platform-ease);
-}
-
-.council-queue-card:hover {
-  border-color: var(--separator);
-  transform: translateY(-1px);
-}
-.council-queue-card[data-selected='true'] {
-  border-color: color-mix(in oklab, var(--accent) 42%, var(--separator));
-  background: color-mix(in oklab, var(--accent) 7%, var(--surface));
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 10%, transparent);
-}
-
 @keyframes performance-donut-reveal {
   from {
     opacity: 0;

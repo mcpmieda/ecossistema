@@ -1,4 +1,4 @@
-/* The classes with eligible students: one button each, side by side. */
+/* The classes of the Conselho: one button each, side by side. */
 .council-classes {
   display: flex;
   flex-wrap: wrap;
@@ -137,6 +137,23 @@
   white-space: nowrap;
 }
 
+.council-kpi--success .council-kpi__icon {
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+  color: var(--success);
+}
+
+.council-kpi--warning .council-kpi__icon {
+  background: color-mix(in oklab, var(--warning) 14%, transparent);
+  color: var(--warning);
+}
+
+.council-kpi strong {
+  display: block;
+  font-size: 1.45rem;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
 .council-layout {
   display: grid;
   grid-template-columns: minmax(17rem, 0.7fr) minmax(0, 1.6fr);
@@ -144,7 +161,8 @@
   gap: 1rem;
 }
 
-/* The queue: who is still to be discussed and, under it, who already has a decision. */
+/* The queue, one group under the other: who is still to be discussed, who already has a
+   decision and who is there only for the Conselho to take notice of. */
 .council-board {
   display: grid;
   gap: 0.75rem;
@@ -190,6 +208,37 @@
   gap: 0.4rem;
   color: var(--muted);
   font-size: 0.75rem;
+}
+
+.council-queue-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  width: 100%;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-2xl);
+  background: var(--surface);
+  color: inherit;
+  box-shadow: 0 8px 22px -22px var(--foreground);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 160ms var(--platform-ease),
+    box-shadow 160ms var(--platform-ease),
+    transform 160ms var(--platform-ease);
+}
+
+.council-queue-card:hover {
+  border-color: var(--separator);
+  transform: translateY(-1px);
+}
+
+.council-queue-card[data-selected='true'] {
+  border-color: color-mix(in oklab, var(--accent) 42%, var(--separator));
+  background: color-mix(in oklab, var(--accent) 7%, var(--surface));
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 10%, transparent);
 }
 
 .council-queue-card:focus-visible {
@@ -677,7 +726,7 @@
   }
 }
 
-/* With room to spare, the names of the queue are shown whole. */
+/* With room to spare, the queue is wider, for longer names. */
 @media (min-width: 1500px) {
   .council-layout {
     grid-template-columns: minmax(0, 1fr) 18rem;
@@ -703,7 +752,8 @@
   }
 }
 
-/* Phone: the four counts stay in one row, without their icons. */
+/* Phone: the pile hugs the screen, the year's end goes under the name and the four counts stay
+   in one row, without their icons. */
 @media (max-width: 640px) {
   .council-stage {
     padding: 0.9rem 0 0.8rem;

@@ -3,7 +3,7 @@ import {
   recordResetWriteV1,
 } from '../../../student-portal/integration/year-reset/writer-v1';
 import {
-  RELATIONAL_COUNCIL_DECISIONS_V3,
+  RELATIONAL_COUNCIL_LIMITS_V3,
   relationalCouncilRequestSchemaV3,
   relationalCouncilResponseMatchesV3,
   relationalCouncilInformedV3,
@@ -74,91 +74,35 @@ function cell(
   mode: 'regular' | 'recovery',
 ) {
   const value = performanceCellV2(projection, period, mode);
-  return {
-    valueMilli: value.valueMilli,
-    maximumMilli: value.maximumMilli,
-    state: value.state,
-    level: value.level,
-  };
+  return { valueMilli: value.valueMilli, state: value.state, level: value.level };
 }
 
+/** Why a student is, or is not, a student of the Conselho. The annual outcome comes from the one
+ * calculation; this only names its case. */
 function eligibility(
-  annual: {
-    readonly state: string;
-    readonly councilEligibility: string;
-    readonly label: string | null;
-  } | null,
+  annual: { readonly state: string; readonly councilEligibility: string } | null,
   projections: readonly PerformanceProjectionV2[],
   indicatorEligible: boolean,
   maxCouncilComponents: number,
 ): RelationalCouncilStudentV3['eligibility'] {
-  const failed = projections.filter(
+  const failedComponentCount = projections.filter(
     (item) =>
       item.recovery?.classification === 'not-approved' ||
       item.recovery?.classification === 'failed-repeat',
   ).length;
-  if (!indicatorEligible)
-    return {
-      eligible: false,
-      code: 'status',
-      label: 'Situação de matrícula não participa do Conselho Final.',
-      failedComponentCount: failed,
-    };
-  if (annual === null || projections.some((item) => item.recovery === null))
-    return {
-      eligible: false,
-      code: 'definitions-unavailable',
-      label: 'Definições acadêmicas ainda não estão completas.',
-      failedComponentCount: failed,
-    };
-  if (annual.councilEligibility === 'eligible')
-    return {
-      eligible: true,
-      code: 'eligible',
-      label: 'Elegível ao Conselho Final.',
-      failedComponentCount: failed,
-    };
-  if (annual.state === 'in-progress')
-    return {
-      eligible: false,
-      code: 'in-progress',
-      label: 'Cálculo anual ainda está em curso.',
-      failedComponentCount: failed,
-    };
-  if (annual.state === 'recovery')
-    return {
-      eligible: false,
-      code: 'recovery-pending',
-      label: 'Recuperação ainda não concluída.',
-      failedComponentCount: failed,
-    };
-  if (projections.some((item) => item.recovery?.classification === 'failed-no-show'))
-    return {
-      eligible: false,
-      code: 'failed-no-show',
-      label: 'Há recuperação marcada como não comparecimento.',
-      failedComponentCount: failed,
-    };
-  if (projections.some((item) => item.recovery?.classification === 'failed-repeat'))
-    return {
-      eligible: false,
-      code: 'failed-repeat',
-      label: 'R/R determina reprovação automática, sem deliberação do Conselho.',
-      failedComponentCount: failed,
-    };
-  if (failed > maxCouncilComponents)
-    return {
-      eligible: false,
-      code: 'above-limit',
-      label: `Reprovação em ${failed} componentes, acima do limite de ${maxCouncilComponents}.`,
-      failedComponentCount: failed,
-    };
-  return {
-    eligible: false,
-    code: 'approved',
-    label: annual.label ?? 'Resultado anual não exige deliberação do Conselho.',
-    failedComponentCount: failed,
-  };
+  const classified = (item: PerformanceProjectionV2, classification: string) =>
+    item.recovery?.classification === classification;
+  let code: RelationalCouncilStudentV3['eligibility']['code'] = 'approved';
+  if (!indicatorEligible) code = 'status';
+  else if (annual === null || projections.some((item) => item.recovery === null))
+    code = 'definitions-unavailable';
+  else if (annual.councilEligibility === 'eligible') code = 'eligible';
+  else if (annual.state === 'in-progress') code = 'in-progress';
+  else if (annual.state === 'recovery') code = 'recovery-pending';
+  else if (projections.some((item) => classified(item, 'failed-no-show'))) code = 'failed-no-show';
+  else if (projections.some((item) => classified(item, 'failed-repeat'))) code = 'failed-repeat';
+  else if (failedComponentCount > maxCouncilComponents) code = 'above-limit';
+  return { eligible: code === 'eligible', code, failedComponentCount };
 }
 
 async function readWorkspace(
@@ -168,9 +112,7 @@ async function readWorkspace(
 ): Promise<RelationalCouncilWorkspaceV3 | RelationalCouncilFailureV3> {
   const base = await first(
     db,
-    `SELECT t.id,t.codigo,t.nome,y.minimo_aprovacao,y.max_componentes_conselho,
-      s.estado,
-      to_char(transaction_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS read_at
+    `SELECT t.id,t.codigo,y.max_componentes_conselho,s.estado
     FROM gradebook.turma t JOIN gradebook.ano_letivo y ON y.ano=t.ano
     LEFT JOIN gradebook.conselho_sessao s ON s.ano=t.ano AND s.turma_id=t.id
     WHERE t.ano=$1 AND t.id=$2`,
@@ -201,12 +143,17 @@ async function readWorkspace(
 
   const decisionRows = await all(
     db,
-    `SELECT cd.aluno_id,cd.decisao,cd.justificativa,cd.registrado_em AS updated_at
+    `SELECT cd.aluno_id,cd.decisao
       FROM gradebook.conselho_decisao cd JOIN gradebook.vinculo v ON v.aluno_id=cd.aluno_id
       WHERE v.ano=$1 AND v.turma_id=$2 AND v.situacao IS DISTINCT FROM 6`,
     [year, classId],
   );
-  const decisions = new Map(decisionRows.map((row) => [integer(row.aluno_id), row]));
+  const decisions = new Map(
+    decisionRows.map((row) => [
+      integer(row.aluno_id),
+      integer(row.decisao) as RelationalCouncilDecisionV3,
+    ]),
+  );
   const maxCouncilComponents = integer(base.max_componentes_conselho);
   const students: RelationalCouncilStudentV3[] = performance.rows.map((row) => {
     const projections = projectionMap.get(row.student.id) ?? [];
@@ -215,36 +162,20 @@ async function readWorkspace(
       id: row.student.id,
       name: row.student.name,
       number: row.student.number,
-      statusLabel: row.student.statusLabel,
       eligibility: eligibility(
         row.calculatedAnnual,
         projections,
         row.student.indicatorEligible,
         maxCouncilComponents,
       ),
-      calculatedResult: row.calculatedAnnual?.label ?? null,
-      decision: currentDecision
-        ? {
-            code: integer(currentDecision.decisao) as RelationalCouncilDecisionV3,
-            label:
-              RELATIONAL_COUNCIL_DECISIONS_V3[
-                integer(currentDecision.decisao) as RelationalCouncilDecisionV3
-              ],
-            justification: text(currentDecision.justificativa),
-            updatedAt: text(currentDecision.updated_at),
-          }
-        : null,
+      decision: currentDecision === undefined ? null : { code: currentDecision },
       components: performance.offers.map((offering, index) => {
         const projection = projections[index];
         if (!projection || projection.offerId !== offering.id)
           throw new Error('inconsistent-council-projection');
         return {
           offerId: offering.id,
-          subject: {
-            id: offering.subject.id,
-            label: offering.subject.label,
-            abbreviation: offering.subject.abbreviation ?? null,
-          },
+          subject: offering.subject.label,
           terms: [
             cell(projection, 1, 'regular'),
             cell(projection, 2, 'regular'),
@@ -262,27 +193,22 @@ async function readWorkspace(
       }),
     };
   });
-  const eligible = students.filter((student) => student.eligibility.eligible);
-  // The counts follow who is voted on, which includes a recovery still to be recorded.
+  // The counts follow who the Conselho deliberates on, which includes a recovery still to be
+  // recorded.
   const votable = students.filter(relationalCouncilVotableV3);
-  const summary = {
-    total: students.length,
-    eligible: eligible.length,
-    decided: votable.filter((student) => student.decision).length,
-    pending: votable.filter((student) => !student.decision).length,
-    approved: votable.filter((student) => student.decision?.code === 1).length,
-    rejected: votable.filter((student) => student.decision?.code === 2).length,
-    absence: votable.filter((student) => student.decision?.code === 3).length,
-    notEligible: students.length - eligible.length,
-    forInformation: students.filter(relationalCouncilInformedV3).length,
-  };
   return {
-    context: { year, minimumApprovalMilli: integer(base.minimo_aprovacao), maxCouncilComponents },
-    classGroup: { id: integer(base.id), label: text(base.codigo), name: text(base.nome) },
-    readAt: text(base.read_at),
-    authority: 'calculated-eligibility-explicit-human-decision',
-    session: { state: sessionStateOf(base.estado) },
-    summary,
+    context: { year },
+    classGroup: { id: integer(base.id), label: text(base.codigo) },
+    session: { state: base.estado === null ? 'not-opened' : 'open' },
+    summary: {
+      total: students.length,
+      decided: votable.filter((student) => student.decision).length,
+      pending: votable.filter((student) => !student.decision).length,
+      approved: votable.filter((student) => student.decision?.code === 1).length,
+      rejected: votable.filter((student) => student.decision?.code === 2).length,
+      absence: votable.filter((student) => student.decision?.code === 3).length,
+      forInformation: students.filter(relationalCouncilInformedV3).length,
+    },
     students,
   };
 }
@@ -319,11 +245,6 @@ async function openSessionV3(
   return ready(db, request);
 }
 
-/** The meeting's state from its row: none yet, or open. */
-function sessionStateOf(estado: unknown) {
-  return estado === null ? 'not-opened' : 'open';
-}
-
 export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1, actorId: string) {
   return {
     async execute(input: unknown): Promise<RelationalCouncilResponseV3> {
@@ -341,23 +262,22 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
           }
           await db.executeNative('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY', []);
           if (request.operation === 'workspace') return ready(db, request);
+          const limit = RELATIONAL_COUNCIL_LIMITS_V3.classes;
           const rows = await all(
             db,
-            `SELECT t.id,t.codigo,t.nome,s.estado
-          FROM gradebook.turma t LEFT JOIN gradebook.conselho_sessao s ON s.ano=t.ano AND s.turma_id=t.id
-          WHERE t.ano=$1 ORDER BY t.codigo COLLATE "C",t.id LIMIT $2 OFFSET $3`,
-            [request.year, request.limit + 1, request.offset],
+            `SELECT id,codigo FROM gradebook.turma WHERE ano=$1 ORDER BY codigo COLLATE "C",id LIMIT $2`,
+            [request.year, limit + 1],
           );
+          // A year with more classes than one reading covers is refused whole, never cut short.
+          if (rows.length > limit) return fail('scope-too-large');
           const classes = [];
-          for (const row of rows.slice(0, request.limit)) {
+          for (const row of rows) {
             // The tally is the class's own reading, so it can never disagree with its workspace.
             // A class whose reading failed goes without one.
             const workspace = await readWorkspace(db, request.year, integer(row.id));
             classes.push({
               id: integer(row.id),
               label: text(row.codigo),
-              name: text(row.nome),
-              sessionState: sessionStateOf(row.estado),
               ...(typeof workspace === 'string'
                 ? {}
                 : { tally: relationalCouncilTallyV3(workspace.summary) }),
@@ -369,7 +289,6 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
             operation: 'classes',
             year: request.year,
             classes,
-            nextOffset: rows.length > request.limit ? request.offset + request.limit : null,
           };
         });
       let response: unknown;
