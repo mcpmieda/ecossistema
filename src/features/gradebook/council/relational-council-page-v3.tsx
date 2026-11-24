@@ -1,5 +1,5 @@
 import './council-v3.css';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Chip, Spinner } from '@heroui/react';
 import {
   Check,
@@ -33,7 +33,7 @@ const FAILURE: Record<RelationalCouncilFailureV3, string> = {
   'not-authorized': 'Sua sessão não possui autorização para operar o Conselho.',
   'not-found': 'A turma não foi encontrada neste ano letivo.',
   unavailable: 'O Conselho está temporariamente indisponível. Tente de novo em instantes.',
-  'scope-too-large': 'A turma é grande demais para ser lida de uma vez.',
+  'scope-too-large': 'Há turmas ou alunos demais para ler de uma vez.',
 };
 type CouncilComponentV3 = RelationalCouncilStudentV3['components'][number];
 type CouncilGradeV3 = CouncilComponentV3['annual'];
@@ -249,7 +249,21 @@ function ReportCellV3({
       </td>
     );
   const mark = reportMarkV3(grade);
-  return <td data-failed={failed}>{mark ? <span data-level={grade.level}>{mark}</span> : null}</td>;
+  return (
+    <td data-failed={failed}>
+      {mark ? (
+        <span data-level={grade.level}>
+          {mark}
+          {/* N/C and R/R say it themselves; only a number needs the words. */}
+          {grade.level === 'below' &&
+          grade.state !== 'no-show' &&
+          grade.state !== 'repeat-failure' ? (
+            <span className="sr-only"> (abaixo do mínimo)</span>
+          ) : null}
+        </span>
+      ) : null}
+    </td>
+  );
 }
 
 /** The student's year as the school's report card lays it out: a column for each component, a
@@ -273,39 +287,38 @@ function StudentReportV3({ student }: { readonly student: RelationalCouncilStude
             {student.components.map((component) => (
               <th key={component.offerId} scope="col" data-failed={failed(component)}>
                 <span>{component.subject}</span>
+                {failed(component) ? <span className="sr-only"> (não aprovado)</span> : null}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
-          {TERM_LABELS_V3.map((label, term) => (
-            <Fragment key={label}>
-              <tr>
-                <th scope="rowgroup" rowSpan={2}>
-                  {label}
-                </th>
-                <th scope="row">Nota</th>
-                {student.components.map((component) => (
-                  <ReportCellV3
-                    key={component.offerId}
-                    grade={component.terms[term]!}
-                    failed={failed(component)}
-                  />
-                ))}
-              </tr>
-              <tr data-rec>
-                <th scope="row">REC</th>
-                {student.components.map((component) => (
-                  <ReportCellV3
-                    key={component.offerId}
-                    grade={component.termRecoveries[term]!}
-                    failed={failed(component)}
-                  />
-                ))}
-              </tr>
-            </Fragment>
-          ))}
-        </tbody>
+        {TERM_LABELS_V3.map((label, term) => (
+          <tbody key={label}>
+            <tr>
+              <th scope="rowgroup" rowSpan={2}>
+                {label}
+              </th>
+              <th scope="row">Nota</th>
+              {student.components.map((component) => (
+                <ReportCellV3
+                  key={component.offerId}
+                  grade={component.terms[term]!}
+                  failed={failed(component)}
+                />
+              ))}
+            </tr>
+            <tr data-rec>
+              <th scope="row">REC</th>
+              {student.components.map((component) => (
+                <ReportCellV3
+                  key={component.offerId}
+                  grade={component.termRecoveries[term]!}
+                  failed={failed(component)}
+                />
+              ))}
+            </tr>
+          </tbody>
+        ))}
         <tfoot>
           <tr>
             <th scope="row" colSpan={2}>
@@ -428,7 +441,7 @@ function StudentDeckV3({
               className="council-deck__arrow"
               data-side="previous"
               aria-label="Aluno anterior"
-              disabled={position === 0}
+              aria-disabled={position === 0}
               onClick={() => step(-1)}
             >
               <ChevronLeft size={18} />
@@ -438,7 +451,7 @@ function StudentDeckV3({
               className="council-deck__arrow"
               data-side="next"
               aria-label="Próximo aluno"
-              disabled={position === queue.length - 1}
+              aria-disabled={position === queue.length - 1}
               onClick={() => step(1)}
             >
               <ChevronRight size={18} />
@@ -447,14 +460,15 @@ function StudentDeckV3({
         ) : null}
       </div>
       {queue.length > 1 ? (
-        <div className="council-pager" role="group" aria-label="Alunos da fila">
+        // A shortcut for the mouse; by keyboard and by voice the queue and the arrows do it.
+        <div className="council-pager" aria-hidden="true">
           {queue.map((student, index) => (
             <button
               key={student.id}
               type="button"
+              tabIndex={-1}
               data-kind={queueKindV3(student)}
-              aria-label={student.name}
-              aria-current={index === position || undefined}
+              data-current={index === position || undefined}
               onClick={() => onSelect(student.id)}
             />
           ))}
@@ -479,10 +493,8 @@ function CouncilStatusV3({
     <div className="empty:absolute" aria-live="polite">
       {busy.classes || busy.workspace ? (
         <p className="flex items-center gap-2 text-sm text-muted">
-          <output className="contents">
-            <Spinner size="sm" />
-            Carregando…
-          </output>
+          <Spinner size="sm" />
+          Carregando…
         </p>
       ) : null}
       {failure ? (
@@ -562,8 +574,10 @@ export function RelationalCouncilPageV3() {
   }, [workspace?.classGroup.id]);
 
   return (
-    <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-4">
-      <h2 className="sr-only">Conselho de Classe</h2>
+    <section aria-labelledby="council-heading" className="grid min-w-0 gap-4">
+      <h2 id="council-heading" className="sr-only">
+        Conselho de Classe
+      </h2>
       {state.classes.length ? (
         <CouncilClassesV3
           classes={state.classes}
@@ -598,7 +612,7 @@ export function RelationalCouncilPageV3() {
       ) : null}
       {workspace ? (
         <>
-          <div className="council-kpi-group" aria-label="Resumo do Conselho">
+          <div className="council-kpi-group" role="group" aria-label="Resumo do Conselho">
             <Metric
               icon={<Users size={19} />}
               label={workspace.summary.total === 1 ? 'aluno' : 'alunos'}
@@ -632,7 +646,7 @@ export function RelationalCouncilPageV3() {
           ) : null}
           <div className="council-layout">
             <aside className="min-w-0">
-              <div className="council-board" aria-label="Fila do Conselho">
+              <div className="council-board" role="group" aria-label="Fila do Conselho">
                 {votable.length ? (
                   <section className="council-board__column">
                     <header>
@@ -698,7 +712,7 @@ export function RelationalCouncilPageV3() {
                 ) : null}
               </div>
             </aside>
-            <main className="min-w-0">
+            <div className="council-layout__student min-w-0">
               {selected ? (
                 <StudentDeckV3
                   queue={queue}
@@ -707,7 +721,7 @@ export function RelationalCouncilPageV3() {
                   onSelect={setSelectedStudentId}
                 />
               ) : null}
-            </main>
+            </div>
           </div>
         </>
       ) : null}

@@ -81,17 +81,8 @@ const component = z
 const eligibility = z
   .object({
     eligible: z.boolean(),
-    code: z.enum([
-      'eligible',
-      'status',
-      'in-progress',
-      'recovery-pending',
-      'failed-no-show',
-      'failed-repeat',
-      'above-limit',
-      'approved',
-      'definitions-unavailable',
-    ]),
+    // Why the student is before the Conselho; the other students of the class are not sent.
+    code: z.enum(['eligible', 'recovery-pending', 'failed-no-show', 'failed-repeat']),
     failedComponentCount: count,
   })
   .strict();
@@ -114,13 +105,13 @@ const student = z
     name: label,
     number: z.number().int().min(1).max(32767),
     eligibility,
-    // The decision the Conselho recorded, if any.
+    // The decision of the Conselho that is in force for the student, if any.
     decision: z.object({ code: decisionCode }).strict().nullable(),
     components: z.array(component).max(RELATIONAL_COUNCIL_LIMITS_V3.offers),
   })
   .strict();
-// `total` counts the class; the other counts only the students the Conselho deliberates on,
-// except `forInformation`.
+// `total` counts the whole class; `students` brings only who is before the Conselho. The other
+// counts are of the students it deliberates on, except `forInformation`.
 const summary = z
   .object({
     total: count,
@@ -144,7 +135,10 @@ const workspace = z
   .superRefine((value, ctx) => {
     const votable = value.students.filter(relationalCouncilVotableV3);
     if (
-      value.summary.total !== value.students.length ||
+      value.summary.total < value.students.length ||
+      value.students.some(
+        (item) => !relationalCouncilVotableV3(item) && !relationalCouncilInformedV3(item),
+      ) ||
       value.summary.decided !== votable.filter((item) => item.decision !== null).length ||
       value.summary.pending !== votable.filter((item) => item.decision === null).length ||
       value.summary.forInformation !== value.students.filter(relationalCouncilInformedV3).length

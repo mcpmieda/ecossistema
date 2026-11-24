@@ -458,14 +458,20 @@
   right: 0;
 }
 
-.council-deck__arrow:hover:not(:disabled) {
+.council-deck__arrow:hover:not([aria-disabled='true']) {
   border-color: color-mix(in oklab, var(--accent) 45%, var(--separator));
   transform: translateY(-50%) scale(1.06);
 }
 
-.council-deck__arrow:disabled {
+/* At an end of the queue the arrow is gone for the eye, but keeps its place and the focus. */
+.council-deck__arrow[aria-disabled='true'] {
   cursor: default;
   opacity: 0;
+  pointer-events: none;
+}
+
+.council-deck__arrow[aria-disabled='true']:focus-visible {
+  opacity: 0.45;
 }
 
 .council-deck__arrow:focus-visible {
@@ -485,6 +491,7 @@
 }
 
 .council-pager > button {
+  position: relative;
   width: 0.5rem;
   height: 0.5rem;
   padding: 0;
@@ -510,18 +517,20 @@
   --council-dot: var(--muted);
 }
 
+/* A dot is small; the place to click it is not. */
+.council-pager > button::before {
+  position: absolute;
+  content: '';
+  inset: -0.5rem -0.2rem;
+}
+
 .council-pager > button:hover {
   opacity: 0.8;
 }
 
-.council-pager > [aria-current] {
+.council-pager > [data-current] {
   width: 1.5rem;
   opacity: 1;
-}
-
-.council-pager > button:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 /* The year as the report card lays it out: components in columns, each term's mark and REC in

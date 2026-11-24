@@ -10,7 +10,6 @@ import {
   relationalCouncilTallyV3,
   relationalCouncilVotableV3,
   relationalCouncilResponseSchemaV3,
-  type RelationalCouncilDecisionV3,
   type RelationalCouncilFailureV3,
   type RelationalCouncilRequestV3,
   type RelationalCouncilResponseV3,
@@ -78,13 +77,24 @@ function cell(
 }
 
 /** Why a student is, or is not, a student of the Conselho. The annual outcome comes from the one
- * calculation; this only names its case. */
+ * calculation; this only names its case, R/R before N/C as the calculation itself does. */
+type CouncilCaseV3 = {
+  readonly eligible: boolean;
+  readonly code:
+    | RelationalCouncilStudentV3['eligibility']['code']
+    | 'status'
+    | 'definitions-unavailable'
+    | 'in-progress'
+    | 'above-limit'
+    | 'approved';
+  readonly failedComponentCount: number;
+};
 function eligibility(
   annual: { readonly state: string; readonly councilEligibility: string } | null,
   projections: readonly PerformanceProjectionV2[],
   indicatorEligible: boolean,
   maxCouncilComponents: number,
-): RelationalCouncilStudentV3['eligibility'] {
+): CouncilCaseV3 {
   const failedComponentCount = projections.filter(
     (item) =>
       item.recovery?.classification === 'not-approved' ||
@@ -92,17 +102,25 @@ function eligibility(
   ).length;
   const classified = (item: PerformanceProjectionV2, classification: string) =>
     item.recovery?.classification === classification;
-  let code: RelationalCouncilStudentV3['eligibility']['code'] = 'approved';
+  let code: CouncilCaseV3['code'] = 'approved';
   if (!indicatorEligible) code = 'status';
   else if (annual === null || projections.some((item) => item.recovery === null))
     code = 'definitions-unavailable';
   else if (annual.councilEligibility === 'eligible') code = 'eligible';
   else if (annual.state === 'in-progress') code = 'in-progress';
   else if (annual.state === 'recovery') code = 'recovery-pending';
-  else if (projections.some((item) => classified(item, 'failed-no-show'))) code = 'failed-no-show';
   else if (projections.some((item) => classified(item, 'failed-repeat'))) code = 'failed-repeat';
+  else if (projections.some((item) => classified(item, 'failed-no-show'))) code = 'failed-no-show';
   else if (failedComponentCount > maxCouncilComponents) code = 'above-limit';
   return { eligible: code === 'eligible', code, failedComponentCount };
+}
+
+/** Whether the Conselho sees the student at all, with the case narrowed to the ones it sends. */
+function beforeCouncilV3(
+  studentCase: CouncilCaseV3,
+): studentCase is CouncilCaseV3 & RelationalCouncilStudentV3['eligibility'] {
+  const eligibility = { eligibility: studentCase };
+  return relationalCouncilVotableV3(eligibility) || relationalCouncilInformedV3(eligibility);
 }
 
 async function readWorkspace(
@@ -141,34 +159,27 @@ async function readWorkspace(
     return performance.state === 'scope-too-large' ? 'scope-too-large' : 'unavailable';
   if (performance.operation !== 'matrix') return 'unavailable';
 
-  const decisionRows = await all(
-    db,
-    `SELECT cd.aluno_id,cd.decisao
-      FROM gradebook.conselho_decisao cd JOIN gradebook.vinculo v ON v.aluno_id=cd.aluno_id
-      WHERE v.ano=$1 AND v.turma_id=$2 AND v.situacao IS DISTINCT FROM 6`,
-    [year, classId],
-  );
-  const decisions = new Map(
-    decisionRows.map((row) => [
-      integer(row.aluno_id),
-      integer(row.decisao) as RelationalCouncilDecisionV3,
-    ]),
-  );
   const maxCouncilComponents = integer(base.max_componentes_conselho);
-  const students: RelationalCouncilStudentV3[] = performance.rows.map((row) => {
+  // Only who is before the Conselho is sent: the ones it deliberates on and the ones it takes
+  // notice of. The marks of the rest of the class would be most of the answer, unread.
+  const students: RelationalCouncilStudentV3[] = performance.rows.flatMap((row) => {
     const projections = projectionMap.get(row.student.id) ?? [];
-    const currentDecision = decisions.get(row.student.id);
+    const studentCase = eligibility(
+      row.calculatedAnnual,
+      projections,
+      row.student.indicatorEligible,
+      maxCouncilComponents,
+    );
+    if (!beforeCouncilV3(studentCase)) return [];
     return {
       id: row.student.id,
       name: row.student.name,
       number: row.student.number,
-      eligibility: eligibility(
-        row.calculatedAnnual,
-        projections,
-        row.student.indicatorEligible,
-        maxCouncilComponents,
-      ),
-      decision: currentDecision === undefined ? null : { code: currentDecision },
+      eligibility: studentCase,
+      // The decision in force is the one the calculation itself honours (a decision recorded
+      // before a grade changed the student's case no longer counts), so Desempenho and the
+      // Conselho never disagree.
+      decision: row.formalCouncilDecision ? { code: row.formalCouncilDecision.code } : null,
       components: performance.offers.map((offering, index) => {
         const projection = projections[index];
         if (!projection || projection.offerId !== offering.id)
@@ -201,7 +212,7 @@ async function readWorkspace(
     classGroup: { id: integer(base.id), label: text(base.codigo) },
     session: { state: base.estado === null ? 'not-opened' : 'open' },
     summary: {
-      total: students.length,
+      total: performance.rows.length,
       decided: votable.filter((student) => student.decision).length,
       pending: votable.filter((student) => !student.decision).length,
       approved: votable.filter((student) => student.decision?.code === 1).length,
@@ -223,18 +234,21 @@ async function ready(
     : { contractVersion: 3, state: 'ready', operation: request.operation, workspace };
 }
 
-/** Opening the meeting of a class. It opens once: asking again answers with the open meeting. */
+/** Opening the meeting of a class. It opens once: asking again answers with the open meeting.
+ * The class is read first, so a class that cannot be read is never left open behind a failure. */
 async function openSessionV3(
   db: GradebookPostgresTransactionV1,
   request: OpenRequestV3,
   actorId: string,
-) {
+): Promise<RelationalCouncilResponseV3> {
   const classRow = await first(
     db,
     'SELECT id FROM gradebook.turma WHERE ano=$1 AND id=$2 FOR UPDATE',
     [request.year, request.classId],
   );
   if (!classRow) return fail('not-found');
+  const workspace = await readWorkspace(db, request.year, request.classId);
+  if (typeof workspace === 'string') return fail(workspace);
   const opened = await db.executeNative(
     `INSERT INTO gradebook.conselho_sessao (ano,turma_id,estado,versao,atualizado_por) VALUES ($1, $2, $3, 1, $4)
     ON CONFLICT (ano,turma_id) DO NOTHING RETURNING turma_id`,
@@ -242,7 +256,12 @@ async function openSessionV3(
   );
   // The year reset must know of the write; nothing the Portal publishes changed.
   if (opened.rows.length) await recordResetWriteV1(db, request.year, 'council');
-  return ready(db, request);
+  return {
+    contractVersion: 3,
+    state: 'ready',
+    operation: 'open',
+    workspace: { ...workspace, session: { state: 'open' } },
+  };
 }
 
 export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1, actorId: string) {
@@ -273,8 +292,12 @@ export function createRelationalCouncilV3(database: GradebookPostgresWritePortV1
           const classes = [];
           for (const row of rows) {
             // The tally is the class's own reading, so it can never disagree with its workspace.
-            // A class whose reading failed goes without one.
-            const workspace = await readWorkspace(db, request.year, integer(row.id));
+            // A class whose reading failed, in whatever way, goes without one and is shown as
+            // unreadable; it does not take the list with it. (A database error ends the
+            // transaction, so the classes after it go without a tally too.)
+            const workspace = await readWorkspace(db, request.year, integer(row.id)).catch(
+              () => 'unavailable' as const,
+            );
             classes.push({
               id: integer(row.id),
               label: text(row.codigo),
