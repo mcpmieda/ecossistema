@@ -157,7 +157,7 @@ describe('materialização multi-ano e R/R terminal', () => {
     ).toEqual([{ ano: 2026 }, { ano: 2025 }]);
   });
 
-  it('persiste R/R, produz REPROVADO e o exclui do Conselho mesmo com reimportação idempotente', async () => {
+  it('persiste R/R, produz REPROVADO e o deixa fora da votação do Conselho mesmo com reimportação idempotente', async () => {
     const importService = createGradebookImportService(database);
     const request = notes2025();
     await expect(importService.execute(request)).resolves.toMatchObject({ state: 'applied' });
@@ -248,9 +248,29 @@ describe('materialização multi-ano e R/R terminal', () => {
     expect(council).toMatchObject({ state: 'ready', operation: 'workspace' });
     if (council.state !== 'ready' || council.operation !== 'workspace')
       throw new Error('workspace-unavailable');
+    // The Conselho only takes notice of the student: on its report card, and in no count of votes.
+    expect(council.workspace.summary).toEqual({
+      total: 1,
+      decided: 0,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      absence: 0,
+      forInformation: 1,
+    });
+    expect(council.workspace.students).toHaveLength(1);
     expect(council.workspace.students[0]).toMatchObject({
-      calculatedResult: 'REPROVADO',
-      eligibility: { eligible: false, code: 'failed-repeat' },
+      id: pair.aluno_id,
+      eligibility: { eligible: false, code: 'failed-repeat', failedComponentCount: 1 },
+      decision: null,
+      components: [
+        {
+          offerId: pair.oferta_id,
+          termRecoveries: [{ valueMilli: null, state: 'repeat-failure', level: 'below' }, {}, {}],
+          recovery: { valueMilli: null, state: 'repeat-failure', level: 'below' },
+          result: 'failed-repeat',
+        },
+      ],
     });
   });
 });

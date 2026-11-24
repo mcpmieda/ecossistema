@@ -31,36 +31,26 @@ const councilCatalog = {
   operation: 'classes',
   year: 2026,
   classes: [
-    {
-      id: 10,
-      label: '6A',
-      name: 'Turma sintética',
-      sessionState: 'not-opened',
-      tally: { approved: 0, rejected: 0, pending: 1 },
-    },
+    { id: 10, label: '6A', tally: { approved: 0, rejected: 0, pending: 1, forInformation: 0 } },
   ],
-  nextOffset: null,
 } satisfies Awaited<ReturnType<typeof requestRelationalCouncilV3>>;
 const councilWorkspace = {
   contractVersion: 3,
   state: 'ready',
   operation: 'workspace',
   workspace: {
-    context,
-    classGroup: { id: 10, label: '6A', name: 'Turma sintética' },
-    readAt: '2026-09-26T12:00:00.000Z',
-    authority: 'calculated-eligibility-explicit-human-decision',
+    context: { year: 2026 },
+    classGroup: { id: 10, label: '6A' },
     session: { state: 'not-opened' },
-    // The hook reads only the summary: one eligible student, still pending.
+    // The hook reads only the summary: one student to deliberate on, still pending.
     summary: {
       total: 1,
-      eligible: 1,
       decided: 0,
       pending: 1,
       approved: 0,
       rejected: 0,
       absence: 0,
-      notEligible: 0,
+      forInformation: 0,
     },
     students: [],
   },
@@ -128,10 +118,12 @@ it('rereads only the open Council class, backs off its failures and keeps it whi
   active = true;
   hook.rerender();
   await advance(3_000);
-  // The classes are never asked for again in the background.
+  // The background never asked for the classes; coming back to the tab, long after their last
+  // reading, asks for them once, and the open class follows.
   expect(send.mock.calls.map(([request]) => request.operation)).toEqual([
     'workspace',
     'workspace',
+    'classes',
     'workspace',
   ]);
   expect(hook.result.current.stale).toBe(false);
@@ -151,7 +143,7 @@ it('reads nothing in the background while no Council class is open', async () =>
   expect(send).not.toHaveBeenCalled();
 });
 
-it('closes the open Council class when its background reading comes back with nobody eligible', async () => {
+it('closes the open Council class when its background reading comes back with nobody for the Conselho', async () => {
   shared.year = 2028;
   const send = vi.mocked(requestRelationalCouncilV3);
   send.mockImplementation(async (request) =>
@@ -168,7 +160,7 @@ it('closes the open Council class when its background reading comes back with no
     ...councilWorkspace,
     workspace: {
       ...councilWorkspace.workspace,
-      summary: { ...councilWorkspace.workspace.summary, eligible: 0, pending: 0, notEligible: 1 },
+      summary: { ...councilWorkspace.workspace.summary, pending: 0 },
     },
   });
   await invalidate();
@@ -180,6 +172,33 @@ it('closes the open Council class when its background reading comes back with no
   // With no class open, the next change reads nothing.
   await invalidate();
   expect(send).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the open Council class, with its new count, while it has students only for information', async () => {
+  shared.year = 2029;
+  const send = vi.mocked(requestRelationalCouncilV3);
+  send.mockImplementation(async (request) =>
+    request.operation === 'classes' ? { ...councilCatalog, year: 2029 } : councilWorkspace,
+  );
+  const hook = renderHook(() => useRelationalCouncilV3(), { wrapper });
+  await act(async () => {});
+  await act(async () => {
+    await hook.result.current.selectClass(10);
+  });
+  send.mockClear();
+  // The sheet now fails the student: nobody is left to deliberate on.
+  const informed = {
+    ...councilWorkspace.workspace,
+    summary: { ...councilWorkspace.workspace.summary, pending: 0, forInformation: 1 },
+  };
+  send.mockResolvedValue({ ...councilWorkspace, workspace: informed });
+  await invalidate();
+  expect(send.mock.calls.map(([request]) => request.operation)).toEqual(['workspace']);
+  expect(hook.result.current.classes).toEqual([
+    { id: 10, label: '6A', tally: { approved: 0, rejected: 0, pending: 0, forInformation: 1 } },
+  ]);
+  expect(hook.result.current.classId).toBe(10);
+  expect(hook.result.current.workspace).toEqual(informed);
 });
 
 it('reports failed performance reads to the clock instead of retrying every invalidation', async () => {
