@@ -352,38 +352,37 @@
   flex: 1 1 11rem;
 }
 
-/* The year's end, the first thing the Conselho reads on the card, as one badge in the colour
-   of the situation: the situation itself and, in a lighter second half, why. */
+/* The year's end, the first thing the Conselho reads on the card: a solid seal in the colour of
+   the situation and, under it, why, in plain small words. */
 .council-card__status {
-  display: inline-flex;
-  overflow: hidden;
-  min-height: 2.25rem;
-  align-items: stretch;
+  display: grid;
+  justify-items: end;
+  gap: 0.3rem;
   margin-left: auto;
-  border: 1px solid color-mix(in oklab, var(--council-tone) 28%, transparent);
-  border-radius: 999px;
-  background: var(--surface);
-  color: color-mix(in oklab, var(--council-tone) 74%, var(--foreground));
   line-height: 1.2;
   white-space: nowrap;
 }
 
-.council-card__status > * {
-  display: flex;
-  align-items: center;
+.council-card__status > strong {
+  padding: 0.5rem 1.05rem;
+  border-radius: 999px;
+  background: var(--council-tone);
+  color: var(--surface);
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
 }
 
-.council-card__status > strong {
-  padding: 0 0.95rem;
-  background: color-mix(in oklab, var(--council-tone) 16%, var(--surface));
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+/* White letters do not read on the amber of a pending recovery. */
+.council-card[data-tone='warning'] .council-card__status > strong {
+  color: color-mix(in oklab, var(--foreground) 82%, var(--warning));
 }
 
 .council-card__status > span {
-  padding: 0 0.9rem 0 0.75rem;
-  font-size: 0.82rem;
+  padding-right: 0.5rem;
+  color: color-mix(in oklab, var(--council-tone) 70%, var(--foreground));
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
@@ -769,18 +768,17 @@
 
   /* On a line of its own, under the photo and the name. */
   .council-card__status {
-    min-height: 2rem;
     margin-left: 0;
+    justify-items: start;
   }
 
   .council-card__status > strong {
-    padding: 0 0.8rem;
-    font-size: 0.92rem;
+    padding: 0.42rem 0.9rem;
+    font-size: 0.78rem;
   }
 
   .council-card__status > span {
-    padding: 0 0.75rem 0 0.6rem;
-    font-size: 0.76rem;
+    padding: 0 0 0 0.5rem;
   }
 
   .council-kpi {

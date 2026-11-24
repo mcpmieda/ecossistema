@@ -359,7 +359,7 @@ function StudentCardV3({
           </h3>
           <p className="text-sm text-muted">Nº {student.number}</p>
         </div>
-        {/* One badge: the year's end and, in the same piece, why. */}
+        {/* The year's end as a seal and, under it, why. */}
         <p className="council-card__status">
           <strong>{situation}</strong>
           {reason ? <span>{reason}</span> : null}
