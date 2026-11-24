@@ -87,7 +87,7 @@ Estas versões representam **capacidades aditivas**, não uma fila em que V6 inv
 | --- | --- | --- |
 | `council-workspace-contract-v1.ts` | COMPATIBILITY/Core | #1079: transporte V1 retorna 410; tipos/dominio compartilhados preservados |
 | `council-institutional-contract-v2.ts` | COMPATIBILITY/Core | #1079: transporte V2 retorna 410; tipos/dominio compartilhados preservados |
-| `relational-council-v3.ts` | **CURRENT** | UI/HTTP/service relacional e Relatórios V2 |
+| `relational-council-v3.ts` | **CURRENT** | UI/HTTP/service relacional (BN-DEC-049, #1558); Relatórios V2, que também o lia, foi retirado (BN-DEC-043) |
 
 A #1079 retira a execucao HTTP V1/V2, nao todos os tipos que essas versoes compoem.
 

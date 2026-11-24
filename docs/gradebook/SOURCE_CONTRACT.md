@@ -376,4 +376,4 @@ Após a #367, nenhum piloto real, D1 acadêmico produtivo, migration remota, smo
 
 ## Extensão vigente #676
 
-`CONFIGURAÇÃO!C2` e a Relação declaram o ano real do arquivo; não há coerção para 2026. A Relação materializa o ano antes das notas. Em guias `REC`, texto normalizado `R/R` é um marcador terminal distinto de `N/C`, vazio e número: qualquer ocorrência em qualquer componente produz `REPROVADO`, sem fila de recuperação ou Conselho. O arquivo original não é alterado.
+`CONFIGURAÇÃO!C2` e a Relação declaram o ano real do arquivo; não há coerção para 2026. A Relação materializa o ano antes das notas. Em guias `REC`, texto normalizado `R/R` é um marcador terminal distinto de `N/C`, vazio e número: qualquer ocorrência em qualquer componente produz `REPROVADO`, sem fila de recuperação ou Conselho. Desde 23/11/2026 (BN-DEC-049) o Conselho mostra esse aluno só para conhecimento, sem deliberação. O arquivo original não é alterado.

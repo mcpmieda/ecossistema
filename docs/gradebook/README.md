@@ -26,7 +26,7 @@ A fila Portal Parte 2 #742 está concluída e não é mais a fila ativa do Banco
 
 FINAL-1 #633, FINAL-2 #634, FINAL-3 #635, FINAL-4 #406 e aceite acadêmico #347 estão encerrados. A baseline consolidada é `main@80b2916185fc6a49df7c5ab0af71e2be4dcdeb66`, com CI `34667519751` e deploy `34667699446` verdes. O [piloto integral](FINAL4_PILOT_406.md) e a [operação institucional](FINAL_OPERATION_596.md) substituem os estados intermediários abaixo como ponto de execução.
 
-O ano oficial é 2026; 2025 é massa descartável de teste materializada para o ciclo anual. `imported-source` permanece oficial, `native-engine` descritivo, comparação é apenas trimestral dentro do mesmo ano e R/R é reprovação automática fora do Conselho. Backup gerenciado/RPO/RTO foi explicitamente adiado e continua ausente.
+O ano oficial é 2026; 2025 é massa descartável de teste materializada para o ciclo anual. `imported-source` permanece oficial, `native-engine` descritivo, comparação é apenas trimestral dentro do mesmo ano e R/R é reprovação automática fora do Conselho. Backup gerenciado/RPO/RTO foi explicitamente adiado e continua ausente. Desde 23/11/2026 (BN-DEC-049) o aluno com R/R aparece no Conselho só para conhecimento, sem deliberação.
 
 ## Estado integrado e entrega corrente
 
@@ -42,7 +42,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#649 / PR #650:** naquele checkpoint, substituiu a escolha multi-ano por contexto fixo 2026 e contratou a comparação descritiva T2→T1 e T3→T1/T2. A #676/#678 posteriormente materializou anos por importação e restabeleceu o seletor global isolado. Continua proibida a comparação entre anos. [Contrato V4 histórico](TERM_COMPARISON_2026_V4.md) e [extensão atual](MULTIYEAR_RR_676.md).
 
-**#648 / PR #653:** Conselho V3 relacional integrado, migrado e publicado no deploy 262, com decisão humana 1/2/3, votos numéricos, empate fora do sistema, histórico e fotografia de fechamento. Smoke autenticado somente leitura aprovado; validação visual conjunta permanece adiada. Desde 23/11/2026 (BN-DEC-049, #1558) o Conselho guarda só o estado atual, sem linha do tempo, histórico ou fotografia, e a reunião só abre, sem justificativa (não há mais fechar nem reabrir; a turma aparece concluída quando todos os elegíveis têm decisão); a migration `0023` aguarda aplicação em produção. [Contrato e evidências](RELATIONAL_COUNCIL_V3.md).
+**#648 / PR #653:** Conselho V3 relacional integrado, migrado e publicado no deploy 262, com decisão humana 1/2/3, votos numéricos, empate fora do sistema, histórico e fotografia de fechamento. Smoke autenticado somente leitura aprovado; validação visual conjunta permanece adiada. Desde 23/11/2026 (BN-DEC-049, #1558) o Conselho guarda só o estado atual, sem linha do tempo, histórico ou fotografia, e a reunião só abre, sem justificativa (não há mais fechar nem reabrir; a turma aparece concluída quando todos os alunos a deliberar têm decisão). No mesmo dia, o registro de decisão, a contagem de votos e a lista de não elegíveis saíram do código para serem refeitos; o aluno com recuperação ainda não lançada passou a ser deliberado e os reprovados por N/C ou R/R na planilha aparecem só para conhecimento. A migration `0023` aguarda aplicação em produção. [Contrato e evidências](RELATIONAL_COUNCIL_V3.md).
 
 **#654 / PR #655:** a aba Boletins V2 foi removida em 20/11/2026 por pedido do responsável, com a tabela `boletim_snapshot` (migration `0022`), para ser refeita mais simples. O Boletim do Portal do Aluno não muda.
 

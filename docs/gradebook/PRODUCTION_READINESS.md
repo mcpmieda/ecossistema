@@ -24,7 +24,7 @@ A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; 
 | ---------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Schema/runtime   | #633; blocos #639/#640/#660/#662 | concluído; restore lógico/contenção local comprovados, backup externo explicitamente adiado                     |
 | Desempenho       | #634/#668/#677                   | concluído; comparação trimestral, metas, refinamentos e validação visual desktop/mobile verdes                  |
-| Conselho         | #635/#648                        | concluído; decisão humana, votos, empate externo, fechamento/reabertura e durabilidade                           |
+| Conselho         | #635/#648                        | concluído; decisão humana, votos, empate externo, fechamento/reabertura e durabilidade. Desde 23/11/2026 (BN-DEC-049, #1558): só o estado atual, reunião que só abre, decisão e votos em refação |
 | Boletins         | #633/#654/#684                   | concluído; emissão individual/lote, R/R terminal, snapshot, reprint e PDF exercitados                           |
 | Relatórios       | #633/#656/#684                   | concluído; cinco famílias e R/R terminal exercitados                                                            |
 | Auditoria atual  | #633/#658/#674                   | concluído; diagnóstico atual e trilha humana append-only                                                        |

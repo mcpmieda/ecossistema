@@ -15,7 +15,7 @@ O ano oficial em operação é 2026. O ano 2025 foi materializado a partir de ar
 ## Responsabilidades
 
 - **Operação escolar:** selecionar o ano global, importar primeiro a Relação e depois as fontes de notas, conferir diagnósticos e emitir artefatos somente no recorte correto.
-- **Autoridade acadêmica:** validar AM/U e situações da Relação, conduzir Conselho, registrar somente votos favoráveis/contrários e tomar eventual desempate do diretor fora do sistema.
+- **Autoridade acadêmica:** validar AM/U e situações da Relação, conduzir Conselho, registrar somente votos favoráveis/contrários e tomar eventual desempate do diretor fora do sistema. Desde 23/11/2026 (BN-DEC-049, #1558) o registro de decisão e de votos está em refação.
 - **Manutenção técnica:** integrar apenas heads verdes, acompanhar o deploy oficial, executar smoke autenticado e preservar logs/evidências sem dados identificáveis.
 
 ## Jornada normal
@@ -25,8 +25,8 @@ O ano oficial em operação é 2026. O ano 2025 foi materializado a partir de ar
 3. Reimportar arquivo idêntico somente quando necessário: o resultado esperado é “sem mudanças acadêmicas”.
 4. Conferir Auditoria e a Relação importada antes de interpretar Desempenho, boletins ou relatórios. A interface Centrais foi retirada por solicitação do responsável em 09/10/2026; o cadastro mestre permanece.
 5. Usar Desempenho para leitura e comparação entre trimestres do mesmo ano; ele não substitui a fonte oficial.
-6. No fechamento anual, tratar R/R em qualquer componente como reprovação automática e fora do Conselho.
-7. No Conselho, registrar decisão humana e votos favoráveis/contrários; empate e voto de minerva permanecem externos.
+6. No fechamento anual, tratar R/R em qualquer componente como reprovação automática e fora do Conselho. Desde 23/11/2026 (BN-DEC-049) o aluno com R/R ou N/C na planilha aparece no Conselho só para conhecimento, sem deliberação.
+7. No Conselho, registrar decisão humana e votos favoráveis/contrários; empate e voto de minerva permanecem externos. Desde 23/11/2026 (BN-DEC-049, #1558) a reunião só abre e o registro de decisão e de votos está em refação; ver [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md).
 8. Emitir boletim, lote, PDF e relatórios somente após conferir ano, período e turma. Reimpressão usa o snapshot histórico, sem reler notas atuais.
 
 ## Monitoramento mínimo

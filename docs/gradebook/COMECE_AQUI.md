@@ -24,8 +24,8 @@ Baseline factual desta memória: `main@80b2916185fc6a49df7c5ab0af71e2be4dcdeb66`
 - `imported-source` é a autoridade dos consumidores; `native-engine` permanece descritivo.
 - 2026 é o ano oficial em curso. A massa materializada de 2025 é descartável e serve apenas para teste integral.
 - O ano é selecionado globalmente e isola dados e identidades. Comparação existe somente entre trimestres do mesmo ano.
-- R/R em qualquer componente implica `REPROVADO` e exclui o aluno do Conselho.
-- Conselho registra decisão humana e votos favoráveis/contrários; desempate do diretor ocorre fora do sistema.
+- R/R em qualquer componente implica `REPROVADO` e o Conselho não delibera sobre o aluno; desde 23/11/2026 (BN-DEC-049) ele aparece nos cartões do Conselho só para conhecimento.
+- Conselho: desde 23/11/2026 (BN-DEC-049, #1558) guarda só o estado atual e a reunião só abre; o registro da decisão humana e a contagem de votos estão em refação. Desempate do diretor ocorre fora do sistema. Ver [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md).
 - Situação do aluno vem exclusivamente da Relação; AM/U vêm da fonte importada.
 
 ## Limite operacional aceito

@@ -61,7 +61,7 @@ runtime:
   academic_year_creation: materialized-by-relation-import
   cross_academic_year_comparison: forbidden
   audit_treatment: append-only-recognized-and-annotation-current-diagnostics-separate
-  rr: terminal-failed-outside-council
+  rr: terminal-failed-not-deliberated-shown-in-council-for-information
   relational_council_lifecycle: open-only-no-close-no-reopen-concluded-derived-current-state-only-no-history-no-snapshot-unjustified-open
   year_reset: explicit-annual-preview-and-confirmation-portal-guard-required
   academic_browser_persistent_storage: forbidden
