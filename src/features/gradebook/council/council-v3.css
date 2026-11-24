@@ -356,7 +356,7 @@
    the situation and, under it, why, in plain small words. */
 .council-card__status {
   display: grid;
-  justify-items: end;
+  justify-items: center;
   gap: 0.3rem;
   margin-left: auto;
   line-height: 1.2;
@@ -380,7 +380,6 @@
 }
 
 .council-card__status > span {
-  padding-right: 0.5rem;
   color: color-mix(in oklab, var(--council-tone) 70%, var(--foreground));
   font-size: 0.78rem;
   font-weight: 600;
@@ -769,16 +768,11 @@
   /* On a line of its own, under the photo and the name. */
   .council-card__status {
     margin-left: 0;
-    justify-items: start;
   }
 
   .council-card__status > strong {
     padding: 0.42rem 0.9rem;
     font-size: 0.78rem;
-  }
-
-  .council-card__status > span {
-    padding: 0 0 0 0.5rem;
   }
 
   .council-kpi {
