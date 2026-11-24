@@ -1,15 +1,23 @@
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage } from 'node:http';
 import type { Plugin, ViteDevServer } from 'vite';
 
 /*
  * Local preview only (never part of a build): serves /api/gradebook/* from the real route
- * handlers over an in-memory PGlite database with invented classes, students and marks.
- * Nothing leaves the machine and nothing here is real academic data.
+ * handlers over a PGlite database that starts with invented classes, students and marks.
+ * The database is kept in a git-ignored folder of this machine, so what is imported in the
+ * preview is still there after a restart. Nothing leaves the machine. Deleting the folder, or
+ * changing a migration or the seed, starts again from the invented data.
  */
 const ROOT = path.resolve(import.meta.dirname, '..');
 const MIGRATIONS = path.join(ROOT, 'migrations/gradebook-simplified');
+const PORTAL_MIGRATIONS = path.join(ROOT, 'migrations/student-portal');
+const LINEAGE = 'tests/student-portal/year-reset/schema-fixture.ts';
+const STORE = path.join(ROOT, 'node_modules/.cache/adm-preview-gradebook');
+/** The database this process has open: a restarted server lets go of it before opening it again. */
+const OPEN = Symbol.for('adm-preview-gradebook-open');
 const ACTOR = '11111111-1111-4111-8111-111111111111';
 
 // Deterministic 0..999 per (instrument, student), so reloads show the same marks. Two of every
@@ -85,6 +93,70 @@ async function platformSnapshot(server: ViteDevServer) {
   );
 }
 
+/** One folder per schema and seed: a change in a migration, in the Portal lineage or in the seed
+ * starts a new database instead of reading one built for another schema. */
+function storeKey(plan: readonly string[]): string {
+  const hash = createHash('sha256').update(plan.join('|')).update(SEED);
+  for (const folder of [MIGRATIONS, PORTAL_MIGRATIONS])
+    for (const file of readdirSync(folder).sort())
+      hash.update(file).update(readFileSync(path.join(folder, file)));
+  return hash
+    .update(readFileSync(path.join(ROOT, LINEAGE)))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+type PreviewDatabase = { exec(sql: string): Promise<unknown> };
+
+/** The schema, the Portal lineage and the invented data, once for each new database. */
+async function buildDatabase(
+  pg: PreviewDatabase,
+  plan: readonly string[],
+  load: (file: string) => Promise<Record<string, unknown>>,
+  skipped: string[],
+): Promise<void> {
+  await pg.exec(
+    'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;',
+  );
+  for (const file of plan) {
+    try {
+      await pg.exec(readFileSync(path.join(MIGRATIONS, file), 'utf8'));
+    } catch (error) {
+      // Cross-schema objects need the Portal schema, which this preview does not create.
+      await pg.exec('ROLLBACK').catch(() => undefined);
+      skipped.push(`${file}: ${error instanceof Error ? error.message : 'erro'}`);
+    }
+  }
+  // Desempenho, Conselho and Boletins read the student's display name from the reconciliation
+  // view, and importing a Relação writes the shared student identity. Both need the Portal
+  // lineage: the same private schema the tests install. Without it the preview shows the Relação
+  // name and only the seeded year can be read.
+  try {
+    const lineage = await load(`/${LINEAGE}`);
+    const install = (name: string) =>
+      (lineage[name] as (database: PreviewDatabase) => Promise<void>)(pg);
+    await install('installResetSchemaFixtureV1');
+    await install('installReconciliationSchemaFixtureV1');
+  } catch (error) {
+    await pg.exec('ROLLBACK').catch(() => undefined);
+    skipped.push(`linhagem do Portal: ${error instanceof Error ? error.message : 'erro'}`);
+    await pg.exec(
+      'CREATE VIEW gradebook.student_presentation_v1 AS SELECT a.id AS student_id,a.ano AS academic_year,a.nome AS name FROM gradebook.aluno a',
+    );
+  }
+  await pg.exec(SEED);
+  // The seed chose its own ids: move each counter past them, or a Relação imported in the preview
+  // would be given an id the seed already took.
+  await pg.exec(`DO $$ DECLARE c record; BEGIN
+    FOR c IN SELECT table_name, column_name FROM information_schema.columns
+              WHERE table_schema = 'gradebook' AND is_identity = 'YES' LOOP
+      EXECUTE format(
+        'SELECT setval(pg_get_serial_sequence(%L, %L), GREATEST((SELECT COALESCE(max(%I), 0) FROM gradebook.%I), 1))',
+        'gradebook.' || c.table_name, c.column_name, c.column_name, c.table_name);
+    END LOOP;
+  END $$;`);
+}
+
 async function createBackend(server: ViteDevServer) {
   const { PGlite } = await import('@electric-sql/pglite');
   const load = (file: string) => server.ssrLoadModule(file) as Promise<Record<string, unknown>>;
@@ -95,34 +167,31 @@ async function createBackend(server: ViteDevServer) {
     load('/server/auth/sealed.ts'),
     load('/server/auth/session.ts'),
   ]);
-  const pg = new PGlite();
-  await pg.exec(
-    'CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;',
-  );
-  const skipped: string[] = [];
-  for (const file of schema.GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 as readonly string[]) {
-    try {
-      await pg.exec(readFileSync(path.join(MIGRATIONS, file), 'utf8'));
-    } catch (error) {
-      // Cross-schema objects need the Portal schema, which this preview does not create.
-      await pg.exec('ROLLBACK').catch(() => undefined);
-      skipped.push(`${file}: ${error instanceof Error ? error.message : 'erro'}`);
-    }
-  }
-  // Desempenho, Conselho and Boletins read the student's display name from the reconciliation
-  // view. Its migration needs the Portal lineage; without it the preview shows the Relação name.
+  const plan = schema.GRADEBOOK_CURRENT_SCHEMA_PLAN_V1 as readonly string[];
+  const folder = path.join(STORE, storeKey(plan));
+  const ready = path.join(folder, 'ready');
+  const open = globalThis as { [OPEN]?: { close(): Promise<void> } };
+  await open[OPEN]?.close().catch(() => undefined);
+  const start = () => {
+    rmSync(STORE, { recursive: true, force: true });
+    mkdirSync(folder, { recursive: true });
+    return new PGlite(path.join(folder, 'data'), { relaxedDurability: true });
+  };
+  let fresh = !existsSync(ready);
+  let pg = fresh ? start() : new PGlite(path.join(folder, 'data'), { relaxedDurability: true });
   try {
-    await pg.exec(
-      readFileSync(path.join(MIGRATIONS, '0015_student_reconciliation_v1.sql'), 'utf8'),
-    );
-  } catch (error) {
-    await pg.exec('ROLLBACK').catch(() => undefined);
-    skipped.push(`0015: ${error instanceof Error ? error.message : 'erro'}`);
-    await pg.exec(
-      'CREATE VIEW gradebook.student_presentation_v1 AS SELECT a.id AS student_id,a.ano AS academic_year,a.nome AS name FROM gradebook.aluno a',
-    );
+    await pg.waitReady;
+  } catch {
+    // Left unreadable by a hard stop: the invented data again, and what was imported once more.
+    await pg.close().catch(() => undefined);
+    pg = start();
+    fresh = true;
+    await pg.waitReady;
   }
-  await pg.exec(SEED);
+  open[OPEN] = pg;
+  const skipped: string[] = [];
+  if (fresh) await buildDatabase(pg, plan, load, skipped);
+  if (fresh) writeFileSync(ready, '');
   const run = async (query: Query, text: string, values: readonly unknown[]) => {
     const result = await query(text, [...values]);
     return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
@@ -159,7 +228,7 @@ async function createBackend(server: ViteDevServer) {
     GRADEBOOK_DATABASE: database,
   };
   // The import route opens the production database binding itself, so the preview calls the
-  // same import service directly over the in-memory database.
+  // same import service directly over the preview's own database.
   const [importService, importObserver, importTransport] = await Promise.all([
     load('/server/gradebook/application/import/import-service.ts'),
     load('/server/gradebook/persistence/postgres/import-performance-observer-v1.ts'),

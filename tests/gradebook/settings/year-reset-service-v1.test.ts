@@ -34,7 +34,6 @@ async function seedYear(year: number, id: number) {
      INSERT INTO gradebook.fechamento (oferta_id,aluno_id,am1_fonte) VALUES ($2,$2,18000);
      INSERT INTO gradebook.conselho_anterior_historico VALUES ($2,false,true,$10,transaction_timestamp());
      INSERT INTO gradebook.conselho_decisao VALUES ($2,1,'DECISAO SINTETICA',$10,transaction_timestamp());
-     INSERT INTO gradebook.conselho_decisao_historico VALUES ($2,2,1,'ANTERIOR','NOVA',$10,transaction_timestamp());
      INSERT INTO gradebook.fechamento_historico VALUES ($2,$2,$2,1,NULL,18000,0,1);
      INSERT INTO gradebook.instrumento_historico VALUES ($2,$2,20000,30000,'ANTERIOR','NOVA');
      INSERT INTO gradebook.nota_historico VALUES ($2,$2,$2,17000,18000);
@@ -49,31 +48,12 @@ async function seedYear(year: number, id: number) {
         'file',1,NULL,$12,$10);
      INSERT INTO gradebook.conselho_sessao
        (ano,turma_id,estado,versao,atualizado_por) VALUES ($1,$2,1,4,$10);
-     INSERT INTO gradebook.conselho_sessao_historico
-       (id,ano,turma_id,versao,evento,estado_novo,justificativa,alterado_por,chave_idempotencia)
-       VALUES ($2,$1,$2,1,1,1,'ABERTURA SINTETICA',$10,$13);
      INSERT INTO gradebook.conselho_idempotencia
        (chave,operacao,ano,turma_id,versao_anterior,versao_nova,justificativa,registrado_por)
        VALUES ($14,1,$1,$2,0,1,'ABERTURA SINTETICA',$10);
      INSERT INTO gradebook.conselho_votacao
        (ano,turma_id,aluno_id,favoraveis,contrarios,versao,justificativa,registrado_por)
-       VALUES ($1,$2,$2,3,1,2,'VOTACAO SINTETICA',$10);
-     INSERT INTO gradebook.conselho_votacao_historico
-       (id,ano,turma_id,aluno_id,versao,favoraveis_novo,contrarios_novo,justificativa,
-        alterado_por,chave_idempotencia)
-       VALUES ($2,$1,$2,$2,2,3,1,'VOTACAO SINTETICA',$10,$15);
-     INSERT INTO gradebook.conselho_decisao_comando
-       (id,ano,turma_id,aluno_id,versao,decisao_nova,justificativa_nova,alterado_por,
-        chave_idempotencia)
-       VALUES ($2,$1,$2,$2,3,1,'DECISAO SINTETICA',$10,$16);
-     INSERT INTO gradebook.conselho_fechamento
-       (id,ano,turma_id,sequencia,versao,total,elegiveis,aprovados,reprovados,faltas,
-        nao_elegiveis,justificativa,fechado_por,chave_idempotencia)
-       VALUES ($2,$1,$2,1,4,1,1,1,0,0,0,'FECHAMENTO SINTETICO',$10,$17);
-     INSERT INTO gradebook.conselho_fechamento_item
-       (fechamento_id,aluno_id,elegivel,motivo_elegibilidade,decisao,favoraveis,contrarios)
-       VALUES ($2,$2,true,'ELEGIVEL',1,3,1);
-     UPDATE gradebook.conselho_sessao SET fechamento_atual_id=$2 WHERE ano=$1;`;
+       VALUES ($1,$2,$2,3,1,2,'VOTACAO SINTETICA',$10);`;
   const values: readonly (string | number)[] = [
     year,
     id,
@@ -112,6 +92,7 @@ beforeAll(async () => {
     '0019_import_diagnostics_origin_v1.sql',
     '0021_vinculo_fora_da_relacao_v1.sql',
     '0022_drop_boletim_snapshot_v1.sql',
+    '0023_council_current_state_only_v1.sql',
   ]) {
     await pg.exec(readFileSync(`migrations/gradebook-simplified/${file}`, 'utf8'));
   }
@@ -298,7 +279,7 @@ describe('year reset V1 PostgreSQL service', () => {
 
     const current = await preview(2025);
     if (current.state !== 'ready' || current.operation !== 'preview') throw new Error('preview');
-    expect(current.counts.totalRows).toBeGreaterThan(28);
+    expect(current.counts.totalRows).toBeGreaterThan(22);
     const untouchedBefore = await preview(2026);
     const untouchedTechnicalBefore = await technicalState(2026);
     const result = await createYearResetServiceV1(database, ACTOR).execute({

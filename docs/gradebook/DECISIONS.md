@@ -410,3 +410,70 @@ Começa desligado. O inventário do que foi acrescentado e de como remover está
 
 **Alternativa descartada.** Converter as planilhas para `.xlsm` e recalcular pela API do Excel na nuvem: a API não aceita acesso só do aplicativo (exige uma pessoa conectada).
 
+## BN-DEC-049 - Conselho só com o estado atual, sem histórico e sem justificativa da reunião
+
+**Data:** 2026-11-23. **Origem:** pedidos do responsável (#1558), ao testar a aba Conselho com os dados de 2025: "a partir de agora não precisa mais de justificativa para abrir reunião"; e, sobre a linha do tempo e os fechamentos preservados, "uma informação sempre substitui a atual sem snapshots nem histórico, por enquanto". Pediu também a contagem em cada botão de turma, sem texto, e a escolha da turma por botões.
+
+**Decisão.** Substitui o contrato #648, e a BN-DEC-022 onde ela preservava históricos de sessão, decisão e votação e fotografias de fechamento do Conselho, somente nestes pontos:
+
+- Abrir a reunião não leva justificativa: o comando `open` recusa o campo. Só o que é registrado sobre um aluno (decisão e contagem de votos) continua com justificativa; essas duas funções saíram do código no mesmo dia para serem refeitas (ver "Em refação", abaixo) e, até lá, o contrato não leva justificativa alguma. A reunião só abre; fechar e reabrir deixaram de existir no mesmo dia (ver "A reunião só abre", abaixo), e com eles a chave de idempotência, a versão esperada e a referência de revisão.
+- Não há linha do tempo nem fotografia de fechamento. Uma informação nova substitui a atual e nada histórico é guardado. Permanecem a sessão, a decisão atual e a contagem atual de cada aluno.
+- A resposta da turma deixa de trazer `timeline`, `closures`, `session.closedAt`, `session.snapshotCount` e `decision.version`. O contrato continua `contractVersion: 3`.
+- Cada botão de turma mostra aprovados, reprovados e pendentes, sem texto. A operação `classes` devolve `tally: { approved, rejected, pending }` por turma, calculado da própria leitura da turma; reprovados somam os do Conselho e os por falta. No mesmo dia o `tally` ganhou `forInformation` (ver "Para conhecimento", abaixo). O pedido `tally: true`, que a acompanhava, saiu no mesmo dia (ver "Só turmas com elegíveis", abaixo).
+- A turma é escolhida por botões, não por seletor.
+- A migration `0023_council_current_state_only_v1.sql` remove do PostgreSQL as tabelas de histórico e de fotografia do Conselho e a coluna `conselho_sessao.fechamento_atual_id`. Ela é aplicada depois de o código ser publicado, porque o código publicado antes ainda lê essas tabelas. Em 23/11/2026 a produção não tinha linha em nenhuma tabela do Conselho.
+- Não muda elegibilidade, cálculo, decisões possíveis nem votação. Os complementos do mesmo dia, abaixo, mudam quem o Conselho delibera e preveem novos votos; o cálculo continua o mesmo.
+
+**Em refação (23/11/2026).** No mesmo dia o responsável mandou retirar do código as funções "Decisão humana", "Contagem opcional" e "Não elegíveis", porque vai refazê-las: "por enquanto não mecha nas tabelas no portgre pois podemos precisar. ao final, o que sobrar, que ficar sem uso, a gente apaga". Até a nova versão, o contrato não tem os comandos `decision` e `vote` nem o campo `vote`; a decisão atual de `conselho_decisao` continua sendo lida (fila, contagens por turma e turma concluída). `conselho_decisao` e `conselho_votacao` ficam como estão. A lista do que apagar, incluindo a `0023`, é revista com ele antes de integrar. Dos não elegíveis, só voltaram à tela, no mesmo dia, os reprovados por N/C ou R/R na planilha (ver "Para conhecimento", abaixo).
+
+**A reunião só abre (23/11/2026).** Complemento do responsável no mesmo dia (#1558, PR rascunho #1559):
+
+- A reunião de uma turma só abre. Não existem mais "Fechar" nem "Reabrir": saem os comandos `close` e `reopen`, a referência de revisão, a versão esperada, a chave de idempotência e as falhas de conflito (HTTP 409). A turma aparece como concluída sozinha quando todos os alunos a deliberar têm decisão (os elegíveis e, pelo complemento abaixo, os de recuperação em branco); é um estado derivado, não gravado, e a decisão pode mudar a qualquer momento, mesmo depois disso.
+- Antes de a reunião estar aberta, nada pode ser inserido, só visualizado. É a regra para as funções que serão refeitas (decisão e contagem); hoje não há comando de escrita além de abrir.
+- Turma sem ninguém a deliberar não tem reunião a abrir, nem o botão "Abrir reunião"; pelos complementos seguintes, ela só é listada se tiver alunos para conhecimento.
+- A elegibilidade continua calculada na hora, pelas notas. Se uma nota corrigida chegar durante o Conselho, a lista muda. Não há trava no sistema; o controle é operacional: os alunos serão reconferidos antes de a decisão terminar e a escola combinou não enviar notas ao sistema nesse período.
+- Sem histórico, não há como desfazer uma troca de decisão por engano: risco aceito pelo responsável.
+- Divulgação ao aluno: como a decisão vale assim que registrada, haverá futuramente um controle interno para mostrar o resultado no Portal a partir de uma data. Não implementado; fica registrado só como intenção.
+
+Consequências: o contrato continua `contractVersion: 3`, com `session.state` `not-opened | open`. Abrir de novo responde a reunião já aberta, e uma sessão fechada pela versão anterior é lida como aberta. Abrir não altera a versão de dados do Portal nem dispara aviso a ele. `conselho_idempotencia` e `conselho_votacao` ficam sem uso pelo código e `conselho_decisao` é só lida; nenhuma migration nova, e as três entram na lista do que revisar com o responsável antes de integrar. Detalhes em `RELATIONAL_COUNCIL_V3.md`.
+
+**Só turmas com elegíveis, em botões independentes (23/11/2026).** Novo complemento do responsável no mesmo dia (#1558, PR rascunho #1559):
+
+- A aba lista somente as turmas com alunos elegíveis. Turma sem nenhum elegível não aparece e nada a marca: saíram o travessão ao lado da turma e o aviso "Nenhum aluno elegível nesta turma". Pelos complementos seguintes, a lista passou a ser a das turmas que têm alguém para o Conselho: a deliberar ou para conhecimento.
+- Cada turma é um botão independente; saiu o trilho contínuo de abas.
+- Turma que não pôde ser lida continua listada, com o aviso "Contagem indisponível", para não ser tomada por turma sem ninguém.
+- Ano sem nenhuma turma listada mostra "Nenhuma turma com alunos para o Conselho" (o texto era "Nenhuma turma com alunos elegíveis" até os alunos para conhecimento entrarem).
+
+Consequências: o contrato continua `contractVersion: 3`. O pedido `classes` não tem mais o campo `tally` (enviá-lo é `invalid-request`) e a resposta traz sempre as contagens de cada turma; só fica sem `tally` a turma que não pôde ser lida. A tela lê as turmas ao entrar na aba e ao voltar a ela (no máximo uma vez a cada 30 segundos) e guarda a lista enquanto o Centro está aberto; em segundo plano só a turma aberta é relida, e ela sai da lista se a releitura vier sem ninguém para o Conselho. Nenhuma tabela ou migration muda. Em 23/11/2026, somente leitura, a consulta de notas custou de 45 a 70 ms por turma no banco de produção; a #1560 avaliou acelerá-la e foi encerrada sem mudança.
+
+**Para conhecimento (23/11/2026).** Novo complemento do responsável no mesmo dia (#1558, PR rascunho #1559):
+
+- O aluno que a planilha já reprova por não comparecer à recuperação (N/C) ou pelo regimento (R/R) aparece nos cartões do Conselho, num grupo "Para conhecimento", sem voto e fora das contagens da turma: "o conselho precisa ver o histórico dele nessas notas para confirmar que ele realmente teve a situação que obteve".
+- A turma que só tem alunos assim aparece na lista, sem contagem no botão e sem "Abrir reunião".
+- Não muda o cálculo: R/R e N/C lançados na planilha continuam reprovação, sem deliberação.
+
+**Recuperação em branco participa da deliberação (23/11/2026).** Novo complemento do responsável no mesmo dia (#1558, PR rascunho #1559): o aluno com recuperação ainda não lançada entra na fila "A deliberar" e nas contagens da turma ("voto no conselho"), porque "nem sempre pode ser possível colocar essa informação na planilha. então a gente coloca aqui". Só o N/C já lançado na planilha fica para conhecimento.
+
+Consequências dos dois complementos: o contrato continua `contractVersion: 3` e nomeia as duas regras, `relationalCouncilVotableV3` (elegível ou `recovery-pending`) e `relationalCouncilInformedV3` (`failed-no-show` ou `failed-repeat`). `summary` e `tally` ganham `forInformation`; as demais contagens seguem quem é deliberado. A elegibilidade continua calculada na hora, pelo mesmo read model do Desempenho. Nenhuma tabela ou migration muda.
+
+**Votos futuros (23/11/2026; não implementado).** Decisão do responsável para a etapa dos botões de decisão, que ainda será feita. Além de aprovado e reprovado pelo Conselho, haverá:
+
+- "Reprovado por falta": faltas às aulas, a terceira decisão que já existia.
+- "Não compareceu": para a recuperação em branco.
+- "Reprovado pelo regimento": o R/R.
+
+Os dois últimos valem "como se nós tivéssemos informando isso na planilha, mas sem digitar nela" e só "para os casos em que não tem a informação na planilha". Consequência técnica analisada, não decidida: a regra de cálculo não muda; a informação dada pelo Conselho precisa de registro próprio, porque a importação regrava `gradebook.fechamento`, e precisa ser lida onde a recuperação entra no cálculo (read model do Banco e leitura do Portal), valendo a planilha quando ela estiver preenchida. Vale para esses votos a regra já registrada: nada se insere antes de a reunião estar aberta.
+
+**Cartão do aluno (23/11/2026).** Pedidos do responsável no mesmo dia (#1558), em iterações no preview:
+
+- O aluno em pauta é o cartão da frente de uma pilha; os anteriores da fila ficam atrás, à esquerda, e os próximos, à direita, com setas e um ponto para cada aluno da fila.
+- O cartão traz a foto, o número e a situação de fim de ano: "Reprovado" até o Conselho decidir, depois a decisão; nunca "Em curso" nem transferência.
+- A tabela segue o boletim da escola: componentes em colunas; nota e REC de cada trimestre em linhas; nota final ao pé. As notas sempre têm decimal. Cada nota tem fundo próprio, azul quando alcança o mínimo e vermelho abaixo; a coluna do componente não aprovado fica destacada; a recuperação ainda não lançada tem uma marca amarela.
+- A nota final usa o total com a recuperação só quando ela está completa.
+- Em tela larga a fila fica compacta no canto direito; em telas menores, em faixas acima do cartão.
+
+Consequências: o contrato continua `contractVersion: 3`. Cada componente traz `termRecoveries` (REC de cada trimestre) e `annual` (total antes da recuperação), e cada nota traz `level`, do mesmo cálculo do Desempenho. Saíram do contrato os campos que nenhuma tela lia (lista em `RELATIONAL_COUNCIL_V3.md`), entre eles a paginação de `classes`: um ano com mais turmas que o limite responde `scope-too-large`, sem truncar.
+
+**Ritmo de trabalho e pendências (23/11/2026).** Pedido do responsável no mesmo dia: durante as iterações faz-se só o necessário; documentação, testes antigos e limpeza ficam para antes do merge. Antes de integrar: rever com ele as tabelas e o código sem uso (as seis tabelas da `0023`, `conselho_idempotencia`, `conselho_votacao` e, em `conselho_sessao`, a coluna `versao` e o estado 2), aplicar a `0023` só depois de publicar o código e com o aval dele, e `npm run verify`/CI no head final. Até lá nada foi publicado e a produção não foi alterada.
+
+**Alternativa descartada.** Manter as tabelas de histórico sem uso: o responsável pediu que fossem removidas do PostgreSQL.

@@ -211,18 +211,21 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 
 ## F3-648 — Conselho relacional V3
 
-- `F3-648-001`: request/response aceitam somente 2026, limites explícitos e decisões 1/2/3 com os rótulos contratados.
-- `F3-648-002`: abertura, decisão, voto, fechamento e reabertura exigem justificativa, idempotência e CAS da sessão.
-- `F3-648-003`: sessão fechada bloqueia decisão/voto; reabertura justificada preserva fotografias anteriores e permite novo fechamento.
-- `F3-648-004`: fechamento exige referência de revisão corrente e zero estudantes elegíveis pendentes.
-- `F3-648-005`: cada fechamento preserva fotografia por aluno com elegibilidade/motivo/decisão/votos e não é alterado por comandos posteriores.
-- `F3-648-006`: somente favoráveis/contrários são persistidos; presentes é derivado e diretor/desempate/voto de minerva não existem no transporte nem no schema.
+Linhas revistas em 23/11/2026 pela BN-DEC-049 (#1558). Descrevem o comportamento coberto em cada camada: contrato, serviço, HTTP, hook e página.
+
+- `F3-648-001`: contrato — request/response são estritos: ano de 2000 a 9999, limites explícitos (100 turmas, 150 alunos, 40 ofertas) e decisão só pelos códigos 1/2/3, sem rótulo; `classes` leva só `{ year }` e recusa `offset`, `limit` e `tally`; a resposta não traz os campos retirados (lista em `RELATIONAL_COUNCIL_V3.md`).
+- `F3-648-002`: `open` leva só `{ year, classId }` e recusa justificativa, versão esperada e chave de idempotência; `close`, `reopen`, `decision` e `vote` não existem no contrato (BN-DEC-049 e complemento de 23/11/2026).
+- `F3-648-003`: abrir grava a sessão uma vez e abrir de novo responde a reunião já aberta; `session.state` só admite `not-opened | open` e as falhas são somente `invalid-request`, `not-authorized`, `not-found`, `unavailable` e `scope-too-large`.
+- `F3-648-004`: retirado pelo complemento da BN-DEC-049 (#1558): não há fechamento nem reabertura; a turma concluída é derivada de zero alunos a deliberar pendentes com a reunião aberta.
+- `F3-648-005`: retirado pela BN-DEC-049 (#1558): não há fotografia, linha do tempo nem histórico, e a decisão nova substitui a atual.
+- `F3-648-006`: retirado em 23/11/2026 com a contagem de votos, em refação (BN-DEC-049): o contrato não tem voto nem o serviço lê ou grava `conselho_votacao`; diretor/desempate/voto de minerva continuam sem existir no transporte e no schema.
 - `F3-648-007`: elegibilidade vem do read model relacional central e não é convertida automaticamente em decisão humana.
-- `F3-648-008`: estudante não elegível recebe motivo e não aceita decisão/voto; situação de matrícula e definições incompletas falham de forma explícita.
-- `F3-648-009`: HTTP exige autenticação, `gradebook.persistence.admin`, origem oficial e `no-store`; provider/gate indisponível falha fechado.
+- `F3-648-008`: contrato e serviço — cada aluno recebe o código do seu caso (`eligibility.code`), sem rótulo. `relationalCouncilVotableV3` delibera o elegível e o de recuperação ainda não lançada (`recovery-pending`); `relationalCouncilInformedV3` deixa para conhecimento o reprovado por N/C (`failed-no-show`) ou R/R (`failed-repeat`), sem voto e fora das contagens; situação de matrícula, em curso, acima do limite, aprovado e definições incompletas não são enviados e contam só em `summary.total`; com R/R e N/C no mesmo aluno vale `failed-repeat`; a decisão enviada é a que o cálculo do Desempenho honra. Não há comando de decisão nem de voto.
+- `F3-648-009`: HTTP — exige autenticação, a área `desempenho` do Centro, origem oficial e `no-store`; provider/gate indisponível falha fechado; 200, 400, 401/403, 404, 422 (`scope-too-large`) e 503, sem 409; abrir não dispara aviso pós-commit ao Portal.
 - `F3-648-010`: migration é aditiva/transacional, não altera linhas/colunas legadas e restringe tabelas/sequências à role backend.
-- `F3-648-011`: HeroUI cobre fila, detalhe T1/T2/T3/REC, KPIs, estados vazios/erro/loading, votação, decisão, sessão, timeline e histórico responsivo.
+- `F3-648-011`: hook e página — botões independentes (sem abas) só para as turmas que têm alguém para o Conselho, cada um com a contagem de aprovados/reprovados/pendentes ou o aviso "Contagem indisponível" da turma que não pôde ser lida; a turma só com alunos para conhecimento tem botão sem contagem e não mostra "Abrir reunião"; ano sem turma listada mostra "Nenhuma turma com alunos para o Conselho". `classes` é lido ao entrar na aba e ao voltar a ela (no máximo a cada 30 segundos, sem repetir a leitura em curso) e fica guardado enquanto o Centro está aberto; em segundo plano só a turma aberta é relida, e ela sai da lista se vier sem ninguém; lista e turma aberta têm cada uma a sua marca de dado antigo; a falha some quando a leitura seguinte dá certo, nada fica em "Carregando…" depois de uma leitura interrompida e a resposta de "Abrir reunião" é ignorada se a turma já é outra (`relational-council-hook-v3.test.tsx`); "Tentar novamente" em qualquer falha de leitura. Resumo de quatro números; linha da reunião (Ainda não iniciada/Aberta/Concluída) com "Abrir reunião" só enquanto a reunião não está aberta. Fila em até três grupos (A deliberar/Decididos/Para conhecimento). Cartão do aluno em pilha, com setas e pontos da fila, foto, número, situação de fim de ano ("Reprovado" até o Conselho decidir; motivo "Não compareceu" ou "Pelo regimento"; "Recuperação pendente") e tabela no formato do boletim: componentes em colunas, nota e REC de cada trimestre, nota final ao pé, notas sempre com decimal, fundo por nota, coluna do componente não aprovado destacada e marca da recuperação ainda não lançada; a nota final usa a recuperação só quando ela está completa. Sem fechar/reabrir, formulário de decisão ou contagem, lista de não elegíveis, linha do tempo ou histórico.
 - `F3-648-012`: `npm run verify`, CI do head, revisão, postflight, deploy e smoke seguem BN-DEC-023; aceite visual conjunto continua explícito e separado.
+- `F3-648-013`: contrato e serviço — `classes` devolve todas as turmas do ano de uma vez, sem paginação, cada uma com `tally: { approved, rejected, pending, forInformation }` igual ao resumo da própria turma (reprovados = Conselho + falta); a turma que não pôde ser lida vem sem `tally`; ano com mais turmas que o limite responde `scope-too-large`, sem truncar; `open` lê a turma antes de gravar, e turma acima do limite ou ilegível não ganha sessão. O resumo da turma conta só quem é deliberado, mais `forInformation`, e o contrato recusa resumo que não bate com a lista de alunos.
 
 ## F1-654 — Boletins relacionais V2
 
@@ -279,7 +282,7 @@ A aba Boletins do Banco de Notas foi removida em 20/11/2026 (pedido do responsá
 - `F14-662-006`: banco recuperado serve turmas, comparação T2×T1, Auditoria e Conselho.
 - `F14-662-007`: duas conexões provam espera no advisory lock e último snapshot de diagnósticos completo, sem mistura.
 - `F14-662-008`: falha intencional após DELETE reverte a transação e preserva o conjunto diagnóstico anterior.
-- `F14-662-009`: corrida SERIALIZABLE do Conselho repete uma vez SQLSTATE 40001; CAS resulta em um vencedor, um `version-conflict` e retry idempotente.
+- `F14-662-009`: corrida SERIALIZABLE do Conselho repete uma vez SQLSTATE 40001; desde o complemento da BN-DEC-049 (23/11/2026) a corrida é de dois `open` na mesma turma, não mais de dois `close` com CAS: não há `version-conflict` e a reunião fica aberta uma única vez.
 - `F14-662-010`: massa sintética é removida; backup/restore gerenciado, RPO/RTO, configurações externas, piloto e visual permanecem explicitamente fora do aceite.
 
 ## F14-664 — Retirada seletiva da Auditoria V1
@@ -421,7 +424,7 @@ A aba Boletins do Banco de Notas foi removida em 20/11/2026 (pedido do responsá
 - `F13-676-002`: bootstrap retorna todos os anos materializados, mais recente primeiro; troca global invalida as leituras e não persiste preferência no browser.
 - `F13-676-003`: aluno nominalmente igual em 2025/2026 possui IDs, vínculos, notas e resultados distintos; consultas cruzadas falham fechadas.
 - `F13-676-004`: `R/R` é reconhecido somente em REC, persiste em máscara própria disjunta de `N/C` e produz histórico com estado 3.
-- `F13-676-005`: qualquer `R/R` em qualquer componente produz `REPROVADO` e `not-eligible`; não entra na fila nem aceita decisão/voto de Conselho.
+- `F13-676-005`: qualquer `R/R` em qualquer componente produz `REPROVADO` e `not-eligible`; não é deliberado, não entra nas contagens da turma nem aceita decisão/voto de Conselho. Desde 23/11/2026 (BN-DEC-049) aparece nos cartões do Conselho só para conhecimento.
 - `F13-676-006`: Boletins, PDFs, Desempenho e Relatórios preservam `R/R` e o resultado terminal sem exigir U oficial inexistente para esse caso.
   A regressão de #684 também comprova emissão/reimpressão com AM oficial preservada apesar de composição calculada incompleta, presença na matriz/relatório de Recuperação e bloqueio mantido para o mesmo recorte sem R/R.
 - `F13-676-007`: comparação permanece somente entre trimestres do mesmo ano; nenhum contrato oferece comparação interanual.

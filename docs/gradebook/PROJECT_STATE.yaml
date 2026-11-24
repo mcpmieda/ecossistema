@@ -26,13 +26,14 @@ storage:
   current_official_storage: supabase-postgresql-via-cloudflare-hyperdrive
   binding: PROD_DB
   schema: gradebook
-  total_table_count: 30
-  core_table_count: 19
+  total_table_count: 24
+  core_table_count: 18
   diagnostic_table_count: 1
-  council_v3_table_count: 8
+  council_v3_table_count: 3
   relational_bulletin_table_count: 0
   diagnostic_treatment_table_count: 1
   student_identity_table_count: 1
+  council_current_state_migration: 0023-in-tree-pending-production-application-after-code-publication
   import_transport: canonical-v9
   import_service: relational-v11-over-v10
   latest_gradebook_migration: function_execute_hardening_v1
@@ -60,7 +61,8 @@ runtime:
   academic_year_creation: materialized-by-relation-import
   cross_academic_year_comparison: forbidden
   audit_treatment: append-only-recognized-and-annotation-current-diagnostics-separate
-  rr: terminal-failed-outside-council
+  rr: terminal-failed-not-deliberated-shown-in-council-for-information
+  relational_council_lifecycle: open-only-no-close-no-reopen-concluded-derived-current-state-only-no-history-no-snapshot-unjustified-open
   year_reset: explicit-annual-preview-and-confirmation-portal-guard-required
   academic_browser_persistent_storage: forbidden
   cache_control: no-store

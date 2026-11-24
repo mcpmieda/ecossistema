@@ -25,6 +25,9 @@ beforeAll(async () => {
     readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'),
   );
   await pg.exec(
+    readFileSync('migrations/gradebook-simplified/0023_council_current_state_only_v1.sql', 'utf8'),
+  );
+  await pg.exec(
     readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'),
   );
   await pg.exec(`
@@ -89,49 +92,28 @@ async function counters() {
 }
 
 describe('Council producer academic classification', () => {
-  it('distinguishes decisions/closure from administrative votes, justification and replay', async () => {
+  it('records opening as a write that changes nothing the Portal publishes, and only once', async () => {
     const service = createRelationalCouncilV3(database, ACTOR);
-    let expected = await counters();
-    const execute = async (
-      operation: string,
-      version: number,
-      extra: Record<string, unknown>,
-      academic: boolean,
-    ) => {
-      const command = request(operation, {
-        expectedVersion: version,
-        idempotencyKey: crypto.randomUUID(),
-        justification: 'Synthetic decision record',
-        ...extra,
-      });
-      const result = await service.execute(command);
-      expect(result).toMatchObject({ state: 'ready' });
-      expected = { academic: expected.academic + (academic ? 1 : 0), reset: expected.reset + 1 };
-      expect(await counters()).toEqual(expected);
-      expect(await service.execute(command)).toMatchObject({ state: 'ready' });
-      expect(await counters()).toEqual(expected);
-      return result;
-    };
-    await execute('open', 0, {}, false);
-    await execute('decision', 1, { studentId: 1, decision: 1 }, true);
-    await execute(
-      'decision',
-      2,
-      { studentId: 1, decision: 1, justification: 'Synthetic updated justification' },
-      false,
-    );
-    const voted = await execute('vote', 3, { studentId: 1, favoraveis: 2, contrarios: 1 }, false);
-    if (voted.state !== 'ready' || voted.operation === 'classes')
-      throw new Error('synthetic-workspace-missing');
-    await execute('close', 4, { reviewReference: voted.workspace.session.reviewReference }, true);
-    await execute('reopen', 5, {}, true);
-    await execute('decision', 6, { studentId: 1, decision: 2 }, true);
+    const before = await counters();
+    expect(await service.execute(request('open'))).toMatchObject({
+      state: 'ready',
+      workspace: { session: { state: 'open' } },
+    });
+    // The year reset learns of the write; the Portal's academic data version stays where it was.
+    const after = { academic: before.academic, reset: before.reset + 1 };
+    expect(await counters()).toEqual(after);
+    // Opening again writes nothing, so it records nothing.
+    expect(await service.execute(request('open'))).toMatchObject({
+      state: 'ready',
+      workspace: { session: { state: 'open' } },
+    });
+    expect(await counters()).toEqual(after);
     expect(
       (
         await pg.query(
-          "SELECT student_ids FROM student_portal.revision_event WHERE cause='council' AND affects_academic AND cardinality(student_ids)>0",
+          "SELECT affects_academic,affects_reset,student_ids FROM student_portal.revision_event WHERE cause='council'",
         )
       ).rows,
-    ).toEqual([{ student_ids: [1] }, { student_ids: [1] }]);
+    ).toEqual([{ affects_academic: false, affects_reset: true, student_ids: [] }]);
   });
 });

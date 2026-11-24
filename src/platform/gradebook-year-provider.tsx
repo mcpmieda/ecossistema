@@ -16,6 +16,12 @@ import { publishAuditYearV1 } from './audit-pending-v1';
  */
 let chosenYearV1: number | null = null;
 
+/** Starts the visit in a year chosen before, if the catalogue still has it; only the local
+ * preview does, so a reload there keeps the year in use. */
+export function resumeGradebookYearV1(year: number) {
+  chosenYearV1 ??= year;
+}
+
 /** Forgets the year of this visit; tests use it to start each case from the catalogue. */
 export function forgetGradebookYearV1() {
   chosenYearV1 = null;

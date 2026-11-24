@@ -204,7 +204,7 @@ async function routeOfficialGradebookRequestV1(
   const performanceResponse = await handlePerformanceRequestV1(request, env);
   if (performanceResponse) return performanceResponse;
 
-  const councilResponse = await handleCouncilWorkspaceRequestV1(request, env, afterCommit);
+  const councilResponse = await handleCouncilWorkspaceRequestV1(request, env);
   if (councilResponse) return councilResponse;
 
   return null;

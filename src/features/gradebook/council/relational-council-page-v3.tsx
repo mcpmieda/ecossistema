@@ -1,155 +1,161 @@
 import './council-v3.css';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Chip, Spinner } from '@heroui/react';
 import {
-  Alert,
-  Button,
-  Card,
-  Chip,
-  Label,
-  ListBox,
-  Select,
-  Spinner,
-  Surface,
-  Table,
-} from '@heroui/react';
-import {
-  Archive,
   Check,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Circle,
+  CircleAlert,
   CircleDot,
   Clock3,
-  History,
-  LockKeyhole,
   RefreshCw,
-  RotateCcw,
   Scale,
-  ShieldCheck,
   Users,
-  Vote,
+  X,
 } from 'lucide-react';
 import {
-  RELATIONAL_COUNCIL_DECISIONS_V3,
+  relationalCouncilInformedV3,
+  relationalCouncilVotableV3,
   type RelationalCouncilFailureV3,
   type RelationalCouncilStudentV3,
+  type RelationalCouncilTallyV3,
   type RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
-import { gradeText } from '../performance/performance-display-v2';
+import { LinkedStudentPhotoAvatarV1 } from '../../student-photos/linked-student-photo-avatar-v1';
+import '../../student-portal-admin/shared/student-avatar-v1.css';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
-import { useRelationalCouncilV3 } from './use-relational-council-v3';
+import { useRelationalCouncilV3, type CouncilClassViewV3 } from './use-relational-council-v3';
 
 const FAILURE: Record<RelationalCouncilFailureV3, string> = {
-  'invalid-request':
-    'A operação não pôde ser interpretada. Atualize a tela antes de tentar novamente.',
+  'invalid-request': 'A operação não pôde ser concluída. Atualize a tela e tente de novo.',
   'not-authorized': 'Sua sessão não possui autorização para operar o Conselho.',
-  'not-found': 'A turma ou o aluno não foi encontrado no contexto acadêmico atual.',
-  unavailable:
-    'O Conselho está temporariamente indisponível; nenhuma alteração parcial foi mantida.',
-  'scope-too-large': 'A turma excede o limite seguro desta leitura e não foi truncada.',
-  'version-conflict': 'Outra alteração foi salva antes desta. O estado atual foi recarregado.',
-  'idempotency-conflict': 'A chave desta ação já foi usada com outro conteúdo.',
-  'session-not-open': 'Abra a reunião antes de registrar deliberações.',
-  'session-already-open': 'A sessão já está aberta. Para corrigir um fechamento, use Reabrir.',
-  'session-closed': 'A sessão está fechada. Reabra-a com justificativa para editar.',
-  'closure-blocked': 'Ainda existem alunos elegíveis sem decisão explícita.',
-  'review-conflict': 'A revisão mudou. Confira a fila atual antes de fechar.',
-  'student-not-eligible': 'Este aluno não é elegível ao Conselho Final segundo o cálculo vigente.',
+  'not-found': 'A turma não foi encontrada neste ano letivo.',
+  unavailable: 'O Conselho está temporariamente indisponível. Tente de novo em instantes.',
+  'scope-too-large': 'Há turmas ou alunos demais para ler de uma vez.',
 };
-const RESULT_LABEL: Record<RelationalCouncilStudentV3['components'][number]['result'], string> = {
-  'in-progress': 'Em curso',
-  'approved-direct': 'Aprovado direto',
-  'recovery-pending': 'Recuperação pendente',
-  'approved-after-recovery': 'Aprovado pela recuperação',
-  'not-approved': 'Não aprovado',
-  'failed-no-show': 'N/C',
-  'failed-repeat': 'Reprovado (R/R)',
-  unavailable: 'Indisponível',
-};
-const RESULT_COLOR: Record<
-  RelationalCouncilStudentV3['components'][number]['result'],
-  'danger' | 'success' | 'default'
-> = {
-  'in-progress': 'default',
-  'approved-direct': 'success',
-  'recovery-pending': 'default',
-  'approved-after-recovery': 'success',
-  'not-approved': 'danger',
-  'failed-no-show': 'danger',
-  'failed-repeat': 'danger',
-  unavailable: 'default',
-};
-type SessionStateV3 = RelationalCouncilWorkspaceV3['session']['state'];
-const SESSION_COLOR: Record<SessionStateV3, 'success' | 'warning' | 'default'> = {
-  open: 'success',
-  closed: 'warning',
-  'not-opened': 'default',
-};
-const SESSION_LABEL: Record<SessionStateV3, string> = {
-  open: 'Sessão aberta',
-  closed: 'Sessão fechada',
-  'not-opened': 'Ainda não iniciada',
-};
-type SessionActionV3 = 'open' | 'close' | 'reopen';
-const SESSION_DONE: Record<SessionActionV3, string> = {
-  open: 'Reunião aberta.',
-  reopen: 'Reunião reaberta; o snapshot anterior foi preservado.',
-  close: 'Reunião fechada com novo snapshot imutável.',
-};
-const TIMELINE_LABEL = {
-  opened: 'Reunião aberta',
-  'decision-recorded': 'Decisão registrada',
-  'vote-recorded': 'Contagem registrada',
-  closed: 'Reunião fechada',
-  reopened: 'Reunião reaberta',
+type CouncilComponentV3 = RelationalCouncilStudentV3['components'][number];
+type CouncilGradeV3 = CouncilComponentV3['annual'];
+/** What the Conselho decided, in the words of the card and of the queue. */
+const SITUATION_V3 = {
+  1: ['Aprovado pelo Conselho', 'success'],
+  2: ['Reprovado pelo Conselho', 'danger'],
+  3: ['Reprovado por falta', 'danger'],
 } as const;
+/** What the card and the queue say of a student out of the ordinary: the one shown only for
+ * information (N/C or R/R in the sheet) and the one voted on with a recovery still to be
+ * recorded. `reason`, when there is one, goes in small words under the seal of the year's end. */
+const NOTICE_V3 = {
+  'failed-no-show': {
+    situation: 'Reprovado',
+    tone: 'danger',
+    reason: 'Não compareceu',
+    queue: 'Não compareceu à recuperação',
+  },
+  'failed-repeat': {
+    situation: 'Reprovado',
+    tone: 'danger',
+    reason: 'Pelo regimento',
+    queue: 'Reprovado pelo regimento',
+  },
+  'recovery-pending': {
+    situation: 'Recuperação pendente',
+    tone: 'warning',
+    reason: null,
+    queue: 'Recuperação ainda não lançada',
+  },
+} as const;
+const noticeV3 = (student: RelationalCouncilStudentV3) =>
+  student.eligibility.code in NOTICE_V3
+    ? NOTICE_V3[student.eligibility.code as keyof typeof NOTICE_V3]
+    : null;
+const FAILED_RESULTS_V3: readonly CouncilComponentV3['result'][] = [
+  'not-approved',
+  'failed-no-show',
+  'failed-repeat',
+];
+/** The report card always shows the decimal, as the school's does: 18,0. */
+const REPORT_MARK_V3 = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 3,
+});
+const TERM_LABELS_V3 = ['1º tri.', '2º tri.', '3º tri.'] as const;
 
-function CouncilClassSelect({
-  value,
-  disabled,
-  classes,
-  onChange,
-}: {
-  readonly value: number | null;
-  readonly disabled: boolean;
-  readonly classes: readonly {
-    readonly id: number;
-    readonly label: string;
-    readonly name: string;
-  }[];
-  readonly onChange: (value: number | null) => void;
-}) {
+/** One or many, in words: the counts are read aloud and label the summary. */
+const countedV3 = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
+const TALLY_KINDS = [
+  ['approved', 'aprovado', 'aprovados', <Check key="approved" size={11} strokeWidth={3.5} />],
+  ['rejected', 'reprovado', 'reprovados', <X key="rejected" size={11} strokeWidth={3.5} />],
+  ['pending', 'pendente', 'pendentes', <Circle key="pending" size={7} fill="currentColor" />],
+] as const;
+
+/** Where the class stands, inside its button: a mark and a count for each outcome, no words.
+ * Each outcome has its own shape, so the colour is never the only difference. */
+function ClassTallyV3({ tally }: Readonly<{ tally: RelationalCouncilTallyV3 | null }>) {
+  if (tally === null)
+    return (
+      <span
+        className="council-tally"
+        data-unavailable
+        role="img"
+        aria-label="Contagem indisponível"
+      >
+        <CircleAlert size={12} />
+      </span>
+    );
+  const shown = TALLY_KINDS.filter(([kind]) => tally[kind] > 0);
+  // A class here only for the students it takes notice of has nothing to count.
+  if (!shown.length) return null;
   return (
-    <Select
-      selectedKey={value === null ? 'none' : String(value)}
-      isDisabled={disabled}
-      onSelectionChange={(key) => {
-        if (key !== null) onChange(key === 'none' ? null : Number(key));
-      }}
+    <span
+      className="council-tally"
+      role="img"
+      aria-label={shown.map(([kind, one, many]) => countedV3(tally[kind], one, many)).join(', ')}
     >
-      <Label className="mb-1.5 block text-xs font-medium text-muted">Turma do Conselho</Label>
-      <Select.Trigger className="min-h-11 w-full">
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox>
-          <ListBox.Item id="none" textValue="Selecione a turma">
-            Selecione a turma
-            <ListBox.ItemIndicator />
-          </ListBox.Item>
-          {classes.map((item) => (
-            <ListBox.Item
-              key={item.id}
-              id={String(item.id)}
-              textValue={`${item.label} — ${item.name}`}
-            >
-              <span className="font-medium">{item.label}</span>
-              <span className="ml-2 text-xs text-muted">{item.name}</span>
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          ))}
-        </ListBox>
-      </Select.Popover>
-    </Select>
+      {shown.map(([kind, , , mark]) => (
+        <span key={kind} data-kind={kind} aria-hidden="true">
+          {mark}
+          {tally[kind]}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** The classes of the Conselho, each one its own button. */
+function CouncilClassesV3({
+  classes,
+  selectedId,
+  disabled,
+  onSelect,
+}: Readonly<{
+  classes: readonly CouncilClassViewV3[];
+  selectedId: number | null;
+  disabled: boolean;
+  onSelect: (id: number) => void;
+}>) {
+  return (
+    <div className="council-classes" role="group" aria-label="Turmas do Conselho">
+      {classes.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className="council-class"
+          data-selected={item.id === selectedId || undefined}
+          aria-pressed={item.id === selectedId}
+          disabled={disabled}
+          onClick={() => {
+            if (item.id !== selectedId) onSelect(item.id);
+          }}
+        >
+          {item.label}
+          <ClassTallyV3 tally={item.tally} />
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -162,7 +168,7 @@ function Metric({
   readonly icon: React.ReactNode;
   readonly label: string;
   readonly value: number;
-  readonly tone?: 'accent' | 'success' | 'warning' | 'danger';
+  readonly tone?: 'accent' | 'success' | 'warning';
 }) {
   return (
     <div className={`council-kpi council-kpi--${tone}`}>
@@ -184,6 +190,13 @@ function QueueCard({
   readonly selected: boolean;
   readonly onSelect: () => void;
 }) {
+  const kind = queueKindV3(student);
+  let mark = <Clock3 size={17} className="text-warning" aria-label="A deliberar" />;
+  if (kind === 'informed')
+    mark = <CircleAlert size={17} className="text-muted" aria-hidden="true" />;
+  else if (kind === 'decided')
+    mark = <CheckCircle2 size={17} className="text-success" aria-label="Decidido" />;
+  const { situation, queue } = situationV3(student);
   return (
     <button
       type="button"
@@ -194,458 +207,294 @@ function QueueCard({
     >
       <span className="council-queue-card__number">{student.number}</span>
       <span className="min-w-0">
-        <strong className="block truncate text-sm">{student.name}</strong>
-        <span className="block truncate text-xs text-muted">
-          {student.decision?.label ??
-            `${student.eligibility.failedComponentCount} componente(s) abaixo`}
+        <strong className="line-clamp-2 break-words text-sm">{student.name}</strong>
+        <span className="council-queue-card__detail block truncate text-xs text-muted">
+          {queue ??
+            (kind === 'decided'
+              ? situation
+              : `${countedV3(student.eligibility.failedComponentCount, 'componente', 'componentes')} abaixo`)}
         </span>
       </span>
-      {student.decision ? (
-        <CheckCircle2 size={17} className="text-success" aria-label="Decidido" />
-      ) : (
-        <Clock3 size={17} className="text-warning" aria-label="A deliberar" />
-      )}
+      {mark}
     </button>
   );
 }
 
-function Grade({ value, state }: { readonly value: number | null; readonly state: string }) {
-  let label;
-  if (state === 'no-show') {
-    label = 'N/C';
-  } else if (state === 'repeat-failure') {
-    label = 'R/R';
-  } else if (state === 'recovery-pending') {
-    label = 'REC';
-  } else {
-    label = gradeText(value);
-  }
-  let tone = '';
-  if (state === 'no-show' || state === 'repeat-failure') tone = 'text-danger';
-  else if (value === null) tone = 'text-muted';
-  return <span className={`font-semibold tabular-nums ${tone}`}>{label}</span>;
+/** A mark of the report card: its value, N/C or R/R, and nothing where there is no mark to show. */
+function reportMarkV3(grade: CouncilGradeV3): string {
+  if (grade.state === 'no-show') return 'N/C';
+  if (grade.state === 'repeat-failure') return 'R/R';
+  return grade.valueMilli === null ? '' : REPORT_MARK_V3.format(grade.valueMilli / 1000);
 }
+/** The year's total of a component: with the recovery once it is complete; until then, and
+ * when the student did not take it, the total of the marks as they are. */
+const finalGradeV3 = (component: CouncilComponentV3): CouncilGradeV3 =>
+  component.recovery.state === 'complete' ? component.recovery : component.annual;
 
-/** A recorded vote count as the field shows it; empty when no count was recorded. */
-const voteCountTextV3 = (student: RelationalCouncilStudentV3, side: 'favoraveis' | 'contrarios') =>
-  student.vote ? String(student.vote[side]) : '';
-
-/** The recorded decision code as the field shows it; empty when nothing was decided yet. */
-const decisionCodeTextV3 = (student: RelationalCouncilStudentV3) =>
-  student.decision ? String(student.decision.code) : '';
-
-/** The recorded decision and count as comparable text, to tell a real change from a reread. */
-const recordedDecisionKeyV3 = (student: RelationalCouncilStudentV3) =>
-  JSON.stringify([decisionCodeTextV3(student), student.decision?.justification ?? '']);
-const recordedVoteKeyV3 = (student: RelationalCouncilStudentV3) =>
-  JSON.stringify([
-    voteCountTextV3(student, 'favoraveis'),
-    voteCountTextV3(student, 'contrarios'),
-    student.vote?.justification ?? '',
-  ]);
-
-/** Both counts as whole numbers, and who was present (their sum) once both are given. */
-function voteNumbersV3(favoraveis: string, contrarios: string) {
-  const favorableNumber = /^\d+$/u.test(favoraveis) ? Number(favoraveis) : null;
-  const contraryNumber = /^\d+$/u.test(contrarios) ? Number(contrarios) : null;
-  const present =
-    favorableNumber !== null && contraryNumber !== null ? favorableNumber + contraryNumber : null;
-  return { favorableNumber, contraryNumber, present };
-}
-
-/**
- * One section (decision or vote) after its record was read again. A draft is what differs from
- * both the record it started from and the record now: it is kept when the record changed under it
- * (someone else wrote), otherwise the section shows the new record. A section whose record did
- * not change keeps its draft, and so its dirty mark.
- */
-export function reconcileDraftV3(
-  recordedBefore: string,
-  recordedNow: string,
-  draft: string,
-): { readonly reset: boolean; readonly kept: boolean; readonly dirty: boolean } {
-  const changed = recordedBefore !== recordedNow;
-  const kept = changed && draft !== recordedBefore && draft !== recordedNow;
-  return { reset: changed && !kept, kept, dirty: kept || (!changed && draft !== recordedNow) };
-}
-
-/** What the panel shows when someone else changed this student while a draft was open. */
-function changedElsewhereTextV3(student: RelationalCouncilStudentV3): string {
-  const decision = student.decision
-    ? `${RELATIONAL_COUNCIL_DECISIONS_V3[student.decision.code]} (${student.decision.justification})`
-    : 'sem decisão';
-  const vote = student.vote
-    ? ` · contagem ${student.vote.favoraveis} × ${student.vote.contrarios}`
-    : '';
-  return `O que você digitou foi mantido e não foi gravado. Registro atual: ${decision}${vote}. Confira antes de gravar de novo.`;
-}
-
-function StudentPanel({
-  student,
-  sessionOpen,
-  busy,
-  onCommand,
-  onMessage,
-  onDirtyChange,
+/** One mark of the report card, on its own background: at or above the minimum, or below it. */
+function ReportCellV3({
+  grade,
+  failed,
 }: {
-  readonly student: RelationalCouncilStudentV3;
-  readonly sessionOpen: boolean;
-  readonly busy: boolean;
-  readonly onCommand: ReturnType<typeof useRelationalCouncilV3>['command'];
-  readonly onMessage: (message: string) => void;
-  readonly onDirtyChange: (dirty: boolean) => void;
+  readonly grade: CouncilGradeV3;
+  readonly failed: true | undefined;
 }) {
-  // No decision yet starts empty: the deliberation is chosen, never preselected.
-  const [decision, setDecision] = useState(decisionCodeTextV3(student));
-  const [decisionReason, setDecisionReason] = useState(student.decision?.justification ?? '');
-  const [favoraveis, setFavoraveis] = useState(voteCountTextV3(student, 'favoraveis'));
-  const [contrarios, setContrarios] = useState(voteCountTextV3(student, 'contrarios'));
-  const [voteReason, setVoteReason] = useState(student.vote?.justification ?? '');
-  // A reread brings new objects with the same content; only a real change replaces what is typed.
-  // When someone else changed this student while a draft was open, the draft is kept and a warning
-  // shows what is recorded now. The panel is keyed by student, so the id never changes here.
-  const recordedDecision = recordedDecisionKeyV3(student);
-  const recordedVote = recordedVoteKeyV3(student);
-  const recordedBefore = useRef({ decision: recordedDecision, vote: recordedVote });
-  const [changedElsewhere, setChangedElsewhere] = useState(false);
-  useEffect(() => {
-    const before = recordedBefore.current;
-    recordedBefore.current = { decision: recordedDecision, vote: recordedVote };
-    const decisionSection = reconcileDraftV3(
-      before.decision,
-      recordedDecision,
-      JSON.stringify([decision, decisionReason.trim()]),
+  // A recovery the student owes and the sheet has not brought yet: a mark of its own, no number.
+  if (grade.state === 'recovery-pending')
+    return (
+      <td data-failed={failed}>
+        <span data-level="pending" role="img" aria-label="Recuperação ainda não lançada">
+          <Clock3 size={12} strokeWidth={2.6} />
+        </span>
+      </td>
     );
-    const voteSection = reconcileDraftV3(
-      before.vote,
-      recordedVote,
-      JSON.stringify([favoraveis, contrarios, voteReason.trim()]),
-    );
-    if (decisionSection.reset) {
-      setDecision(decisionCodeTextV3(student));
-      setDecisionReason(student.decision?.justification ?? '');
-    }
-    if (voteSection.reset) {
-      setFavoraveis(voteCountTextV3(student, 'favoraveis'));
-      setContrarios(voteCountTextV3(student, 'contrarios'));
-      setVoteReason(student.vote?.justification ?? '');
-    }
-    setChangedElsewhere(decisionSection.kept || voteSection.kept);
-    onDirtyChange(decisionSection.dirty || voteSection.dirty);
-  }, [recordedDecision, recordedVote, onDirtyChange]);
-  const { favorableNumber, contraryNumber, present } = voteNumbersV3(favoraveis, contrarios);
+  const mark = reportMarkV3(grade);
   return (
-    <div className="grid min-w-0 gap-4">
-      <Card className="overflow-hidden">
-        <Card.Header className="flex flex-col items-start gap-3 border-b border-separator sm:flex-row sm:items-center">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-accent-soft font-bold text-accent">
-            {student.number}
-          </span>
-          <div className="min-w-0">
-            <Card.Title className="break-words text-xl">{student.name}</Card.Title>
-            <Card.Description>{student.statusLabel}</Card.Description>
-          </div>
-          <Chip
-            className="sm:ml-auto"
-            color={student.eligibility.eligible ? 'success' : 'default'}
-            variant="soft"
-          >
-            <Chip.Label>{student.eligibility.eligible ? 'Elegível' : 'Não elegível'}</Chip.Label>
-          </Chip>
-        </Card.Header>
-        <Card.Content className="grid gap-4 pt-4">
-          {changedElsewhere ? (
-            <Alert status="warning">
-              <Alert.Indicator />
-              <Alert.Content>
-                <Alert.Title>Outra pessoa alterou este aluno</Alert.Title>
-                <Alert.Description>{changedElsewhereTextV3(student)}</Alert.Description>
-              </Alert.Content>
-            </Alert>
+    <td data-failed={failed}>
+      {mark ? (
+        <span data-level={grade.level}>
+          {mark}
+          {/* N/C and R/R say it themselves; only a number needs the words. */}
+          {grade.level === 'below' &&
+          grade.state !== 'no-show' &&
+          grade.state !== 'repeat-failure' ? (
+            <span className="sr-only"> (abaixo do mínimo)</span>
           ) : null}
-          <Alert status={student.eligibility.eligible ? 'success' : 'default'}>
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>{student.eligibility.label}</Alert.Title>
-              <Alert.Description>
-                {student.calculatedResult ??
-                  'O resultado calculado ainda não emite decisão humana.'}
-              </Alert.Description>
-            </Alert.Content>
-          </Alert>
-          <Table>
-            <Table.ScrollContainer className="max-w-full overflow-x-auto">
-              <Table.Content
-                aria-label={`Resultado anual de ${student.name}`}
-                className="min-w-[760px]"
-              >
-                <Table.Header>
-                  <Table.Column id="subject" isRowHeader>
-                    Componente
-                  </Table.Column>
-                  <Table.Column id="t1">1º tri.</Table.Column>
-                  <Table.Column id="t2">2º tri.</Table.Column>
-                  <Table.Column id="t3">3º tri.</Table.Column>
-                  <Table.Column id="rec">REC</Table.Column>
-                  <Table.Column id="result">Resultado</Table.Column>
-                </Table.Header>
-                <Table.Body
-                  items={student.components}
-                  renderEmptyState={() => 'Nenhum componente disponível.'}
-                >
-                  {(component) => (
-                    <Table.Row id={component.offerId}>
-                      <Table.Cell>
-                        <span className="font-medium">
-                          {component.subject.abbreviation ?? component.subject.label}
-                        </span>
-                        <span className="ml-2 text-xs text-muted">{component.subject.label}</span>
-                      </Table.Cell>
-                      {component.terms.map((term, index) => (
-                        <Table.Cell key={index /* NOSONAR fixed T1-T3 tuple */}>
-                          <Grade value={term.valueMilli} state={term.state} />
-                        </Table.Cell>
-                      ))}
-                      <Table.Cell>
-                        <Grade
-                          value={component.recovery.valueMilli}
-                          state={component.recovery.state}
-                        />
-                      </Table.Cell>
-                      <Table.Cell>
-                        <Chip size="sm" variant="soft" color={RESULT_COLOR[component.result]}>
-                          <Chip.Label>{RESULT_LABEL[component.result]}</Chip.Label>
-                        </Chip>
-                      </Table.Cell>
-                    </Table.Row>
-                  )}
-                </Table.Body>
-              </Table.Content>
-            </Table.ScrollContainer>
-          </Table>
-        </Card.Content>
-      </Card>
+        </span>
+      ) : null}
+    </td>
+  );
+}
 
-      {student.eligibility.eligible ? (
-        <div className="grid min-w-0 gap-4 xl:grid-cols-2">
-          <Card>
-            <Card.Header>
-              <div>
-                <Card.Title>Decisão humana</Card.Title>
-                <Card.Description>
-                  O sistema registra a deliberação; não a infere pelas notas ou pelos votos.
-                </Card.Description>
-              </div>
-            </Card.Header>
-            <Card.Content className="grid gap-3">
-              <Select
-                selectedKey={decision || null}
-                placeholder="Escolha a situação"
-                isDisabled={!sessionOpen || busy}
-                onSelectionChange={(key) => {
-                  if (key !== null) {
-                    onDirtyChange(true);
-                    setDecision(String(key));
-                  }
-                }}
-              >
-                <Label className="text-xs font-medium text-muted">Situação após o Conselho</Label>
-                <Select.Trigger>
-                  <Select.Value />
-                  <Select.Indicator />
-                </Select.Trigger>
-                <Select.Popover>
-                  <ListBox>
-                    {Object.entries(RELATIONAL_COUNCIL_DECISIONS_V3).map(([code, label]) => (
-                      <ListBox.Item key={code} id={code} textValue={label}>
-                        {label}
-                        <ListBox.ItemIndicator />
-                      </ListBox.Item>
-                    ))}
-                  </ListBox>
-                </Select.Popover>
-              </Select>
-              <div>
-                <Label
-                  htmlFor={`decision-reason-${student.id}`}
-                  className="mb-1.5 block text-xs font-medium text-muted"
-                >
-                  Justificativa da decisão
-                </Label>
-                <textarea
-                  id={`decision-reason-${student.id}`}
-                  value={decisionReason}
-                  onChange={(event) => {
-                    onDirtyChange(true);
-                    setDecisionReason(event.currentTarget.value);
-                  }}
-                  disabled={!sessionOpen || busy}
-                  rows={3}
-                  className="council-textarea"
+/** The student's year as the school's report card lays it out: a column for each component, a
+ * row for each term's mark and REC, and the year's total. The column of a component the student
+ * did not pass is tinted. */
+function StudentReportV3({ student }: { readonly student: RelationalCouncilStudentV3 }) {
+  const failed = (component: CouncilComponentV3) =>
+    FAILED_RESULTS_V3.includes(component.result) || undefined;
+  return (
+    <div className="council-report__scroll">
+      <table className="council-report" aria-label={`Notas do ano de ${student.name}`}>
+        {/* The two label columns have their own widths: the second one stays beside the first
+            when a narrow screen slides the components. */}
+        <colgroup>
+          <col />
+          <col />
+        </colgroup>
+        <thead>
+          <tr>
+            <td colSpan={2} />
+            {student.components.map((component) => (
+              <th key={component.offerId} scope="col" data-failed={failed(component)}>
+                <span>{component.subject}</span>
+                {failed(component) ? <span className="sr-only"> (não aprovado)</span> : null}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        {TERM_LABELS_V3.map((label, term) => (
+          <tbody key={label}>
+            <tr>
+              <th scope="rowgroup" rowSpan={2}>
+                {label}
+              </th>
+              <th scope="row">Nota</th>
+              {student.components.map((component) => (
+                <ReportCellV3
+                  key={component.offerId}
+                  grade={component.terms[term]!}
+                  failed={failed(component)}
                 />
-              </div>
-              <Button
-                variant="primary"
-                isDisabled={
-                  !sessionOpen || busy || decision === '' || decisionReason.trim().length < 3
-                }
-                onPress={async () => {
-                  const response = await onCommand({
-                    operation: 'decision',
-                    studentId: student.id,
-                    decision: Number(decision) as 1 | 2 | 3,
-                    justification: decisionReason.trim(),
-                  });
-                  if (response?.state === 'ready') {
-                    onDirtyChange(false);
-                    onMessage('Decisão humana registrada com histórico.');
-                  }
-                }}
-              >
-                <ShieldCheck size={17} />
-                {student.decision ? 'Atualizar decisão' : 'Registrar decisão'}
-              </Button>
-            </Card.Content>
-          </Card>
-          <Card>
-            <Card.Header>
-              <div>
-                <Card.Title>Contagem opcional</Card.Title>
-                <Card.Description>
-                  Somente votos favoráveis e contrários. Presentes é calculado pela soma.
-                </Card.Description>
-              </div>
-            </Card.Header>
-            <Card.Content className="grid gap-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label
-                    htmlFor={`votes-for-${student.id}`}
-                    className="text-xs font-medium text-muted"
-                  >
-                    Favoráveis
-                  </Label>
-                  <input
-                    id={`votes-for-${student.id}`}
-                    inputMode="numeric"
-                    value={favoraveis}
-                    onChange={(event) => {
-                      onDirtyChange(true);
-                      setFavoraveis(event.currentTarget.value);
-                    }}
-                    disabled={!sessionOpen || busy}
-                    className="council-number-input"
-                  />
-                </div>
-                <div>
-                  <Label
-                    htmlFor={`votes-against-${student.id}`}
-                    className="text-xs font-medium text-muted"
-                  >
-                    Contrários
-                  </Label>
-                  <input
-                    id={`votes-against-${student.id}`}
-                    inputMode="numeric"
-                    value={contrarios}
-                    onChange={(event) => {
-                      onDirtyChange(true);
-                      setContrarios(event.currentTarget.value);
-                    }}
-                    disabled={!sessionOpen || busy}
-                    className="council-number-input"
-                  />
-                </div>
-              </div>
-              <PresentCountV3
-                present={present}
-                tie={present !== null && favorableNumber === contraryNumber}
+              ))}
+            </tr>
+            <tr data-rec>
+              <th scope="row">REC</th>
+              {student.components.map((component) => (
+                <ReportCellV3
+                  key={component.offerId}
+                  grade={component.termRecoveries[term]!}
+                  failed={failed(component)}
+                />
+              ))}
+            </tr>
+          </tbody>
+        ))}
+        <tfoot>
+          <tr>
+            <th scope="row" colSpan={2}>
+              Nota final
+            </th>
+            {student.components.map((component) => (
+              <ReportCellV3
+                key={component.offerId}
+                grade={finalGradeV3(component)}
+                failed={failed(component)}
               />
-              <div>
-                <Label
-                  htmlFor={`vote-reason-${student.id}`}
-                  className="mb-1.5 block text-xs font-medium text-muted"
-                >
-                  Justificativa do registro
-                </Label>
-                <textarea
-                  id={`vote-reason-${student.id}`}
-                  value={voteReason}
-                  onChange={(event) => {
-                    onDirtyChange(true);
-                    setVoteReason(event.currentTarget.value);
-                  }}
-                  disabled={!sessionOpen || busy}
-                  rows={3}
-                  className="council-textarea"
-                />
-              </div>
-              <Button
-                variant="secondary"
-                isDisabled={
-                  !sessionOpen || busy || present === null || voteReason.trim().length < 3
-                }
-                onPress={async () => {
-                  if (favorableNumber === null || contraryNumber === null) return;
-                  const response = await onCommand({
-                    operation: 'vote',
-                    studentId: student.id,
-                    favoraveis: favorableNumber,
-                    contrarios: contraryNumber,
-                    justification: voteReason.trim(),
-                  });
-                  if (response?.state === 'ready') {
-                    onDirtyChange(false);
-                    onMessage('Contagem registrada; nenhuma decisão foi criada automaticamente.');
-                  }
-                }}
-              >
-                <Vote size={17} />
-                {student.vote ? 'Atualizar contagem' : 'Registrar contagem'}
-              </Button>
-            </Card.Content>
-          </Card>
+            ))}
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+/** Where a student stands in the queue. A student the sheet already fails is there only for
+ * information, whatever was once decided about it. */
+function queueKindV3(student: RelationalCouncilStudentV3) {
+  if (relationalCouncilInformedV3(student)) return 'informed';
+  return student.decision ? 'decided' : 'pending';
+}
+
+/** The year's end of a student, its tone, why (under the seal) and what the queue says of it:
+ * not approved until the Conselho says otherwise. */
+function situationV3(student: RelationalCouncilStudentV3): {
+  readonly situation: string;
+  readonly tone: 'success' | 'danger' | 'warning';
+  readonly reason: string | null;
+  readonly queue: string | null;
+} {
+  if (student.decision && queueKindV3(student) === 'decided') {
+    const [situation, tone] = SITUATION_V3[student.decision.code];
+    return { situation, tone, reason: null, queue: null };
+  }
+  return noticeV3(student) ?? { situation: 'Reprovado', tone: 'danger', reason: null, queue: null };
+}
+
+/** What a student's card shows: the photo, the year's end and the report card. */
+function StudentCardV3({
+  student,
+  year,
+}: Readonly<{ student: RelationalCouncilStudentV3; year: number }>) {
+  const { situation, reason } = situationV3(student);
+  return (
+    <>
+      <header className="council-card__header">
+        <LinkedStudentPhotoAvatarV1
+          decorative
+          size="lg"
+          loading="eager"
+          className="pa-student-avatar council-card__photo"
+          fallbackTone={student.id % 6}
+          subject={{ source: 'gradebook', academicYear: year, studentIds: [student.id] }}
+        />
+        <div className="council-card__name">
+          <h3 className="break-words text-base font-bold tracking-tight sm:text-lg">
+            {student.name}
+          </h3>
+          <p className="text-sm text-muted">Nº {student.number}</p>
+        </div>
+        {/* The year's end as a seal and, under it, why. */}
+        <p className="council-card__status">
+          <strong>{situation}</strong>
+          {reason ? <span>{reason}</span> : null}
+        </p>
+      </header>
+      <StudentReportV3 student={student} />
+    </>
+  );
+}
+
+/** The queue as a pile of cards on a stage: the student under discussion on top, the two before
+ * it behind at the left and the two after it behind at the right. Each student keeps its own
+ * card, so moving through the queue slides the cards from one place of the pile to the next.
+ * Under the pile, a dot for each student of the queue shows where the Conselho is. */
+function StudentDeckV3({
+  queue,
+  position,
+  year,
+  onSelect,
+}: Readonly<{
+  queue: readonly RelationalCouncilStudentV3[];
+  position: number;
+  year: number;
+  onSelect: (studentId: number) => void;
+}>) {
+  const step = (by: -1 | 1) => {
+    const next = queue[position + by];
+    if (next) onSelect(next.id);
+  };
+  return (
+    <div className="council-stage">
+      <div className="council-deck">
+        {queue.map((student, index) => {
+          const offset = index - position;
+          if (Math.abs(offset) > 2) return null;
+          return (
+            <article
+              key={student.id}
+              className="council-card"
+              data-offset={offset}
+              data-tone={situationV3(student).tone}
+              aria-label={student.name}
+              // Only the card on top is read and reached; its neighbours are drawn for the slide.
+              inert={offset !== 0}
+              aria-hidden={offset !== 0 || undefined}
+            >
+              {Math.abs(offset) <= 1 ? <StudentCardV3 student={student} year={year} /> : null}
+            </article>
+          );
+        })}
+        {queue.length > 1 ? (
+          <>
+            <button
+              type="button"
+              className="council-deck__arrow"
+              data-side="previous"
+              aria-label="Aluno anterior"
+              aria-disabled={position === 0}
+              onClick={() => step(-1)}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <button
+              type="button"
+              className="council-deck__arrow"
+              data-side="next"
+              aria-label="Próximo aluno"
+              aria-disabled={position === queue.length - 1}
+              onClick={() => step(1)}
+            >
+              <ChevronRight size={18} />
+            </button>
+          </>
+        ) : null}
+      </div>
+      {queue.length > 1 ? (
+        // A shortcut for the mouse; by keyboard and by voice the queue and the arrows do it.
+        <div className="council-pager" aria-hidden="true">
+          {queue.map((student, index) => (
+            <button
+              key={student.id}
+              type="button"
+              tabIndex={-1}
+              data-kind={queueKindV3(student)}
+              data-current={index === position || undefined}
+              onClick={() => onSelect(student.id)}
+            />
+          ))}
         </div>
       ) : null}
     </div>
   );
 }
 
-/** Present = favourable + contrary; a tie is decided outside the system. */
-function PresentCountV3({ present, tie }: Readonly<{ present: number | null; tie: boolean }>) {
-  return (
-    <div className="flex min-h-8 items-center gap-2 text-sm">
-      <Users size={16} />
-      <span>{present === null ? 'Informe as duas contagens' : `${present} presente(s)`}</span>
-      {tie ? (
-        <Chip size="sm" color="warning" variant="soft">
-          <Chip.Label>Empate · decisão fora do sistema</Chip.Label>
-        </Chip>
-      ) : null}
-    </div>
-  );
-}
-
-/** The reads in progress, the last failure, a stale live read and the last confirmation. */
+/** The reads in progress, the last failure and a stale live read. */
 function CouncilStatusV3({
   busy,
   failure,
   stale,
-  message,
 }: Readonly<{
   busy: { classes: boolean; workspace: boolean };
   failure: RelationalCouncilFailureV3 | null;
   stale: boolean;
-  message: string;
 }>) {
   return (
-    <div className="min-h-10" aria-live="polite">
+    // Empty, it stays in the page for the announcements but out of the flow: no row and no gap.
+    <div className="empty:absolute" aria-live="polite">
       {busy.classes || busy.workspace ? (
         <p className="flex items-center gap-2 text-sm text-muted">
-          <output className="contents">
-            <Spinner size="sm" />
-            Carregando a leitura segura do Conselho…
-          </output>
+          <Spinner size="sm" />
+          Carregando…
         </p>
       ) : null}
       {failure ? (
@@ -658,207 +507,37 @@ function CouncilStatusV3({
         </Alert>
       ) : null}
       <LiveReadNoticeV1 failed={stale} />
-      {message ? <p className="text-sm font-medium text-success">{message}</p> : null}
     </div>
   );
 }
 
-/** The class session: its state, the justification, and open, reopen or a confirmed close. */
-function CouncilSessionCardV3({
+/** The meeting of the class: not started, open, or concluded once every student it deliberates
+ * on has a decision. It opens once and is never closed. */
+function CouncilSessionV3({
   workspace,
-  reason,
-  onReason,
-  confirmClose,
-  onConfirmClose,
   busy,
-  onSessionCommand,
+  onOpen,
 }: Readonly<{
   workspace: RelationalCouncilWorkspaceV3;
-  reason: string;
-  onReason: (reason: string) => void;
-  confirmClose: boolean;
-  onConfirmClose: (confirm: boolean) => void;
   busy: boolean;
-  onSessionCommand: (operation: SessionActionV3) => void;
+  onOpen: () => void;
 }>) {
+  const opened = workspace.session.state === 'open';
+  const concluded = opened && workspace.summary.pending === 0;
+  let state = 'Ainda não iniciada';
+  if (concluded) state = 'Concluída';
+  else if (opened) state = 'Aberta';
   return (
-    <Card>
-      <Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div>
-          <Card.Title>Sessão da turma {workspace.classGroup.label}</Card.Title>
-          <Card.Description>
-            Versão institucional {workspace.session.version} · {workspace.session.snapshotCount}{' '}
-            fechamento(s) preservado(s)
-          </Card.Description>
-        </div>
-        <Chip className="sm:ml-auto" color={SESSION_COLOR[workspace.session.state]} variant="soft">
-          <Chip.Label>{SESSION_LABEL[workspace.session.state]}</Chip.Label>
-        </Chip>
-      </Card.Header>
-      <Card.Content className="grid gap-3 border-t border-separator pt-4">
-        <div>
-          <Label
-            htmlFor="council-session-reason"
-            className="mb-1.5 block text-xs font-medium text-muted"
-          >
-            Justificativa da ação na sessão
-          </Label>
-          <textarea
-            id="council-session-reason"
-            className="council-textarea"
-            rows={2}
-            value={reason}
-            onChange={(event) => onReason(event.currentTarget.value)}
-            disabled={busy}
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {workspace.session.state === 'not-opened' ? (
-            <Button
-              variant="primary"
-              isDisabled={reason.trim().length < 3 || busy}
-              onPress={() => onSessionCommand('open')}
-            >
-              <CircleDot size={17} />
-              Abrir reunião
-            </Button>
-          ) : null}
-          {workspace.session.state === 'closed' ? (
-            <Button
-              variant="primary"
-              isDisabled={reason.trim().length < 3 || busy}
-              onPress={() => onSessionCommand('reopen')}
-            >
-              <RotateCcw size={17} />
-              Reabrir com justificativa
-            </Button>
-          ) : null}
-          {workspace.session.state === 'open' && !confirmClose ? (
-            <Button
-              variant="secondary"
-              isDisabled={workspace.summary.pending > 0 || reason.trim().length < 3 || busy}
-              onPress={() => onConfirmClose(true)}
-            >
-              <LockKeyhole size={17} />
-              Revisar fechamento
-            </Button>
-          ) : null}
-        </div>
-        {workspace.session.state === 'open' && workspace.summary.pending > 0 ? (
-          <p className="text-xs text-warning">
-            Faltam {workspace.summary.pending} decisão(ões) explícita(s) antes do fechamento.
-          </p>
-        ) : null}
-        {confirmClose ? (
-          <Alert status="warning">
-            <Alert.Indicator />
-            <Alert.Content>
-              <Alert.Title>Confirmar fechamento institucional?</Alert.Title>
-              <Alert.Description>
-                As edições serão bloqueadas e um novo snapshot imutável será criado. A correção
-                posterior exige reabertura justificada.
-              </Alert.Description>
-              <div className="mt-3 flex gap-2">
-                <Button
-                  variant="primary"
-                  isDisabled={busy}
-                  onPress={() => onSessionCommand('close')}
-                >
-                  <Archive size={16} />
-                  Fechar e preservar snapshot
-                </Button>
-                <Button variant="ghost" onPress={() => onConfirmClose(false)}>
-                  Cancelar
-                </Button>
-              </div>
-            </Alert.Content>
-          </Alert>
-        ) : null}
-      </Card.Content>
-    </Card>
-  );
-}
-
-/** The timeline of human actions and the preserved closures. */
-function CouncilHistoryV3({ workspace }: Readonly<{ workspace: RelationalCouncilWorkspaceV3 }>) {
-  return (
-    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(18rem,.8fr)]">
-      <Card>
-        <Card.Header>
-          <div className="flex items-center gap-2">
-            <History size={18} />
-            <Card.Title>Linha do tempo</Card.Title>
-          </div>
-          <Card.Description>
-            Histórico de ações humanas, sem participantes nominais da votação.
-          </Card.Description>
-        </Card.Header>
-        <Card.Content>
-          {workspace.timeline.length ? (
-            <ol className="council-timeline">
-              {workspace.timeline.map((event, index) => (
-                <li key={event.id}>
-                  <span className="council-timeline__rail">
-                    <span className="council-timeline__marker" />
-                    {index < workspace.timeline.length - 1 ? (
-                      <span className="council-timeline__connector" />
-                    ) : null}
-                  </span>
-                  <article>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong>{TIMELINE_LABEL[event.action]}</strong>
-                      <Chip size="sm" variant="soft">
-                        <Chip.Label>v{event.version}</Chip.Label>
-                      </Chip>
-                    </div>
-                    {event.studentLabel ? <p className="text-sm">{event.studentLabel}</p> : null}
-                    <p className="text-sm text-muted">{event.justification}</p>
-                    <time className="text-xs text-muted" dateTime={event.occurredAt}>
-                      {new Date(event.occurredAt).toLocaleString('pt-BR')}
-                    </time>
-                  </article>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="text-sm text-muted">
-              A linha do tempo começará quando a reunião for aberta.
-            </p>
-          )}
-        </Card.Content>
-      </Card>
-      <Card>
-        <Card.Header>
-          <Card.Title>Fechamentos preservados</Card.Title>
-          <Card.Description>Cada reabertura mantém os snapshots anteriores.</Card.Description>
-        </Card.Header>
-        <Card.Content>
-          {workspace.closures.length ? (
-            <ul className="grid gap-2">
-              {workspace.closures.map((closure) => (
-                <li key={closure.id} className="rounded-xl border border-separator p-3">
-                  <div className="flex items-center gap-2">
-                    <Archive size={16} />
-                    <strong>Fechamento {closure.sequence}</strong>
-                    <Chip size="sm" variant="soft" className="ml-auto">
-                      <Chip.Label>v{closure.version}</Chip.Label>
-                    </Chip>
-                  </div>
-                  <p className="mt-2 text-xs text-muted">
-                    {closure.summary.approved} aprovado(s) · {closure.summary.rejected} reprovado(s)
-                    · {closure.summary.absence} por falta
-                  </p>
-                  <time className="mt-1 block text-xs text-muted" dateTime={closure.closedAt}>
-                    {new Date(closure.closedAt).toLocaleString('pt-BR')}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted">Nenhum fechamento realizado.</p>
-          )}
-        </Card.Content>
-      </Card>
+    <div className="council-session" role="group" aria-label="Reunião da turma">
+      <Chip color={concluded ? 'success' : opened ? 'accent' : 'default'} variant="soft">
+        <Chip.Label>{state}</Chip.Label>
+      </Chip>
+      {opened ? null : (
+        <Button variant="primary" className="ml-auto" isDisabled={busy} onPress={onOpen}>
+          <CircleDot size={17} />
+          Abrir reunião
+        </Button>
+      )}
     </div>
   );
 }
@@ -866,112 +545,84 @@ function CouncilHistoryV3({ workspace }: Readonly<{ workspace: RelationalCouncil
 export function RelationalCouncilPageV3() {
   const state = useRelationalCouncilV3();
   const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
-  const [sessionReason, setSessionReason] = useState('');
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [message, setMessage] = useState('');
-  const [studentDirty, setStudentDirty] = useState(false);
   const workspace = state.workspace;
-  const eligible = useMemo(
-    () => workspace?.students.filter((student) => student.eligibility.eligible) ?? [],
+  // Who the Conselho deliberates on: the eligible students and the ones with a recovery still to
+  // be recorded.
+  const votable = useMemo(
+    () => workspace?.students.filter(relationalCouncilVotableV3) ?? [],
     [workspace],
   );
-  const pending = eligible.filter((student) => !student.decision);
-  const decided = eligible.filter((student) => student.decision);
-  const notEligible = workspace?.students.filter((student) => !student.eligibility.eligible) ?? [];
-  const selected =
-    eligible.find((student) => student.id === selectedStudentId) ?? eligible[0] ?? null;
-  const protectDrafts = studentDirty || sessionReason.length > 0 || confirmClose;
-  state.protectDrafts(protectDrafts);
+  const pending = votable.filter((student) => !student.decision);
+  const decided = votable.filter((student) => student.decision);
+  const informed = workspace?.students.filter(relationalCouncilInformedV3) ?? [];
+  // The pile follows the queue: who is still to be discussed, who already has a decision, and
+  // who is there only for the Conselho to take notice of.
+  const queue = [...pending, ...decided, ...informed];
+  const selected = queue.find((student) => student.id === selectedStudentId) ?? queue[0] ?? null;
+  const position = Math.max(
+    queue.findIndex((student) => student.id === selected?.id),
+    0,
+  );
   useEffect(() => {
     if (!workspace) {
       setSelectedStudentId(null);
       return;
     }
     setSelectedStudentId((current) =>
-      eligible.some((student) => student.id === current)
-        ? current
-        : ((pending[0] ?? eligible[0])?.id ?? null),
+      queue.some((student) => student.id === current) ? current : (queue[0]?.id ?? null),
     );
-    setConfirmClose(false);
-    setSessionReason('');
-    setStudentDirty(false);
   }, [workspace?.classGroup.id]);
 
-  async function sessionCommand(operation: SessionActionV3) {
-    if (!workspace || sessionReason.trim().length < 3) return;
-    const response =
-      operation === 'close'
-        ? await state.command({
-            operation,
-            reviewReference: workspace.session.reviewReference,
-            justification: sessionReason.trim(),
-          })
-        : await state.command({ operation, justification: sessionReason.trim() });
-    if (response?.state === 'ready') {
-      setMessage(SESSION_DONE[operation]);
-      setSessionReason('');
-      setConfirmClose(false);
-    }
-  }
-
   return (
-    <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-4">
-      <header className="flex min-h-12 flex-wrap items-center gap-3">
-        <div>
-          <h2 className="sr-only">Conselho de Classe</h2>
-          <p className="text-xs text-muted">
-            Deliberação humana auditável sobre a elegibilidade calculada do ano selecionado.
-          </p>
-        </div>
-        <Chip size="sm" variant="soft" color="accent" className="ml-auto">
-          <Chip.Label>{state.year} · decisão explícita</Chip.Label>
-        </Chip>
-      </header>
-      <Surface className="council-filterbar">
-        <div className="min-w-0 flex-1">
-          <CouncilClassSelect
-            value={state.classId}
-            disabled={state.busy.classes || state.busy.command}
-            classes={state.classes}
-            onChange={(value) => void state.selectClass(value)}
-          />
-        </div>
-        {state.failure && state.classId !== null ? (
-          <Button
-            variant="secondary"
-            isDisabled={state.busy.workspace || state.busy.command || protectDrafts}
-            onPress={() => void state.loadWorkspace(state.classId!)}
-          >
-            <RefreshCw size={16} />
-            Tentar novamente
-          </Button>
-        ) : null}
-      </Surface>
-      <CouncilStatusV3
-        busy={state.busy}
-        failure={state.failure}
-        stale={state.stale}
-        message={message}
-      />
-      {!workspace && !state.busy.workspace ? (
+    <section aria-labelledby="council-heading" className="grid min-w-0 gap-4">
+      <h2 id="council-heading" className="sr-only">
+        Conselho de Classe
+      </h2>
+      {state.classes.length ? (
+        <CouncilClassesV3
+          classes={state.classes}
+          selectedId={state.classId}
+          disabled={state.busy.command}
+          onSelect={(id) => void state.selectClass(id)}
+        />
+      ) : null}
+      {state.failure ? (
+        <Button
+          variant="secondary"
+          className="justify-self-start"
+          isDisabled={state.busy.classes || state.busy.workspace || state.busy.command}
+          onPress={() => void state.retry()}
+        >
+          <RefreshCw size={16} />
+          Tentar novamente
+        </Button>
+      ) : null}
+      <CouncilStatusV3 busy={state.busy} failure={state.failure} stale={state.stale} />
+      {!workspace && !state.busy.workspace && !state.busy.classes && !state.failure ? (
         <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-separator bg-surface-secondary/40 p-8 text-center">
           <div>
             <Scale className="mx-auto mb-3 text-muted" />
-            <strong className="text-sm">Escolha uma turma para abrir a pauta</strong>
-            <p className="mt-1 text-xs text-muted">
-              A fila, os resultados e o histórico serão carregados no mesmo snapshot.
-            </p>
+            <strong className="text-sm">
+              {state.classes.length
+                ? 'Escolha uma turma para abrir a pauta'
+                : 'Nenhuma turma com alunos para o Conselho'}
+            </strong>
           </div>
         </div>
       ) : null}
       {workspace ? (
         <>
-          <div className="council-kpi-group" aria-label="Resumo do Conselho">
-            <Metric icon={<Users size={19} />} label="alunos" value={workspace.summary.total} />
+          <div className="council-kpi-group" role="group" aria-label="Resumo do Conselho">
+            <Metric
+              icon={<Users size={19} />}
+              label={workspace.summary.total === 1 ? 'aluno' : 'alunos'}
+              value={workspace.summary.total}
+            />
             <Metric
               icon={<Scale size={19} />}
-              label="elegíveis"
-              value={workspace.summary.eligible}
+              // Who is deliberated on, so that it is always the sum of the two counts beside it.
+              label={votable.length === 1 ? 'elegível' : 'elegíveis'}
+              value={votable.length}
             />
             <Metric
               icon={<Clock3 size={19} />}
@@ -981,24 +632,22 @@ export function RelationalCouncilPageV3() {
             />
             <Metric
               icon={<CheckCircle2 size={19} />}
-              label="decididos"
+              label={workspace.summary.decided === 1 ? 'decidido' : 'decididos'}
               value={workspace.summary.decided}
               tone="success"
             />
           </div>
-          <CouncilSessionCardV3
-            workspace={workspace}
-            reason={sessionReason}
-            onReason={setSessionReason}
-            confirmClose={confirmClose}
-            onConfirmClose={setConfirmClose}
-            busy={state.busy.command}
-            onSessionCommand={(operation) => void sessionCommand(operation)}
-          />
-          {eligible.length ? (
-            <div className="council-layout">
-              <aside className="min-w-0">
-                <div className="council-board" aria-label="Fluxo dos alunos elegíveis">
+          {votable.length ? (
+            <CouncilSessionV3
+              workspace={workspace}
+              busy={state.busy.command}
+              onOpen={() => void state.openSession()}
+            />
+          ) : null}
+          <div className="council-layout">
+            <aside className="min-w-0">
+              <div className="council-board" role="group" aria-label="Fila do Conselho">
+                {votable.length ? (
                   <section className="council-board__column">
                     <header>
                       <span className="size-2 rounded-full bg-warning" />
@@ -1022,6 +671,8 @@ export function RelationalCouncilPageV3() {
                       ) : null}
                     </div>
                   </section>
+                ) : null}
+                {decided.length ? (
                   <section className="council-board__column">
                     <header>
                       <span className="size-2 rounded-full bg-success" />
@@ -1039,61 +690,39 @@ export function RelationalCouncilPageV3() {
                       ))}
                     </div>
                   </section>
-                </div>
-              </aside>
-              <main className="min-w-0">
-                {selected ? (
-                  <StudentPanel
-                    key={selected.id}
-                    student={selected}
-                    sessionOpen={workspace.session.state === 'open'}
-                    busy={state.busy.command}
-                    onCommand={state.command}
-                    onMessage={setMessage}
-                    onDirtyChange={setStudentDirty}
-                  />
                 ) : null}
-              </main>
+                {informed.length ? (
+                  <section className="council-board__column">
+                    <header>
+                      <span className="size-2 rounded-full bg-muted" />
+                      <strong>Para conhecimento</strong>
+                      <span>{informed.length}</span>
+                    </header>
+                    <div className="council-board__cards">
+                      {informed.map((student) => (
+                        <QueueCard
+                          key={student.id}
+                          student={student}
+                          selected={selected?.id === student.id}
+                          onSelect={() => setSelectedStudentId(student.id)}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            </aside>
+            <div className="council-layout__student min-w-0">
+              {selected ? (
+                <StudentDeckV3
+                  queue={queue}
+                  position={position}
+                  year={workspace.context.year}
+                  onSelect={setSelectedStudentId}
+                />
+              ) : null}
             </div>
-          ) : (
-            <Alert status="default">
-              <Alert.Content>
-                <Alert.Title>Nenhum aluno elegível nesta turma</Alert.Title>
-                <Alert.Description>
-                  Os motivos calculados permanecem disponíveis abaixo; nenhuma decisão foi
-                  inventada.
-                </Alert.Description>
-              </Alert.Content>
-            </Alert>
-          )}
-          {notEligible.length ? (
-            <details className="rounded-2xl border border-separator bg-surface p-4">
-              <summary className="flex cursor-pointer list-none items-center gap-2 font-medium">
-                <Users size={17} />
-                Não elegíveis{' '}
-                <Chip size="sm" variant="soft">
-                  <Chip.Label>{notEligible.length}</Chip.Label>
-                </Chip>
-                <span className="ml-auto text-xs text-muted">Ver motivos</span>
-              </summary>
-              <ul className="mt-3 grid gap-2">
-                {notEligible.map((student) => (
-                  <li
-                    key={student.id}
-                    className="flex flex-col gap-1 rounded-xl bg-surface-secondary p-3 sm:flex-row sm:items-center"
-                  >
-                    <span className="font-medium">
-                      Nº {student.number} · {student.name}
-                    </span>
-                    <span className="text-xs text-muted sm:ml-auto">
-                      {student.eligibility.label}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
-          <CouncilHistoryV3 workspace={workspace} />
+          </div>
         </>
       ) : null}
     </section>
