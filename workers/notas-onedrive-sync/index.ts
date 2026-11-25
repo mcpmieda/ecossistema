@@ -28,6 +28,7 @@ import {
   graphProbeLockV1,
   graphReplaceWorkbookV1,
 } from '../../server/gradebook/onedrive-sync/links/graph-links-v1';
+import { legacyXlsNameV1 } from '../../server/gradebook/onedrive-sync/links/link-rules-v1';
 import {
   runLinkRefreshV1,
   type LinkRefreshInputV1,
@@ -297,6 +298,13 @@ export async function handleAdminV1(
   if (!parsed.success || !actor.id || !actor.name)
     return { contractVersion: version, state: 'invalid-request' };
   const request = parsed.data;
+  // The links of an .xls can never be rewritten: one chosen alone is refused.
+  if (
+    request.action === 'links-add-target' &&
+    request.kind === 'file' &&
+    legacyXlsNameV1(request.path)
+  )
+    return { contractVersion: version, state: 'invalid-request' };
   try {
     switch (request.action) {
       case 'status':

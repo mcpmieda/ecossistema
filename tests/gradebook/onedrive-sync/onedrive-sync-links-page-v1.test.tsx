@@ -78,6 +78,38 @@ it('shows the links like the reading: header with the last update, then the work
   });
 });
 
+it('an .xls is not offered as a links destination; the reading still offers it (#1541)', async () => {
+  vi.mocked(requestOneDriveSyncV1).mockImplementation(async (request) => {
+    const answer = previewOneDriveSyncV1(JSON.stringify(request));
+    return answer.state === 'folders'
+      ? {
+          ...answer,
+          files: [
+            { id: 'file-xls', name: 'ANTIGA SINTETICA.xls', size: 10 },
+            { id: 'file-xlsb', name: 'NOVA SINTETICA.xlsb', size: 10 },
+          ],
+        }
+      : answer;
+  });
+  render(<OneDriveSyncPageV1 />);
+  await screen.findByText('Vínculos entre planilhas');
+  const links = screen
+    .getByRole('heading', { name: 'Pastas e planilhas' })
+    .closest('section') as HTMLElement;
+  await act(async () => {
+    fireEvent.click(within(links).getByRole('button', { name: /Adicionar/u }));
+  });
+  await within(links).findByText('NOVA SINTETICA.xlsb');
+  expect(within(links).queryByText('ANTIGA SINTETICA.xls')).toBeNull();
+  expect(within(links).getAllByRole('button', { name: 'Usar só este arquivo' })).toHaveLength(1);
+
+  const sources = screen.getByRole('heading', { name: 'Fontes' }).closest('section') as HTMLElement;
+  await act(async () => {
+    fireEvent.click(within(sources).getByRole('button', { name: /Adicionar/u }));
+  });
+  expect(await within(sources).findByText('ANTIGA SINTETICA.xls')).toBeTruthy();
+});
+
 it('recalculation of the cells: off by default, switched on and off, with the audit of each workbook (#1541)', async () => {
   render(<OneDriveSyncPageV1 />);
   await screen.findByText('Recalcular células');

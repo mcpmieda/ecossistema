@@ -27,6 +27,7 @@ import {
   expiredLinkLeasesV1,
   expiredLinkResultV1,
   finishLinkRefreshV1,
+  legacyXlsNameV1,
   LINK_DESTINATION_SETTLE_MS_V1,
   LINK_SOURCE_SETTLE_MS_V1,
   linkFilesByRecentV1,
@@ -734,6 +735,11 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     const maxBytes = Number(this.env.NOTAS_MAX_WORKBOOK_BYTES) || DEFAULT_MAX_BYTES;
     const settings = this.linkSettings();
     for (const file of due) {
+      // An .xls kept from before they were left out leaves the list instead of failing again.
+      if (legacyXlsNameV1(file.name)) {
+        this.saveLinkFile({ ...file, removed: true, state: 'idle', dueAt: null });
+        continue;
+      }
       const lease = crypto.randomUUID();
       this.saveLinkFile(startLinkRefreshV1(file, lease, now));
       const recalculate = recalculateOnThisTryV1(settings, file);

@@ -1,5 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
+import {
+  expiredLinkResultV1,
+  newLinkFileV1,
+  type LinkFileV1,
+} from '../../../server/gradebook/onedrive-sync/links/link-rules-v1';
 import type { LinkRefreshResultV1 } from '../../../server/gradebook/onedrive-sync/links/run-link-refresh-v1';
 import {
   newSyncFileV1,
@@ -164,6 +169,30 @@ describe('Notas OneDrive sync Worker', () => {
     expect(await handleAdminV1(env, { id: '', name: '' }, { action: 'status' })).toMatchObject({
       state: 'invalid-request',
     });
+  });
+
+  it('admin entry: an .xls chosen alone as a links destination is refused (#1541)', async () => {
+    const { stub, namespace } = coordinatorMock();
+    const env = envV1({ NOTAS_SYNC: namespace as never });
+    const target = (kind: 'file' | 'folder', path: string) => ({
+      action: 'links-add-target',
+      itemId: 'synthetic-item',
+      kind,
+      path,
+    });
+    expect(await handleAdminV1(env, admin, target('file', 'A/ANTIGA SINTETICA.XLS'))).toMatchObject(
+      { state: 'invalid-request' },
+    );
+    expect(stub.control).not.toHaveBeenCalled();
+    for (const [kind, path] of [
+      ['file', 'A/NOVA SINTETICA.xlsb'],
+      ['file', 'A/NOVA SINTETICA.xlsx'],
+      ['folder', 'A/PASTA.xls'],
+    ] as const)
+      expect(await handleAdminV1(env, admin, target(kind, path))).toMatchObject({
+        state: 'status',
+      });
+    expect(stub.control).toHaveBeenCalledTimes(3);
   });
 
   it('admin entry: a coordinator failure is reported as unavailable', async () => {
@@ -546,5 +575,48 @@ describe('a teacher workbook written by the links refresh (#1541)', () => {
     const quiet = coordinator(read());
     quiet.ack.acknowledgeLinkWrite('w1', { ...written('h2'), recalc: recalc(0) });
     expect(quiet.saved).toEqual([expect.objectContaining({ processedHash: 'h2' })]);
+  });
+});
+
+describe('an .xls kept as a links destination from before (#1541)', () => {
+  type Start = { startLinkRefreshes(now: number): Promise<void> };
+  const NOW = 5_000_000;
+  const due = (id: string, name: string): LinkFileV1 => ({
+    ...newLinkFileV1({ id, name, hash: 'h1', modifiedAt: 't1' }, 'folder-1', NOW - 1),
+    lastOutcome: 'failed',
+    lastCode: 'LINKS-FAILED',
+  });
+
+  it('leaves the list when due instead of being tried again; the others start', async () => {
+    const saved: LinkFileV1[] = [];
+    const inflight = new Set<Promise<void>>();
+    const fetch = vi.fn(async (_url: string, _init: RequestInit) =>
+      Response.json(expiredLinkResultV1()),
+    );
+    const proto = NotasSyncCoordinatorV1.prototype as unknown as Record<string, unknown>;
+    const self: Record<string, unknown> = {
+      env: { SELF: { fetch } },
+      inflight,
+      settings: () => ({ enabled: true, paused: false, maxParallel: 6 }),
+      linkSettings: () => ({ enabled: true, targets: {} }),
+      meta: (key: string, fallback: unknown) =>
+        key === 'driveWebUrl' ? 'https://synthetic.sharepoint.com/drive' : fallback,
+      knownDriveId: () => 'synthetic-drive',
+      linkFiles: () => [due('x1', 'ANTIGA SINTETICA.xls'), due('x2', 'NOVA SINTETICA.xlsb')],
+      saveLinkFile: (file: LinkFileV1) => saved.push(file),
+      event: vi.fn(),
+      finishLinkRefresh: vi.fn(),
+    };
+    self.startLinkRefreshes = (proto.startLinkRefreshes as (...args: unknown[]) => unknown).bind(
+      self,
+    );
+    await (self as unknown as Start).startLinkRefreshes(NOW);
+    await Promise.all(inflight);
+    expect(saved).toEqual([
+      expect.objectContaining({ id: 'x1', removed: true, state: 'idle', dueAt: null }),
+      expect.objectContaining({ id: 'x2', removed: false, state: 'working' }),
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetch.mock.calls[0]![1].body))).toMatchObject({ itemId: 'x2' });
   });
 });

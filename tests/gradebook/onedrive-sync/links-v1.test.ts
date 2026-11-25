@@ -22,6 +22,7 @@ import {
 import {
   changedSourcesV1,
   finishLinkRefreshV1,
+  legacyXlsNameV1,
   linkFilesByRecentV1,
   linkFilesToStartV1,
   linkTargetOfV1,
@@ -1352,6 +1353,79 @@ describe('link rules', () => {
     );
     expect(observedLinkFileV1(file(), item, target, NOW)).toBeNull();
     expect(observedLinkFileV1(null, item, null, NOW)).toBeNull();
+  });
+
+  it('an .xls of a chosen folder never joins: its links cannot be rewritten; one kept leaves', () => {
+    const target = { itemId: 'folder-1', kind: 'folder' as const, path: 'A', setBy: 'x', setAt: 0 };
+    const xls = {
+      id: 'dest-x',
+      name: 'ANTIGA SINTETICA.xls',
+      quickXorHash: 'h1',
+      lastModifiedDateTime: 't1',
+      deleted: false,
+    };
+    expect(observedLinkFileV1(null, xls, target, NOW)).toBeNull();
+    const kept = file({ id: 'dest-x', name: xls.name, lastOutcome: 'failed', attempts: 4 });
+    expect(observedLinkFileV1(kept, xls, target, NOW)).toMatchObject({
+      removed: true,
+      state: 'idle',
+      dueAt: null,
+    });
+    // Renamed to .xls, it leaves too; back to .xlsb, it joins again.
+    expect(observedLinkFileV1(file(), { ...xls, id: 'dest-1' }, target, NOW)).toMatchObject({
+      removed: true,
+    });
+    expect(
+      observedLinkFileV1({ ...kept, removed: true }, { ...xls, name: 'NOVA.xlsb' }, target, NOW),
+    ).toMatchObject({ removed: false, state: 'pending' });
+    expect(['A.xls', 'A.XLS', 'A.xlsb', 'A.xlsx', 'A.xlsm'].map(legacyXlsNameV1)).toEqual([
+      true,
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it('a check that finds the links in step clears an older write’s recalculation note', () => {
+    const note = '18 fórmula(s) não bateram com o Excel nos valores antigos (ex.: 6A!K1)';
+    const finish = (current: LinkFileV1, extra: Partial<LinkRefreshResultV1>) =>
+      finishLinkRefreshV1(startLinkRefreshV1(current, 'L1', NOW), 'L1', result(extra), NOW)!;
+    // The write leaves its note and nothing pending (results brought up to date).
+    const written = finish(file(), {
+      outcome: 'written',
+      changedCells: 4,
+      written: { hash: 'h2', modifiedAt: 't2' },
+      recalc: { cells: 30, skipped: 18, mismatches: 18, note },
+      pending: null,
+    });
+    expect(written).toMatchObject({ recalcNote: note, pendingLinks: null });
+    // Transient outcomes say nothing about it: the note stays.
+    for (const outcome of [
+      'locked',
+      'changed-meanwhile',
+      'settling',
+      'failed',
+      'too-large',
+    ] as const)
+      expect(finish(written, { outcome }).recalcNote).toBe(note);
+    // The nightly check (or "Conferir tudo") finds the links in step: the note goes; the counts of
+    // that write stay with its date.
+    expect(finish(written, { outcome: 'unchanged' })).toMatchObject({
+      recalcNote: null,
+      recalcCells: 30,
+      recalcSkipped: 18,
+      lastWrittenAt: NOW,
+    });
+    expect(finish(written, { outcome: 'no-links' }).recalcNote).toBeNull();
+    // Values still waiting for Excel: the note stays until they are gone.
+    const waiting: LinkFileV1 = {
+      ...written,
+      pendingLinks: { overflow: true, cells: [], hash: 'h2' },
+    };
+    expect(finish(waiting, { outcome: 'unchanged' }).recalcNote).toBe(note);
+    // Saved in Excel since (the run drops them): nothing waits any more.
+    expect(finish(waiting, { outcome: 'unchanged', pending: null }).recalcNote).toBeNull();
   });
 
   it('starts at most two at once, the oldest first', () => {

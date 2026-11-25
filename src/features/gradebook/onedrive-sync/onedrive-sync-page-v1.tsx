@@ -290,12 +290,15 @@ function SourcePicker({
   folderLabel,
   fileLabel,
   previewRequired,
+  acceptsFile,
   onChosen,
   onCancel,
 }: Readonly<{
   folderLabel: string;
   fileLabel: string;
   previewRequired: boolean;
+  /** Which workbooks may be chosen alone (the links refresh cannot rewrite an .xls). */
+  acceptsFile?: (name: string) => boolean;
   onChosen: (source: ChosenSourceV1) => Promise<void>;
   onCancel: () => void;
 }>) {
@@ -309,6 +312,9 @@ function SourcePicker({
   const [attempt, setAttempt] = useState(0);
   const current = trail.at(-1) ?? null;
   const path = trail.map((item) => item.name).join('/');
+  const choosable = acceptsFile
+    ? workbooks.filter((workbook) => acceptsFile(workbook.name))
+    : workbooks;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -378,7 +384,7 @@ function SourcePicker({
         <Spinner size="sm" />
       ) : (
         <ul className="grid max-h-64 gap-1 overflow-auto">
-          {(folders ?? []).length === 0 && workbooks.length === 0 ? (
+          {(folders ?? []).length === 0 && choosable.length === 0 ? (
             <li className="text-sm text-muted">Nada aqui.</li>
           ) : null}
           {(folders ?? []).map((folder) => (
@@ -395,7 +401,7 @@ function SourcePicker({
             </li>
           ))}
           <WorkbookChoices
-            workbooks={workbooks}
+            workbooks={choosable}
             label={fileLabel}
             disabled={busy !== null}
             onChoose={(workbook) => {
@@ -880,6 +886,7 @@ function LinksSection({
                 folderLabel="Usar esta pasta"
                 fileLabel="Usar só este arquivo"
                 previewRequired={false}
+                acceptsFile={(name) => !/\.xls$/iu.test(name)}
                 onCancel={() => setPicking(false)}
                 onChosen={async (target) => {
                   await send({

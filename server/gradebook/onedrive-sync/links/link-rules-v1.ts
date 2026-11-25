@@ -72,6 +72,30 @@ function pendingAfterV1(
   return { ...result.pending, hash: result.written?.hash ?? null };
 }
 
+/** Outcomes with nothing to write: the links already match their sources, or there are none. */
+const LINKS_IN_STEP_V1: ReadonlySet<LinkRefreshOutcomeV1> = new Set(['unchanged', 'no-links']);
+
+/**
+ * The recalculation note after a refresh: a write brings its own; a check that finds the links in
+ * step with nothing left for Excel to recalculate clears the one of an older write; anything else
+ * (open, saved meanwhile, failed) keeps it.
+ */
+function recalcNoteAfterV1(
+  file: LinkFileV1,
+  result: LinkRefreshResultV1,
+  pending: StoredPendingLinkValuesV1 | null,
+): string | null {
+  if (result.outcome === 'written') return result.recalc?.note ?? null;
+  const nothingPending = !pending || (!pending.overflow && pending.cells.length === 0);
+  if (LINKS_IN_STEP_V1.has(result.outcome) && nothingPending) return null;
+  return file.recalcNote ?? null;
+}
+
+/** The old binary .xls is not a ZIP package: the refresh can never rewrite its links. */
+export function legacyXlsNameV1(name: string): boolean {
+  return /\.xls$/iu.test(name);
+}
+
 /** A source saved: its dependants wait this long for more saves of the same burst. */
 export const LINK_SOURCE_SETTLE_MS_V1 = 60_000;
 /** Saves of many sources (the Banco depends on every teacher) delay a refresh at most this long. */
@@ -235,6 +259,7 @@ export function finishLinkRefreshV1(
   now: number,
 ): LinkFileV1 | null {
   if (file.state !== 'working' || file.lease !== lease) return null;
+  const pendingLinks = pendingAfterV1(file, result);
   const base: LinkFileV1 = {
     ...file,
     name: result.seen?.name ?? file.name,
@@ -258,9 +283,8 @@ export function finishLinkRefreshV1(
       result.outcome === 'written'
         ? (result.recalc?.skipped ?? null)
         : (file.recalcSkipped ?? null),
-    recalcNote:
-      result.outcome === 'written' ? (result.recalc?.note ?? null) : (file.recalcNote ?? null),
-    pendingLinks: pendingAfterV1(file, result),
+    recalcNote: recalcNoteAfterV1(file, result, pendingLinks),
+    pendingLinks,
   };
   const waiting = savedWhileWorkingV1(file);
   const retry = (delay: number, attempts: number): LinkFileV1 => ({
@@ -356,7 +380,7 @@ export function linkFilesByRecentV1<
 /**
  * A workbook OneDrive reports: a deleted one, or one moved out of the chosen folders, leaves the
  * list; a new one of a chosen folder joins it (its links are read at once); a renamed one keeps
- * its record. Null when nothing changes.
+ * its record. An .xls never joins (one already listed leaves). Null when nothing changes.
  */
 export function observedLinkFileV1(
   current: LinkFileV1 | null,
@@ -370,7 +394,7 @@ export function observedLinkFileV1(
   target: LinkTargetV1 | null,
   now: number,
 ): LinkFileV1 | null {
-  if (item.deleted || !target) {
+  if (item.deleted || !target || legacyXlsNameV1(item.name)) {
     if (!current || current.removed) return null;
     return {
       ...current,
