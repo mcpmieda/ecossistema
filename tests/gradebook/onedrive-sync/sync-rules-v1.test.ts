@@ -202,10 +202,27 @@ describe('10 s poll while someone edits (owner decision 15/11/2026)', () => {
     expect(safetyDeltaIntervalMsV1(holiday)).toBe(60 * 60_000);
     expect(day.retryAfter).toBeNull();
   });
-  it('without the Portal answer, weekdays 07:00–18:00 and asks again within the hour', () => {
+  it('the lesson hours do not change the poll: only whether it is a school day (#1541, 1)', () => {
+    const now = at('2026-11-16T22:00:00-03:00');
+    const read = (starts: string, ends: string) =>
+      pollWindowV1('2026-11-16', { schoolDay: true, starts, ends, source: 'calendar' }, now);
+    expect(read('07:20', '17:30')).toEqual({
+      day: '2026-11-16',
+      schoolDay: true,
+      source: 'calendar',
+      retryAfter: null,
+    });
+    // After the bells, or with hours the Portal could not give, it is still 25 min and 15 min.
+    for (const window of [read('07:20', '17:30'), read('xx', '')]) {
+      expect(editPollUntilV1(window, now)).toBe(now + 25 * 60_000);
+      expect(safetyDeltaIntervalMsV1(window)).toBe(15 * 60_000);
+    }
+  });
+  it('without the Portal answer, weekdays are school days and it asks again within the hour', () => {
     const now = at('2026-11-15T12:00:00-03:00');
     const sunday = pollWindowV1('2026-11-15', null, now);
-    expect(sunday).toMatchObject({
+    expect(sunday).toEqual({
+      day: '2026-11-15',
       schoolDay: false,
       source: 'weekday-fallback',
       retryAfter: now + 3_600_000,

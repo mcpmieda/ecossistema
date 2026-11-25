@@ -322,18 +322,13 @@ export type SchoolDayWindowV1 = {
   readonly source: string;
 };
 
-/** Whether `day` is a school day (calendar of the Portal), and its lesson hours. */
+/** Whether `day` is a school day (calendar of the Portal); only that sets the poll times. */
 export type PollWindowV1 = {
   readonly day: string;
   readonly schoolDay: boolean;
-  readonly startsAt: number;
-  readonly endsAt: number;
   readonly source: string;
   readonly retryAfter: number | null;
 };
-const POLL_MARGIN_BEFORE_MS_V1 = 30 * 60_000;
-const POLL_MARGIN_AFTER_MS_V1 = 60 * 60_000;
-const HHMM_V1 = /^([01]\d|2[0-3]):([0-5]\d)$/u;
 
 /** The school's day (America/Bahia, UTC−3, no daylight saving) of an instant. */
 export function schoolDayOfV1(now: number): string {
@@ -341,32 +336,19 @@ export function schoolDayOfV1(now: number): string {
 }
 
 /**
- * The poll window of `day` from what the Portal answered; without an answer (Portal unreachable),
- * Monday to Friday 07:00–18:00, asked again within the hour.
+ * Whether `day` is a school day, from what the Portal answered; without an answer (Portal
+ * unreachable), Monday to Friday, asked again within the hour.
  */
 export function pollWindowV1(
   day: string,
   read: SchoolDayWindowV1 | null,
   now: number,
 ): PollWindowV1 {
-  const at = (time: string) => Date.parse(`${day}T${HHMM_V1.test(time) ? time : '07:00'}:00-03:00`);
-  if (read) {
-    const ends = HHMM_V1.test(read.ends) ? read.ends : '18:00';
-    return {
-      day,
-      schoolDay: read.schoolDay,
-      startsAt: at(read.starts) - POLL_MARGIN_BEFORE_MS_V1,
-      endsAt: at(ends) + POLL_MARGIN_AFTER_MS_V1,
-      source: read.source,
-      retryAfter: null,
-    };
-  }
+  if (read) return { day, schoolDay: read.schoolDay, source: read.source, retryAfter: null };
   const weekday = new Date(`${day}T12:00:00-03:00`).getUTCDay();
   return {
     day,
     schoolDay: weekday >= 1 && weekday <= 5,
-    startsAt: at('07:00') - POLL_MARGIN_BEFORE_MS_V1,
-    endsAt: at('18:00') + POLL_MARGIN_AFTER_MS_V1,
     source: 'weekday-fallback',
     retryAfter: now + 60 * 60_000,
   };

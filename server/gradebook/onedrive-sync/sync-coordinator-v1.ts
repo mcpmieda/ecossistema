@@ -151,7 +151,7 @@ export interface SyncCoordinatorEnvV1 extends GraphAppEnvV1 {
   NOTAS_SYNC_READ_TOKEN?: string;
   NOTAS_MAX_WORKBOOK_BYTES?: string;
   SELF: SyncReaderV1;
-  /** The Portal's minute and its school hours (calendar and bells) for the 10 s poll. */
+  /** The Portal's minute, and its calendar (whether a day is a school day) for the 10 s poll. */
   PORTAL_SCHEDULER?: { pollWindow?(day: string): Promise<SchoolDayWindowV1 | null> };
   /** The deployed version this code belongs to (binding `CF_VERSION_METADATA`). */
   CF_VERSION_METADATA?: CodeVersionV1;
@@ -632,11 +632,11 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
   /**
    * Link destinations and sources in what OneDrive reports: a new workbook of a chosen folder joins
    * the list; a saved source (new content, not the refresh's own write) refreshes the workbooks
-   * whose links use it, once its burst of saves settles.
+   * whose links use it, once its burst of saves settles. True when such a save was seen.
    */
-  private observeLinks(items: readonly DriveWorkbookV1[], now: number): void {
+  private observeLinks(items: readonly DriveWorkbookV1[], now: number): boolean {
     const settings = this.linkSettings();
-    if (!settings.enabled || items.length === 0) return;
+    if (!settings.enabled || items.length === 0) return false;
     const files = new Map(this.linkFiles().map((file) => [file.id, file]));
     for (const item of items) {
       const target = linkTargetOfV1(item, settings.targets);
@@ -645,18 +645,18 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       this.saveLinkFile(next);
       files.set(next.id, next);
     }
-    this.observeLinkSources(items, [...files.values()], now);
+    return this.observeLinkSources(items, [...files.values()], now);
   }
 
-  /** A saved source refreshes the workbooks whose links use it. */
+  /** A saved source refreshes the workbooks whose links use it; true when one was asked. */
   private observeLinkSources(
     items: readonly DriveWorkbookV1[],
     files: readonly LinkFileV1[],
     now: number,
-  ): void {
+  ): boolean {
     const used = new Set(files.flatMap((file) => file.sources));
     const relevant = items.filter((item) => used.has(item.id));
-    if (relevant.length === 0) return;
+    if (relevant.length === 0) return false;
     const known = this.meta<Record<string, string | null>>('linkSourceHashes', {});
     const { changed, seen } = changedSourcesV1(
       relevant.map((item) => ({ id: item.id, hash: item.quickXorHash, deleted: item.deleted })),
@@ -664,10 +664,52 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       new Map(files.map((file) => [file.id, file.ownHash])),
     );
     this.setMeta('linkSourceHashes', { ...known, ...seen });
-    if (changed.length === 0) return;
+    let asked = false;
     for (const file of files)
-      if (file.sources.some((source) => changed.includes(source)))
+      if (!file.removed && file.sources.some((source) => changed.includes(source))) {
         this.saveLinkFile(requestLinkRefreshV1(file, changed, now, LINK_SOURCE_SETTLE_MS_V1));
+        asked = true;
+      }
+    return asked;
+  }
+
+  /**
+   * After Graph forgot the delta cursor, a link source no source lists (a simulado) may have been
+   * saved meanwhile: each one is asked of OneDrive, after the new cursor was taken. A Graph error
+   * only makes the links wait; the nightly check still refreshes every link.
+   */
+  private async checkLinkSources(
+    now: number,
+    driveId: string,
+    listed: ReadonlySet<string>,
+  ): Promise<void> {
+    // Taken now: it is not repeated after an error (the nightly check covers it).
+    this.setMeta('linkSourcesCheck', false);
+    if (!this.linkSettings().enabled) return;
+    const ids = new Set(
+      this.linkFiles()
+        .filter((file) => !file.removed)
+        .flatMap((file) => file.sources)
+        .filter((id) => !listed.has(id)),
+    );
+    const found: DriveWorkbookV1[] = [];
+    try {
+      for (const id of ids) {
+        const item = await graphWorkbookItemV1(this.env, driveId, id);
+        if (item) found.push(item);
+      }
+    } catch (cause) {
+      this.backOffLinks(now, cause);
+    }
+    const asked = this.observeLinks(found, now);
+    console.log(
+      JSON.stringify({
+        event: 'notas-sync-link-sources-check',
+        sources: ids.size,
+        found: found.length,
+        asked,
+      }),
+    );
   }
 
   /** Starts the link refreshes that are due; the alarm loop awaits them like the reads. */
@@ -1120,17 +1162,21 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
       delta = await graphDriveDeltaV1(this.env, driveId, link);
     } catch (cause) {
       if (!(cause instanceof DeltaResyncRequiredError)) throw cause;
-      // Graph forgot the cursor (410) or it is too old: list the sources from the current one.
+      // Graph forgot the cursor (410) or it is too old: list the sources from the current one, and
+      // ask for the link sources they do not list (kept until a listing ends, if this one fails).
       this.event('delta-resync', {});
       this.setMeta('deltaLink', null);
+      this.setMeta('linkSourcesCheck', true);
       await this.resyncSources(now, driveId, false);
       return;
     }
     // A workbook saved opens (or extends) the 10 s poll: the next saves, and Excel Online's content
-    // written after the date it reports, arrive without waiting for Microsoft's notice.
-    if (this.observe(delta.changes, now))
+    // written after the date it reports, arrive without waiting for Microsoft's notice. A saved link
+    // source (a simulado that is not a source of grades) too; never the refresh's own write.
+    const saved = this.observe(delta.changes, now);
+    const linkSourceSaved = this.observeLinks(delta.changes, now);
+    if (saved || linkSourceSaved)
       this.setMeta('editPollUntil', editPollUntilV1(await this.pollWindow(now), now));
-    this.observeLinks(delta.changes, now);
     this.setMeta('deltaLink', delta.deltaLink);
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
@@ -1173,6 +1219,7 @@ export class NotasSyncCoordinatorV1 extends DurableObject<SyncCoordinatorEnvV1> 
     this.setMeta('deltaRequested', false);
     this.setMeta('lastDeltaAt', now);
     this.event(nightly ? 'full-check' : 'source-listing', { files: listed.length });
+    if (this.meta('linkSourcesCheck', false)) await this.checkLinkSources(now, driveId, present);
   }
 
   /** The workbooks of one source; a folder deleted in OneDrive lists none (its files end up removed). */
