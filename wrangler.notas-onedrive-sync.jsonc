@@ -1,6 +1,8 @@
 {
   // Notas OneDrive sync: reads the teachers' grade workbooks from the secretaria's OneDrive and
-  // writes what changed through the existing import, Auditoria and persistence services.
+  // writes what changed through the existing import, Auditoria and persistence services. It also
+  // keeps the links between workbooks up to date, rewriting in OneDrive only each link's copy of the
+  // source cells and, when switched on, the recalculated results of the formulas that use it (#1541).
   // Starts disabled: nothing is read or written until an operator enables it.
   // Secrets (set outside the repository): GRAPH_CREDENTIAL_A, GRAPH_CREDENTIAL_B (written by
   // entra-maintenance.yml), NOTAS_SYNC_CLIENT_STATE and NOTAS_SYNC_READ_TOKEN. Operated only from the admin centre

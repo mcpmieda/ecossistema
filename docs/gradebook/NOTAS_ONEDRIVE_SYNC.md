@@ -8,9 +8,9 @@ O Worker `notas-onedrive-sync` lê as planilhas de notas dos professores na past
 2. Cada arquivo tem uma leitura por vez. Um salvamento durante a leitura faz o arquivo ser relido logo depois. Arquivo com o mesmo *hash* da última leitura é pulado sem download.
 3. A leitura grava primeiro a Auditoria (com a origem `onedrive:<id do item>`, para não apagar a de outra planilha de mesmo nome; #1462) e depois as notas. Pelo bloqueio parcial (BN-DEC-045), um problema segura só a nota, o resultado ou a turma afetada; o resto é lançado.
 4. Depois de gravar, o Portal recebe o aviso ao vivo; a publicação continua sendo decidida na tela de publicação.
-5. Rede de segurança: *delta* de hora em hora (a cada minuto se o webhook não estiver ativo) e conferência completa da pasta às 03:00.
+5. Rede de segurança: *delta* a cada 15 min em dia letivo e a cada 1 h nos outros dias (a cada minuto se o webhook não estiver ativo) e conferência completa da pasta às 03:00.
 6. Disjuntor: 5 leituras de planilha com falha seguidas pausam a leitura por 15 minutos. Erro ao listar o OneDrive só espera 1 min (ou o `Retry-After`) e não conta para o disjuntor; uma leitura que desiste de esperar a vez de gravar (`WRITE-QUEUE-DEADLINE`) também não conta.
-7. Cursor do delta recusado pela Microsoft (410) ou antigo demais: a leitura volta a listar as fontes a partir do cursor atual (`delta-resync`). Religar a leitura também começa do cursor atual.
+7. Cursor do delta recusado pela Microsoft (410) ou antigo demais: a leitura volta a listar as fontes a partir do cursor atual (`delta-resync`). Com os vínculos ligados, as origens de vínculo que nenhuma fonte lista (os simulados) são consultadas uma a uma logo depois, para um salvamento feito nesse intervalo não esperar a conferência das 03:00 (log `notas-sync-link-sources-check`; erro da Graph só faz os vínculos esperarem). Religar a leitura também começa do cursor atual.
 8. A Relação só é gravada quando vem de uma fonte de arquivo único; uma Relação dentro de uma pasta de planilhas fica `ignored` com `RELATION-OUTSIDE-SOURCE`.
 
 Apagar um arquivo da pasta **não apaga notas**: o arquivo só fica marcado como removido.
@@ -21,15 +21,15 @@ O estado operacional (configuração, status por arquivo, posição do *delta*, 
 
 ## Operação
 
-O Worker começa **desligado**. Toda a operação fica no Centro de Administração, em **Banco de notas › Importação › OneDrive**, só para administradores:
+O Worker começa **desligado**. Toda a operação fica no Centro de Administração, em **Banco de notas › Importação › OneDrive**, para quem tem a área Importação (administradores e quem recebeu essa área):
 
 1. **Fontes de leitura:** "Adicionar fonte" navega no OneDrive da secretaria e escolhe uma pasta inteira (com prévia: quantas planilhas, uma leitura de teste sem gravar e o teste do aviso da Graph) ou um arquivo só, como a Relação. Cada fonte fica ligada a um ano letivo e é guardada pelo ID da Graph (renomear não quebra nada). Todas as fontes são lidas do mesmo jeito; para um ano parar de ser lido, remova as fontes dele. Remover uma fonte não apaga notas.
 2. **Ligar, desligar, pausar, retomar e "Conferir tudo agora".**
-3. **Ajustes:** espera depois do salvamento (padrão 0 s) e arquivos em paralelo (padrão 6).
+3. **Paralelo:** o número de leituras ao mesmo tempo é automático (até 6) e só aparece no painel; não há ajuste manual.
 4. **Planilhas:** situação de cada arquivo, horários, tempo de leitura, tempo do salvamento ao lançamento e "Ler de novo".
 5. **Histórico de alterações:** quem mudou o quê e quando.
 
-O Pages confere a sessão de administrador e chama o Worker pela ligação `NOTAS_SYNC_SERVICE` (entrada `NotasSyncAdminV1`). O Worker não tem nenhuma rota pública de operação; a única rota pública recebe os avisos da Graph.
+O Pages confere a sessão e a área Importação e chama o Worker pela ligação `NOTAS_SYNC_SERVICE` (entrada `NotasSyncAdminV1`). O Worker não tem nenhuma rota pública de operação. As rotas públicas são a dos avisos da Graph e, protegidas pelo segredo `NOTAS_SYNC_READ_TOKEN`, `POST /ler` e `POST /portal-agendado` (veja Leitura perto do banco).
 
 Ao ligar pela primeira vez, ou depois de trocar a pasta, todas as planilhas da pasta são lidas e lançadas uma vez (como uma importação completa).
 
@@ -63,9 +63,9 @@ Teste com planilhas reais (restauradas no fim, banco conferido igual ao de antes
 
 Mudanças:
 
-- **Fila de gravação no coordenador:** as leituras correm em paralelo; cada uma pede a vez (`beginWrite`/`endWrite`) antes de gravar Auditoria e notas. Vez não devolvida em 2 min é retomada. A repetição em `55P03` continua como reserva (a importação manual também grava).
+- **Fila de gravação no coordenador:** as leituras correm em paralelo; cada uma pede a vez (`beginWrite`/`endWrite`) antes de gravar Auditoria e notas. Vez não devolvida em 45 s é retomada. A repetição em `55P03` continua como reserva (a importação manual também grava).
 - **O coordenador não fica preso esperando um lote:** enquanto as leituras rodam, ele olha o aviso da Microsoft a cada 2 s e dispara novas leituras.
-- **Consulta direta a cada 10 s** em dia letivo, de 30 min antes da primeira aula até 1 h depois da última (calendário e sinais do Portal, fuso America/Bahia; sem resposta do Portal, seg–sex 07:00–18:00), sem esperar o aviso da Microsoft.
+- **Consulta direta a cada 10 s** depois do salvamento de uma planilha das fontes, a qualquer hora, sem esperar o aviso da Microsoft. Dura 25 min em dia letivo e 10 min nos outros dias, contados do último salvamento. Do Portal vem só se o dia é letivo (calendário, fuso America/Bahia; sem resposta, seg–sex). Os horários de aula não entram na conta (o cálculo que nunca era usado saiu em 25/11/2026). Desde 25/11/2026, o salvamento de uma origem de vínculo, como um simulado, também abre essa consulta; a gravação do próprio Worker não abre.
 - O log `gradebook_import_performance` (`source: notas-sync`) mostra só números da gravação (comandos, linhas, milissegundos).
 
 ## Leitura perto do banco (14/11/2026)
@@ -111,6 +111,7 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 - Mais de 50.000 células novas num vínculo é tratado como algo fora do esperado. Nenhuma célula nova entra, as já guardadas continuam atualizadas, e o vínculo aparece como sem origem acessível.
 - A origem é procurada pelos ids que o Excel guarda e, se tiver sido apagada e enviada de novo, pelo endereço.
 - No máximo 2 planilhas são atualizadas ao mesmo tempo, cada uma numa invocação própria (`SELF` → `/vinculos`, sem banco). Falha da Graph nos vínculos espera pelo menos 1 min sem atrasar a leitura de notas.
+- Destinos só `.xlsx` e `.xlsb` (25/11/2026). O `.xls` antigo não é um pacote ZIP, então os vínculos dele não podem ser regravados: numa pasta de destino ele é ignorado, um que já estava na lista sai dela em vez de falhar de novo, e o painel não o oferece como planilha de destino (o Worker também recusa). Como origem, o `.xls` continua valendo.
 
 **Gravação segura.**
 - A versão (eTag) é tirada antes do download e o envio é condicional: `createUploadSession` com `if-match`. Se alguém salvou no meio (412), nada é gravado e a planilha volta para a fila.
@@ -124,6 +125,7 @@ Fórmulas, macros, proteção, formato e o resto do pacote não mudam. As partes
 - Até alguém abrir, quem lê a planilha fechada (por exemplo, a leitura automática) vê os resultados do último salvamento.
 - Por isso a gravação do Worker não faz a leitura automática reler uma planilha de professor cujas notas já tinham sido lidas na versão sobrescrita; o salvamento do recálculo, ao abrir, é lido normalmente.
 - Com o **Recálculo das células** ligado (seção abaixo), a gravação que recalculou células é lida como qualquer salvamento.
+- **Relação salva:** a leitura dela relê as planilhas dos professores na hora, antes de os vínculos serem atualizados (1 min depois). Essa primeira releitura ainda vê os resultados antigos das fórmulas. Com o recálculo ligado, a gravação dos vínculos com células recalculadas é lida de novo e completa o ciclo. Com ele desligado, o que depende da Relação só muda no banco quando alguém abre a planilha no Excel.
 
 **Painel.** Banco de notas › Importação › OneDrive › **Vínculos entre planilhas**:
 - ligar e desligar;
@@ -171,7 +173,9 @@ A atualização só roda com a leitura automática ligada e não pausada.
 - No `.xlsb`, um nome da origem que passe da linha 65.536 é gravado pelo Excel como erro, sem a área. As células dele só são atualizadas se já estiverem no cache.
 - No `.xlsx`, uma referência a várias abas de outra pasta (`[1]A:C!B2`) não é lida. Então vale o preenchimento de buracos.
 
-## Recálculo das células (19/11/2026, #1541) — em teste, começa desligado
+## Recálculo das células (19/11/2026, #1541)
+
+**Estado.** No código começa desligado (`linkSettings.recalc` ausente). Em produção foi religado em 20/11/2026 às 07:31 e estava ligado nas 18 planilhas no último registro da #1541 (20/11, 08:34). O valor atual fica no armazenamento do coordenador e aparece no painel (quadro **Recalcular células**).
 
 Ao atualizar um vínculo, o Worker pode recalcular também as fórmulas que dependem dele e gravar os resultados novos na planilha. Assim a leitura automática recebe as notas sem ninguém abrir o arquivo. Só grava o que tem certeza de que o Excel daria igual. As fórmulas nunca mudam: só o resultado guardado de cada uma.
 
@@ -183,7 +187,7 @@ Ao atualizar um vínculo, o Worker pode recalcular também as fórmulas que depe
 - Só `.xlsb`. `.xlsx` e outros formatos ficam como antes, e o painel avisa.
 - Funções calculadas: `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `CONT.VALORES`, `CONTAR.VAZIO`, `E`, `OU`, `NÃO`, `SE`, `SEERRO`, `SENÃO.DISP`, `SES`, `É.CÉL.VAZIA` e demais `É…`, `INT`, `ABS`, `MOD`, `ARRED`, `ARREDONDAR.PARA.CIMA`, `ARREDONDAR.PARA.BAIXO`, `NÚM.CARACT`, `ARRUMAR`, `MAIÚSCULA`, `MINÚSCULA`, `ESQUERDA`, `DIREITA`, `EXT.TEXTO`, `CONCATENAR`, `&`, `CONT.SE`, `CONT.SES`, `SOMASE`, `SOMASES`, `PROCV`, `CORRESP`, `ÍNDICE`, `MAIOR`, `MENOR`, `ESCOLHER`, `SOMARPRODUTO`, `LIN`, matrizes (`{=…}` e `A1#`) e nomes definidos. Texto e números seguem o Excel em português (vírgula decimal, `VERDADEIRO`/`FALSO`).
 
-**Painel.** Em **Vínculos entre planilhas**, o quadro **Recalcular células** liga e desliga (chip "Ligado (teste)"). Em cada planilha aparece "N célula(s) recalculada(s)" e, quando algo ficou como estava, a linha "Recálculo: …" com o motivo principal e uma célula de exemplo. O mesmo texto vai para o Histórico.
+**Painel.** Em **Vínculos entre planilhas**, o quadro **Recalcular células** liga e desliga (chip "Ligado (teste)"). Em cada planilha aparece "N célula(s) recalculada(s)" e, quando algo ficou como estava, a linha "Recálculo: …" com o motivo principal e uma célula de exemplo. O mesmo texto vai para o Histórico. A linha "Recálculo: …" some quando uma conferência encontra os vínculos em dia e nada pendente para o Excel recalcular (25/11/2026). Antes ela só era trocada numa nova gravação, então o aviso de 20/11 ("N fórmula(s) não bateram com o Excel") continuava nas 18 planilhas depois das conferências das 03:00. Arquivo aberto, salvo no meio ou com falha mantém a linha.
 
 **Validação (19/11/2026), em cópias apagadas depois.**
 - Prova nas 18 planilhas dos professores: as 446.415 fórmulas que dependem dos vínculos, recalculadas com os valores atuais, deram todas o que o Excel salvou (nenhuma deixada de lado, nenhuma diferença).
